@@ -1,4 +1,10 @@
-import { Injectable, Logger, OnApplicationBootstrap, OnApplicationShutdown } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnApplicationBootstrap,
+  OnApplicationShutdown,
+  OnModuleDestroy,
+} from '@nestjs/common';
 import { OutboxService } from './outbox.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { EscalationsService } from '../escalations/escalations.service';
@@ -12,7 +18,9 @@ import {
 } from './outbox.constants';
 
 @Injectable()
-export class OutboxPublisherService implements OnApplicationBootstrap, OnApplicationShutdown {
+export class OutboxPublisherService
+  implements OnApplicationBootstrap, OnApplicationShutdown, OnModuleDestroy
+{
   private readonly logger = new Logger(OutboxPublisherService.name);
   private timer: NodeJS.Timeout | null = null;
   private isProcessing = false;
@@ -30,17 +38,27 @@ export class OutboxPublisherService implements OnApplicationBootstrap, OnApplica
     this.trigger();
 
     // Regular polling interval (every 1000ms)
-    this.timer = setInterval(() => {
-      this.trigger();
-    }, 1000);
+    if (process.env.DISABLE_OUTBOX_POLLER !== 'true') {
+      this.timer = setInterval(() => {
+        this.trigger();
+      }, 1000);
+    }
+  }
+
+  onModuleDestroy() {
+    this.stop();
   }
 
   onApplicationShutdown() {
+    this.stop();
+  }
+
+  stop() {
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = null;
+      this.logger.log('Outbox Publisher stopped cleanly.');
     }
-    this.logger.log('Outbox Publisher stopped cleanly.');
   }
 
   /**

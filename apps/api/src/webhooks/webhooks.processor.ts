@@ -39,6 +39,13 @@ export class WebhooksProcessor extends WorkerHost {
       return { skipped: true, reason: 'Delivery record not found' };
     }
 
+    if (delivery.status === 'SENT') {
+      this.logger.log(
+        `Webhook delivery ${deliveryId} is already marked SENT. Skipping duplicate execution.`,
+      );
+      return { skipped: true, reason: 'Already delivered' };
+    }
+
     if (delivery.subscription.status !== 'ACTIVE') {
       this.logger.log(
         `Webhook subscription ${delivery.subscriptionId} is not active (${delivery.subscription.status}). Skipping.`,

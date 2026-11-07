@@ -179,10 +179,22 @@ export async function validateWebhookDestination(
     throw new SSRFProtectionError(`Invalid webhook URL format: ${urlStr}`);
   }
 
-  const isProduction = process.env.NODE_ENV === 'production';
+  // Reject embedded credentials in destination URL
+  if (parsed.username || parsed.password) {
+    throw new SSRFProtectionError(
+      'Embedded credentials (username/password) are not permitted in webhook URLs.',
+    );
+  }
+
+  const isProduction =
+    process.env.NODE_ENV === 'production' ||
+    process.env.APP_ENV === 'production' ||
+    process.env.FLOWGATE_ENV === 'production';
+
+  // Strict production invariants: allowInsecureHttp and allowLoopbackTest are hard-disabled in production
   const allowHttp =
-    options?.allowInsecureHttp ??
-    (!isProduction && process.env.ALLOW_INSECURE_HTTP_WEBHOOKS === 'true');
+    !isProduction &&
+    (options?.allowInsecureHttp === true || process.env.ALLOW_INSECURE_HTTP_WEBHOOKS === 'true');
   const allowLoopbackTest =
     !isProduction &&
     process.env.NODE_ENV === 'test' &&
@@ -357,6 +369,8 @@ export async function executeSafeWebhookRequest(
       path: targetUrl.pathname + targetUrl.search,
       method,
       headers: sanitizedHeaders,
+      // Disable default proxy agents so HTTP_PROXY cannot divert pinned socket connection
+      agent: false,
       // For HTTPS, preserve servername for TLS SNI validation
       servername: isHttps ? targetUrl.hostname : undefined,
       // Custom DNS lookup pins to pre-validated IP to eliminate DNS rebinding TOCTOU
@@ -397,9 +411,9 @@ export async function executeSafeWebhookRequest(
           );
         }
 
-        let redirectUrlStr: string;
+        let redirectUrl: URL;
         try {
-          redirectUrlStr = new URL(res.headers.location, targetUrl).toString();
+          redirectUrl = new URL(res.headers.location, targetUrl);
         } catch {
           cleanup();
           completed = true;
@@ -409,16 +423,26 @@ export async function executeSafeWebhookRequest(
           );
         }
 
+        // If redirect crosses origins, strip sensitive signature and authorization headers
+        const forwardedHeaders = { ...options.headers };
+        if (redirectUrl.origin !== targetUrl.origin) {
+          delete forwardedHeaders['authorization'];
+          delete forwardedHeaders['cookie'];
+          delete forwardedHeaders['set-cookie'];
+          delete forwardedHeaders['x-flowgate-signature'];
+        }
+
         cleanup();
         completed = true;
         req.destroy();
 
         try {
-          // Re-execute with incremented redirect count and same payload
+          // Re-execute with incremented redirect count and sanitized payload
           const redirectRes = await executeSafeWebhookRequest(
             {
               ...options,
-              url: redirectUrlStr,
+              url: redirectUrl.toString(),
+              headers: forwardedHeaders,
             },
             currentRedirectCount + 1,
           );
@@ -432,12 +456,26 @@ export async function executeSafeWebhookRequest(
       let receivedBytes = 0;
 
       res.on('data', (chunk: Buffer) => {
+        const remainingAllowed = maxResponseBytes - receivedBytes;
+        if (remainingAllowed > 0) {
+          const sliceBytes = Math.min(chunk.length, remainingAllowed);
+          responseData += chunk.subarray(0, sliceBytes).toString('utf8');
+        }
         receivedBytes += chunk.length;
-        if (receivedBytes <= maxResponseBytes) {
-          responseData += chunk.toString('utf8');
-        } else if (!completed) {
-          // Truncate response and destroy stream if limit exceeded
+
+        if (receivedBytes > maxResponseBytes && !completed) {
+          // Response limit exceeded: immediately abort the incoming socket stream to protect memory
+          cleanup();
+          completed = true;
           req.destroy();
+          resolve({
+            statusCode,
+            statusMessage: res.statusMessage || '',
+            headers: res.headers,
+            body: responseData,
+            resolvedIp: chosenAddress.address,
+            durationMs: Date.now() - startTime,
+          });
         }
       });
 

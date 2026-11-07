@@ -44,6 +44,7 @@ describe('WebhooksService', () => {
             createdAt: new Date(),
           }),
         ),
+        findFirst: jest.fn().mockResolvedValue(null),
         findUnique: jest.fn(),
         findMany: jest.fn().mockResolvedValue([]),
         count: jest.fn().mockResolvedValue(0),
@@ -55,6 +56,11 @@ describe('WebhooksService', () => {
             ...args.data,
           }),
         ),
+      },
+      inboundWebhookEvent: {
+        findUnique: jest.fn(),
+        create: jest.fn(),
+        update: jest.fn(),
       },
     };
 
@@ -175,6 +181,28 @@ describe('WebhooksService', () => {
         }),
       );
     });
+
+    it('should skip duplicate delivery enqueue when delivery is already marked SENT', async () => {
+      mockPrisma.webhookSubscription.findMany.mockResolvedValue([
+        { id: 'sub-sent', tenantId: 'tenant-1', eventTypes: ['request.created'], status: 'ACTIVE' },
+      ]);
+      mockPrisma.webhookDelivery.findFirst.mockResolvedValueOnce({
+        id: 'del-already-sent',
+        status: 'SENT',
+      });
+      mockPrisma.webhookDelivery.create.mockClear();
+      mockQueue.add.mockClear();
+
+      await service.triggerEvent(
+        'tenant-1',
+        'request.created',
+        { requestId: 'req-1' },
+        'evt-stable-1',
+      );
+
+      expect(mockPrisma.webhookDelivery.create).not.toHaveBeenCalled();
+      expect(mockQueue.add).not.toHaveBeenCalled();
+    });
   });
 
   describe('retryDelivery', () => {
@@ -271,6 +299,7 @@ describe('WebhooksService', () => {
           eventId: 'evt-inbound-100',
           tenantId: 'tenant-1',
         }),
+        update: jest.fn(),
       };
 
       const firstResult = await service.recordInboundEvent(
@@ -281,11 +310,12 @@ describe('WebhooksService', () => {
       expect(firstResult.isDuplicate).toBe(false);
       expect(firstResult.eventId).toBe('evt-inbound-100');
 
-      // 2. Second event with same eventId -> found in DB -> flagged as duplicate
+      // 2. Second event with same eventId -> found in DB within retention window -> flagged as duplicate
       mockPrisma.inboundWebhookEvent.findUnique.mockResolvedValueOnce({
         eventId: 'evt-inbound-100',
         tenantId: 'tenant-1',
         processedAt: new Date(),
+        expiresAt: new Date(Date.now() + 600000), // unexpired
       });
 
       const secondResult = await service.recordInboundEvent(
@@ -295,6 +325,30 @@ describe('WebhooksService', () => {
       );
       expect(secondResult.isDuplicate).toBe(true);
       expect(secondResult.eventId).toBe('evt-inbound-100');
+    });
+
+    it('should permit processing after TTL expiration without violating unique constraint', async () => {
+      mockPrisma.inboundWebhookEvent.findUnique.mockResolvedValueOnce({
+        id: 'evt-rec-old',
+        eventId: 'evt-expired-1',
+        tenantId: 'tenant-1',
+        processedAt: new Date(Date.now() - 120000),
+        expiresAt: new Date(Date.now() - 60000), // Expired!
+      });
+      mockPrisma.inboundWebhookEvent.update.mockResolvedValueOnce({
+        id: 'evt-rec-old',
+        eventId: 'evt-expired-1',
+        tenantId: 'tenant-1',
+      });
+
+      const res = await service.recordInboundEvent(
+        'tenant-1',
+        'evt-expired-1',
+        'payment.succeeded',
+      );
+      expect(res.isDuplicate).toBe(false);
+      expect(res.eventId).toBe('evt-expired-1');
+      expect(mockPrisma.inboundWebhookEvent.update).toHaveBeenCalled();
     });
   });
 });

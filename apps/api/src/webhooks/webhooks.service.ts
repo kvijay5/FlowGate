@@ -227,19 +227,38 @@ export class WebhooksService {
       );
 
       for (const sub of matching) {
-        const delivery = await this.prisma.webhookDelivery.create({
-          data: {
+        // Idempotency check: see if a delivery already exists for this event and subscription
+        let delivery = await this.prisma.webhookDelivery.findFirst({
+          where: {
             tenantId,
             subscriptionId: sub.id,
             eventId,
-            eventType,
-            payload: enrichedPayload as unknown as Prisma.InputJsonValue,
-            status: 'PENDING',
-            maxAttempts: 3,
           },
         });
 
-        const jobId = `tenant_${tenantId}_delivery_${delivery.id}`;
+        if (delivery && delivery.status === 'SENT') {
+          this.logger.log(
+            `Webhook delivery for eventId ${eventId} and subscription ${sub.id} already sent. Skipping duplicate enqueue.`,
+          );
+          continue;
+        }
+
+        if (!delivery) {
+          delivery = await this.prisma.webhookDelivery.create({
+            data: {
+              tenantId,
+              subscriptionId: sub.id,
+              eventId,
+              eventType,
+              payload: enrichedPayload as unknown as Prisma.InputJsonValue,
+              status: 'PENDING',
+              maxAttempts: 3,
+            },
+          });
+        }
+
+        // Deterministic jobId ensures BullMQ idempotency across publisher retries
+        const jobId = `tenant_${tenantId}_sub_${sub.id}_evt_${eventId}`;
         await this.webhookQueue.add(
           JOB_DISPATCH_WEBHOOK,
           {
@@ -448,10 +467,29 @@ export class WebhooksService {
     });
 
     if (existing) {
+      // If still within active retention window, strictly flag as duplicate
+      if (existing.expiresAt > new Date()) {
+        return {
+          isDuplicate: true,
+          eventId,
+          firstProcessedAt: existing.processedAt,
+        };
+      }
+
+      // If TTL retention window has expired, renew the window and permit processing
+      const updated = await this.prisma.inboundWebhookEvent.update({
+        where: { id: existing.id },
+        data: {
+          eventType,
+          processedAt: new Date(),
+          expiresAt: new Date(Date.now() + ttlSeconds * 1000),
+          payloadSummary: (payloadSummary || {}) as unknown as Prisma.InputJsonValue,
+        },
+      });
+
       return {
-        isDuplicate: true,
-        eventId,
-        firstProcessedAt: existing.processedAt,
+        isDuplicate: false,
+        eventId: updated.eventId,
       };
     }
 

@@ -113,6 +113,26 @@ describe('SSRF Guard & Webhook Destination Security', () => {
       );
     });
 
+    it('should reject URLs with embedded credentials (user:password@)', async () => {
+      await expect(
+        validateWebhookDestination('https://admin:secret123@example.com/webhook'),
+      ).rejects.toThrow('Embedded credentials');
+    });
+
+    it('should strictly enforce HTTPS in production regardless of allowInsecureHttp options', async () => {
+      const prevEnv = process.env.NODE_ENV;
+      try {
+        process.env.NODE_ENV = 'production';
+        await expect(
+          validateWebhookDestination('http://example.com/webhook', {
+            allowInsecureHttp: true,
+          }),
+        ).rejects.toThrow('Insecure HTTP scheme is not allowed');
+      } finally {
+        process.env.NODE_ENV = prevEnv;
+      }
+    });
+
     it('should reject HTTP scheme when allowInsecureHttp is false or in production', async () => {
       await expect(
         validateWebhookDestination('http://api.example.com/webhook', { allowInsecureHttp: false }),
@@ -192,14 +212,17 @@ describe('SSRF Guard & Webhook Destination Security', () => {
     let server: http.Server;
     let serverPort: number;
 
+    const originalLoopbackEnv = process.env.ALLOW_LOOPBACK_WEBHOOK_FOR_TESTS;
+
     beforeAll((done) => {
+      process.env.ALLOW_LOOPBACK_WEBHOOK_FOR_TESTS = 'true';
       // Local test HTTP server
       server = http.createServer((req, res) => {
         if (req.url === '/redirect-to-private') {
-          res.writeHead(302, { Location: 'http://127.0.0.1:9999/secret' });
+          res.writeHead(302, { Location: 'http://10.0.0.1:9999/secret' });
           res.end();
         } else if (req.url === '/infinite-redirect') {
-          res.writeHead(302, { Location: `http://localhost:${serverPort}/infinite-redirect` });
+          res.writeHead(302, { Location: `http://127.0.0.1:${serverPort}/infinite-redirect` });
           res.end();
         } else if (req.url === '/echo') {
           let body = '';
@@ -228,6 +251,7 @@ describe('SSRF Guard & Webhook Destination Security', () => {
     });
 
     afterAll((done) => {
+      process.env.ALLOW_LOOPBACK_WEBHOOK_FOR_TESTS = originalLoopbackEnv;
       server.close(done);
     });
 
@@ -249,6 +273,36 @@ describe('SSRF Guard & Webhook Destination Security', () => {
           allowInsecureHttp: true,
         }),
       ).rejects.toThrow(SSRFProtectionError);
+    });
+
+    it('should enforce streaming response size limits and truncate response safely', async () => {
+      const res = await executeSafeWebhookRequest({
+        url: `http://127.0.0.1:${serverPort}/large-body`,
+        maxResponseBytes: 500, // 500 bytes limit on a 100KB stream
+        allowInsecureHttp: true,
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body.length).toBe(500);
+      expect(res.body).toBe('A'.repeat(500));
+    });
+
+    it('should strip sensitive headers such as authorization across redirects', async () => {
+      const res = await executeSafeWebhookRequest({
+        url: `http://127.0.0.1:${serverPort}/echo`,
+        headers: {
+          Authorization: 'Bearer super-secret-internal-key',
+          Cookie: 'session=12345',
+          'X-Internal-Token': 'do-not-leak',
+          'X-Custom-Public': 'public-val',
+        },
+        allowInsecureHttp: true,
+      });
+
+      const parsed = JSON.parse(res.body);
+      expect(parsed.ok).toBe(true);
+      expect(res.headers['x-echo-auth']).toBe('none');
+      expect(res.headers['x-echo-cookie']).toBe('none');
     });
   });
 });

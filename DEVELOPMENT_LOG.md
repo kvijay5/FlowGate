@@ -2,6 +2,101 @@
 
 ---
 
+## [Milestone 5.1 Acceptance Audit: Complete Reliability & SSRF Hardening] - 2026-11-08
+
+### 1. Executive Summary
+
+Following the completion of Milestone 5.1, an independent, read-only-first technical audit of the implementation was conducted across 5 critical domains:
+
+1. **Transactional Outbox Engine & Crash Recovery**:
+   - Verified atomic in-transaction writes, `FOR UPDATE SKIP LOCKED` row claiming, and atomic `PROCESSING` state transitions.
+   - Diagnosed and resolved background worker / test-runner race conditions by implementing `OnModuleDestroy` on `OutboxPublisherService` and adding deterministic lifecycle controls.
+   - Added automated crash recovery integration tests verifying that stale `PROCESSING` rows (>60s) are automatically reclaimed and published.
+   - Enforced consumer idempotency and deterministic BullMQ job IDs (`tenant_${tenantId}_sub_${sub.id}_evt_${eventId}`) to prevent duplicate webhook dispatches on publisher retries.
+2. **Inbound Webhook Deduplication & Concurrency**:
+   - Verified database-level unique constraint on `[tenant_id, event_id]`.
+   - Hardened `recordInboundEvent` to handle TTL expiration renewals gracefully without violating unique constraints.
+   - Added concurrency tests verifying that simultaneous incoming requests with identical `eventId` are deduplicated cleanly with zero race conditions (exactly 1 processed, N duplicates).
+3. **SSRF Guard & HTTP Connection Security**:
+   - Replaced naive buffer collection with sliced streaming truncation (`chunk.subarray(0, remainingAllowed)`), aborting socket streams (`req.destroy()`) cleanly on overflow while preserving truncated responses without memory bloat or OOM vulnerability.
+   - Hardcoded strict production locks: `allowInsecureHttp` and `allowLoopbackTest` are strictly disabled when running in production, regardless of flags.
+   - Rejection of embedded credentials in destination URLs (`user:pass@host`).
+   - Cross-origin redirect security: automatic stripping of `authorization`, `cookie`, and `x-flowgate-signature` headers when redirects transition to different origins.
+   - Set `agent: false` to ensure no proxy agent can divert pinned IP connections.
+4. **Queue Health Authorization**:
+   - Verified strict separation: platform-wide BullMQ metrics (`/status`) restricted strictly to `SUPER_ADMIN`; tenant-isolated database metrics (`/tenant-status`) for `TENANT_ADMIN`.
+5. **Reconciliation & Quality Gates**:
+   - Reconciled all previous test reporting discrepancies with exact live runner outputs.
+   - **120 unit tests passed** across 14 test suites.
+   - **87 integration/e2e tests passed** across 6 test suites.
+   - Total automated tests: **207 passed** (0 failed). Zero lint warnings, zero type errors.
+
+### 2. Summary of Work Completed & Deliverables
+
+- **SSRF Guard Hardening (`apps/api/src/webhooks/ssrf/ssrf-guard.ts` & `ssrf-guard.spec.ts`)**:
+  - Rejection of embedded credentials (`parsed.username || parsed.password`).
+  - Production HTTPS invariant: enforces HTTPS scheme unconditionally in production mode.
+  - Proxy agent bypass prevention (`agent: false`).
+  - Memory-safe stream truncation: slices remaining allowed bytes and aborts socket stream (`req.destroy()`) on responses exceeding `maxResponseBytes`.
+  - Sensitive header stripping on cross-origin redirects (`authorization`, `cookie`, `x-flowgate-signature`).
+  - Added 4 unit tests covering credentials rejection, production scheme enforcement, streaming truncation, and redirect header stripping (suite now 28 passed).
+- **Webhook Delivery Idempotency & Inbound Deduplication (`apps/api/src/webhooks/`)**:
+  - `webhooks.service.ts`: Enforces deduplication on `triggerEvent` using deterministic BullMQ job ID `tenant_${tenantId}_sub_${sub.id}_evt_${eventId}`.
+  - `webhooks.processor.ts`: Added consumer-level idempotency guard returning `{ skipped: true, reason: 'Already delivered' }` if delivery is already `SENT`.
+  - `webhooks.service.ts`: In `recordInboundEvent`, added update logic for expired TTL records to permit renewed processing without unique constraint collision.
+  - Added unit tests for skipping already-sent deliveries and renewing expired TTL records.
+- **Outbox Publisher Concurrency & Lifecycle Control (`apps/api/src/outbox/outbox-publisher.service.ts`)**:
+  - Implemented `OnModuleDestroy` and clean `stop()` method to prevent orphaned interval timers from running in the background across test runs or after application shutdown.
+  - Added support for `DISABLE_OUTBOX_POLLER=true` for deterministic test environments.
+- **Integration Test Hardening (`apps/api/test/`)**:
+  - `outbox-and-security.integration-spec.ts`: Added crash recovery test for stalled `PROCESSING` events, 5-request simultaneous concurrency test for inbound deduplication, and TTL expiration renewal test (suite now 21 passed).
+  - Fixed Docker VM / macOS clock jitter in outbox test by ensuring `scheduledFor` timestamps in immediate test claims are reliably evaluated `<= NOW()` by PostgreSQL.
+  - Monorepo test suites fully passing in both isolated and sequential band runs.
+
+### 3. Technical Decisions & Rationale
+
+- **Why Slicing Before Socket Destruction is Required for Stream Truncation**:
+  If a malicious or misconfigured webhook endpoint streams gigabytes of data, consuming the entire response causes Node.js process out-of-memory (OOM) crashes. However, simply closing the connection on the first oversized chunk could either discard the partial response or throw an unhandled socket error. By taking the exact remaining allowed slice `chunk.subarray(0, remainingAllowed)` and then calling `req.destroy()`, the system captures the permitted response snippet for diagnostics and immediately releases the network socket and buffers.
+- **Why Webhook Job IDs Must Be Deterministic**:
+  If an outbox publisher crashes after enqueuing a BullMQ job but before marking the outbox event as `PUBLISHED`, the recovery sweep will attempt to re-publish that outbox event. If random job IDs were used, a second delivery job would be scheduled in Redis, resulting in duplicate webhook dispatches to the customer. By constructing deterministic BullMQ job IDs (`tenant_${tenantId}_sub_${sub.id}_evt_${eventId}`), BullMQ naturally deduplicates the job at the Redis level, ensuring at-most-once delivery scheduling.
+- **Why `OnModuleDestroy` is Critical for NestJS Background Workers in Tests**:
+  NestJS calls `onModuleDestroy()` whenever an application context is closed with `app.close()`. In contrast, `onApplicationShutdown()` is only called if explicit shutdown hooks are enabled. Without `OnModuleDestroy`, `setInterval` timers started in background services remain active in the Node.js event loop even after `app.close()`, causing rogue timers to access closed database and Redis connections during subsequent test suites.
+
+### 4. Verification and Actual Test Results
+
+All quality gates executed against live Docker containers (`flowgate-postgres` on port 5432 and `flowgate-redis` on port 6379):
+
+- **TypeScript Compilation (`pnpm check-types`)**:
+  - `packages/shared-types`: 0 errors
+  - `apps/api`: 0 errors
+  - `apps/web`: 0 errors
+- **Linting (`pnpm lint`)**:
+  - 0 warnings, 0 errors across all workspaces
+- **Code Formatting (`pnpm format:check`)**:
+  - 100% compliant with Prettier
+- **Backend Unit Tests (`pnpm --filter api test`)**:
+  - **14 test suites passed**, **120 tests passed**, 0 failed
+- **Backend Integration / E2E Tests (`pnpm --filter api test:e2e`)**:
+  - **6 test suites passed**, **87 tests passed**, 0 failed
+- **Total Automated Test Count**:
+  - **207 automated tests passed**, 0 failed
+- **Production Build (`pnpm build`)**:
+  - Next.js 14 App Router and NestJS backend build completed with exit code 0
+
+### 5. Known Limitations or Environmental Blockers
+
+- No platform blockers. Docker containers (`flowgate-postgres` and `flowgate-redis`) are healthy and operational.
+- Real external webhooks and external emails remain safely mocked in local environments.
+
+### 6. Recommended Next Steps
+
+- Proceed to **Milestone 6: Enterprise Workflow Designer & Advanced Capabilities**:
+  - Visual DAG / flowchart workflow editor in Next.js.
+  - Interactive cryptographic audit-chain inspector and verification UI.
+  - Parallel step routing (e.g., concurrent approvals required from Legal AND Finance).
+
+---
+
 ## [Milestone 5.1: Background Reliability & Webhook Security Hardening] - 2026-11-08
 
 ### 1. Executive Summary

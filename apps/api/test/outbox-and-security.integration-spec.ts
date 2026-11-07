@@ -5,6 +5,7 @@ import * as request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { OutboxService } from '../src/outbox/outbox.service';
+import { OutboxPublisherService } from '../src/outbox/outbox-publisher.service';
 
 describe('Milestone 5.1: Transactional Outbox, Replay Deduplication & SSRF Protection (Integration)', () => {
   let app: INestApplication;
@@ -35,6 +36,8 @@ describe('Milestone 5.1: Transactional Outbox, Replay Deduplication & SSRF Prote
 
     prisma = app.get(PrismaService);
     outboxService = app.get(OutboxService);
+    const publisher = app.get(OutboxPublisherService);
+    publisher.stop(); // Stop the periodic interval timer so tests have full deterministic control
 
     // Authenticate Acme Admin & Requester
     const acmeAdminLogin = await request(app.getHttpServer()).post('/api/v1/auth/login').send({
@@ -175,12 +178,12 @@ describe('Milestone 5.1: Transactional Outbox, Replay Deduplication & SSRF Prote
           idempotencyKey,
           payload: { test: true },
           status: 'PENDING',
-          scheduledFor: new Date(),
+          scheduledFor: new Date(Date.now() - 5000),
         },
       });
 
       // Claim pending events using row-level locking
-      const claimed = await outboxService.claimPendingEvents(10);
+      const claimed = await outboxService.claimPendingEvents(100);
       const ourEvent = claimed.find((e) => e.idempotencyKey === idempotencyKey);
       expect(ourEvent).toBeDefined();
       expect(ourEvent?.status).toBe('PROCESSING');
@@ -192,6 +195,38 @@ describe('Milestone 5.1: Transactional Outbox, Replay Deduplication & SSRF Prote
       });
       expect(published?.status).toBe('PUBLISHED');
       expect(published?.publishedAt).toBeDefined();
+    });
+
+    it('should safely recover stalled PROCESSING outbox events (crash recovery)', async () => {
+      const idempotencyKey = `stalled-test-${Date.now()}`;
+
+      // 1. Create an outbox event stuck in PROCESSING for > 60 seconds (simulating server crash)
+      const stalledEvent = await prisma.outboxEvent.create({
+        data: {
+          tenantId: acmeTenantId,
+          eventType: 'OUTBOX_WEBHOOK',
+          entityType: 'TestEntity',
+          entityId: '00000000-0000-4000-8000-000000000001',
+          idempotencyKey,
+          payload: { eventType: 'request.created', data: { test: true } },
+          status: 'PROCESSING',
+          updatedAt: new Date(Date.now() - 70000), // 70 seconds ago
+          scheduledFor: new Date(Date.now() - 70000),
+        },
+      });
+
+      // 2. Claim pending events: the recovery query reclaims it
+      const reclaimed = await outboxService.claimPendingEvents(100);
+      const ourReclaimed = reclaimed.find((e) => e.id === stalledEvent.id);
+      expect(ourReclaimed).toBeDefined();
+      expect(ourReclaimed?.status).toBe('PROCESSING');
+
+      // 3. Mark published
+      await outboxService.markPublished(stalledEvent.id);
+      const published = await prisma.outboxEvent.findUnique({
+        where: { id: stalledEvent.id },
+      });
+      expect(published?.status).toBe('PUBLISHED');
     });
   });
 
@@ -285,6 +320,77 @@ describe('Milestone 5.1: Transactional Outbox, Replay Deduplication & SSRF Prote
         });
 
       expect(res.status).toBe(400);
+    });
+
+    it('should handle simultaneous concurrent inbound requests with identical eventId without race conditions', async () => {
+      const eventId = `evt-concurrent-${Date.now()}`;
+
+      // Dispatch 5 simultaneous requests with identical eventId
+      const responses = await Promise.all([
+        request(app.getHttpServer())
+          .post('/api/v1/webhooks/inbound')
+          .set('Authorization', `Bearer ${acmeAdminToken}`)
+          .send({ eventId, eventType: 'request.created', payload: { burst: 1 } }),
+        request(app.getHttpServer())
+          .post('/api/v1/webhooks/inbound')
+          .set('Authorization', `Bearer ${acmeAdminToken}`)
+          .send({ eventId, eventType: 'request.created', payload: { burst: 2 } }),
+        request(app.getHttpServer())
+          .post('/api/v1/webhooks/inbound')
+          .set('Authorization', `Bearer ${acmeAdminToken}`)
+          .send({ eventId, eventType: 'request.created', payload: { burst: 3 } }),
+        request(app.getHttpServer())
+          .post('/api/v1/webhooks/inbound')
+          .set('Authorization', `Bearer ${acmeAdminToken}`)
+          .send({ eventId, eventType: 'request.created', payload: { burst: 4 } }),
+        request(app.getHttpServer())
+          .post('/api/v1/webhooks/inbound')
+          .set('Authorization', `Bearer ${acmeAdminToken}`)
+          .send({ eventId, eventType: 'request.created', payload: { burst: 5 } }),
+      ]);
+
+      // All 5 must succeed with 200 OK
+      for (const res of responses) {
+        expect(res.status).toBe(200);
+        expect(res.body.received).toBe(true);
+      }
+
+      // Exactly ONE request must be processed as original (duplicate: false)
+      const nonDuplicates = responses.filter((r) => r.body.duplicate === false);
+      const duplicates = responses.filter((r) => r.body.duplicate === true);
+
+      expect(nonDuplicates.length).toBe(1);
+      expect(duplicates.length).toBe(4);
+    });
+
+    it('should permit processing after TTL expiration without violating unique constraint', async () => {
+      const eventId = `evt-ttl-${Date.now()}`;
+
+      // Insert an expired record directly into database (expired 1 minute ago)
+      await prisma.inboundWebhookEvent.create({
+        data: {
+          tenantId: acmeTenantId,
+          eventId,
+          eventType: 'request.created',
+          source: 'EXTERNAL',
+          processedAt: new Date(Date.now() - 120000),
+          expiresAt: new Date(Date.now() - 60000), // Expired!
+        },
+      });
+
+      // Submit inbound webhook with the expired eventId
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/webhooks/inbound')
+        .set('Authorization', `Bearer ${acmeAdminToken}`)
+        .send({
+          eventId,
+          eventType: 'request.created',
+          payload: { renewed: true },
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.duplicate).toBe(false);
+      expect(res.body.status).toBe('PROCESSED');
     });
   });
 
