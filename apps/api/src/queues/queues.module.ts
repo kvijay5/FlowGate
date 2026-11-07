@@ -4,10 +4,12 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { QUEUE_NOTIFICATIONS, QUEUE_ESCALATIONS, QUEUE_WEBHOOKS } from './queue.constants';
 import { QueueHealthService } from './queue-health.service';
 import { QueueHealthController } from './queue-health.controller';
+import { PrismaModule } from '../prisma/prisma.module';
 
 @Global()
 @Module({
   imports: [
+    PrismaModule,
     BullModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => {

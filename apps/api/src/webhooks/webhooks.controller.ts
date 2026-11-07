@@ -13,6 +13,7 @@ import {
   ParseUUIDPipe,
   HttpCode,
   HttpStatus,
+  BadRequestException,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -90,5 +91,47 @@ export class WebhooksController {
     @Param('deliveryId', ParseUUIDPipe) deliveryId: string,
   ) {
     return this.webhooksService.retryDelivery(tenantId, deliveryId);
+  }
+
+  @Post('inbound')
+  @HttpCode(HttpStatus.OK)
+  async receiveInboundWebhook(
+    @CurrentTenant() tenantId: string,
+    @Body() payload: Record<string, unknown>,
+  ) {
+    const eventId =
+      (payload?.eventId as string) || (payload?.id as string) || (payload?.event_id as string);
+    const eventType =
+      (payload?.event as string) || (payload?.eventType as string) || 'generic.event';
+
+    if (!eventId) {
+      throw new BadRequestException('Missing eventId in inbound webhook payload');
+    }
+
+    const result = await this.webhooksService.recordInboundEvent(
+      tenantId,
+      eventId,
+      eventType,
+      payload,
+    );
+
+    if (result.isDuplicate) {
+      return {
+        status: 'DUPLICATE',
+        received: true,
+        duplicate: true,
+        eventId,
+        message: 'Event was already processed within deduplication window',
+        firstProcessedAt: result.firstProcessedAt,
+      };
+    }
+
+    return {
+      status: 'PROCESSED',
+      received: true,
+      duplicate: false,
+      eventId,
+      message: 'Event successfully received and recorded',
+    };
   }
 }

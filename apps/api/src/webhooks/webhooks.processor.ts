@@ -4,6 +4,7 @@ import { Job } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { QUEUE_WEBHOOKS, JOB_DISPATCH_WEBHOOK } from '../queues/queue.constants';
 import { signWebhookPayload } from './webhook-signature.util';
+import { executeSafeWebhookRequest } from './ssrf/ssrf-guard';
 
 export interface WebhookJobData {
   tenantId: string;
@@ -48,12 +49,15 @@ export class WebhooksProcessor extends WorkerHost {
     const rawPayload = JSON.stringify(delivery.payload);
     const { header, timestamp } = signWebhookPayload(rawPayload, delivery.subscription.secret);
 
+    // Explicit security headers: stable event ID across retries + attempt ID
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'User-Agent': 'FlowGate-Webhook-Dispatcher/1.0',
       'X-FlowGate-Signature': header,
       'X-FlowGate-Timestamp': timestamp.toString(),
-      'X-FlowGate-Event-Id': delivery.id,
+      'X-FlowGate-Event-Id': delivery.eventId,
+      'X-FlowGate-Delivery-Id': delivery.id,
+      'X-FlowGate-Attempt': (job.attemptsMade + 1).toString(),
       'X-FlowGate-Event-Type': delivery.eventType,
     };
 
@@ -62,35 +66,37 @@ export class WebhooksProcessor extends WorkerHost {
     let errorMessage: string | null = null;
     let isSuccess = false;
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
-
     try {
       this.logger.log(
-        `[WEBHOOK POST] Attempt #${job.attemptsMade + 1} to ${delivery.subscription.url} for event: ${delivery.eventType}`,
+        `[WEBHOOK POST] Attempt #${job.attemptsMade + 1} to ${delivery.subscription.url} for event: ${delivery.eventType} (eventId: ${delivery.eventId})`,
       );
 
-      const res = await fetch(delivery.subscription.url, {
+      const allowInsecureHttp =
+        process.env.NODE_ENV !== 'production' &&
+        process.env.ALLOW_INSECURE_HTTP_WEBHOOKS === 'true';
+
+      const res = await executeSafeWebhookRequest({
+        url: delivery.subscription.url,
         method: 'POST',
         headers,
         body: rawPayload,
-        signal: controller.signal,
+        timeoutMs: 5000,
+        connectTimeoutMs: 3000,
+        maxResponseBytes: 65536,
+        maxRedirects: 3,
+        allowInsecureHttp,
       });
 
-      httpStatusCode = res.status;
-      const text = await res.text();
-      responseBody = text.substring(0, 1000); // Record first 1KB of response body
-      isSuccess = res.ok; // 200..299
+      httpStatusCode = res.statusCode;
+      responseBody = res.body.substring(0, 1000);
+      isSuccess = res.statusCode >= 200 && res.statusCode < 300;
 
       if (!isSuccess) {
-        errorMessage = `Destination returned HTTP ${res.status}: ${text.substring(0, 200)}`;
+        errorMessage = `Destination returned HTTP ${res.statusCode}: ${res.statusMessage || responseBody.substring(0, 200)}`;
       }
     } catch (err: any) {
-      errorMessage =
-        err.name === 'AbortError' ? 'HTTP request timed out after 5000ms' : err.message;
+      errorMessage = err.message;
       this.logger.warn(`Webhook delivery to ${delivery.subscription.url} failed: ${errorMessage}`);
-    } finally {
-      clearTimeout(timeout);
     }
 
     const durationMs = Date.now() - startTime;
@@ -113,7 +119,7 @@ export class WebhooksProcessor extends WorkerHost {
 
     if (isSuccess) {
       this.logger.log(
-        `[WEBHOOK SUCCESS] Delivery ${delivery.id} succeeded (HTTP ${httpStatusCode}) in ${durationMs}ms`,
+        `[WEBHOOK SUCCESS] Delivery ${delivery.id} (eventId: ${delivery.eventId}) succeeded (HTTP ${httpStatusCode}) in ${durationMs}ms`,
       );
       return { success: true, statusCode: httpStatusCode, durationMs };
     }

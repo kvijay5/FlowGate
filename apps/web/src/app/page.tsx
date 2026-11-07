@@ -41,6 +41,7 @@ import {
   WebhookSubscriptionSummary,
   WebhookDeliverySummary,
   QueueHealthStatus,
+  TenantQueueHealthStatus,
   NotificationLogSummary,
 } from '@flowgate/shared-types';
 
@@ -98,6 +99,7 @@ export default function FlowGateApp() {
 
   // Queue Health state
   const [queueHealth, setQueueHealth] = useState<QueueHealthStatus | null>(null);
+  const [tenantQueueHealth, setTenantQueueHealth] = useState<TenantQueueHealthStatus | null>(null);
   const [showQueueModal, setShowQueueModal] = useState(false);
 
   // Webhooks state
@@ -157,7 +159,11 @@ export default function FlowGateApp() {
         api.getWorkflows(),
       ];
       if (isAdmin) {
-        promises.push(api.getQueueHealth().catch(() => null));
+        if (auth.user.role === 'SUPER_ADMIN') {
+          promises.push(api.getQueueHealth().catch(() => null));
+        } else {
+          promises.push(api.getTenantQueueHealth().catch(() => null));
+        }
         promises.push(api.getWebhooks().catch(() => []));
         promises.push(api.getNotificationStats().catch(() => null));
       }
@@ -165,7 +171,13 @@ export default function FlowGateApp() {
       setRequests(reqRes.data);
       setWorkflows(wfRes);
       if (isAdmin) {
-        if (qHealth) setQueueHealth(qHealth);
+        if (qHealth) {
+          if (auth.user.role === 'SUPER_ADMIN') {
+            setQueueHealth(qHealth);
+          } else {
+            setTenantQueueHealth(qHealth);
+          }
+        }
         if (whList) setWebhooks(whList);
         if (nStats) setNotifStats(nStats);
       }
@@ -643,7 +655,7 @@ export default function FlowGateApp() {
 
           <div className="flex items-center space-x-3">
             {/* Live Queue Health Badge */}
-            {queueHealth && (
+            {(queueHealth || tenantQueueHealth) && (
               <button
                 onClick={() => setShowQueueModal(true)}
                 title="View Queue & Background Processing Health"
@@ -651,11 +663,15 @@ export default function FlowGateApp() {
               >
                 <span
                   className={`h-2 w-2 rounded-full ${
-                    queueHealth.redisConnected ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500'
+                    (queueHealth?.redisConnected ?? tenantQueueHealth?.redisConnected)
+                      ? 'bg-emerald-400 animate-pulse'
+                      : 'bg-rose-500'
                   }`}
                 />
                 <span className="text-[11px] font-medium text-slate-300">
-                  {queueHealth.redisConnected ? 'Engine Healthy' : 'Redis Offline'}
+                  {(queueHealth?.redisConnected ?? tenantQueueHealth?.redisConnected)
+                    ? 'Engine Healthy'
+                    : 'Redis Offline'}
                 </span>
               </button>
             )}
@@ -1984,13 +2000,17 @@ export default function FlowGateApp() {
       {/* =================================================================== */}
       {/* MODAL: QUEUE & BACKGROUND ENGINE HEALTH */}
       {/* =================================================================== */}
-      {showQueueModal && queueHealth && (
+      {showQueueModal && (queueHealth || tenantQueueHealth) && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl p-6 space-y-5">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center space-x-2">
                 <Activity className="h-5 w-5 text-indigo-400" />
-                <h3 className="text-base font-bold text-white">BullMQ Background Engine Status</h3>
+                <h3 className="text-base font-bold text-white">
+                  {queueHealth
+                    ? 'Global Background Engine Status'
+                    : 'Tenant Background Engine Status'}
+                </h3>
               </div>
               <button
                 onClick={() => setShowQueueModal(false)}
@@ -2005,7 +2025,9 @@ export default function FlowGateApp() {
               <div className="flex items-center space-x-2.5">
                 <span
                   className={`h-2.5 w-2.5 rounded-full ${
-                    queueHealth.redisConnected ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500'
+                    (queueHealth?.redisConnected ?? tenantQueueHealth?.redisConnected)
+                      ? 'bg-emerald-400 animate-pulse'
+                      : 'bg-rose-500'
                   }`}
                 />
                 <div>
@@ -2017,57 +2039,136 @@ export default function FlowGateApp() {
               </div>
               <span
                 className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
-                  queueHealth.redisConnected
+                  (queueHealth?.redisConnected ?? tenantQueueHealth?.redisConnected)
                     ? 'bg-emerald-950 text-emerald-300 border-emerald-800'
                     : 'bg-rose-950 text-rose-300 border-rose-800'
                 }`}
               >
-                {queueHealth.redisConnected ? 'Connected' : 'Offline'}
+                {(queueHealth?.redisConnected ?? tenantQueueHealth?.redisConnected)
+                  ? 'Connected'
+                  : 'Offline'}
               </span>
             </div>
 
-            {/* Queue Metrics */}
-            <div className="space-y-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                Active Worker Queues
-              </span>
-              {(['notifications', 'escalations', 'webhooks'] as const).map((qName) => {
-                const q = queueHealth.queues[qName];
-                return (
-                  <div
-                    key={qName}
-                    className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-white uppercase tracking-wider">
-                        {qName}
-                      </span>
-                      <span className="text-[10px] text-slate-400 font-mono">
-                        {q.completed} completed
-                      </span>
+            {/* Queue Metrics (SUPER_ADMIN) */}
+            {queueHealth && (
+              <div className="space-y-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                  Active Worker Queues (Global)
+                </span>
+                {(['notifications', 'escalations', 'webhooks'] as const).map((qName) => {
+                  const q = queueHealth.queues[qName];
+                  return (
+                    <div
+                      key={qName}
+                      className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-white uppercase tracking-wider">
+                          {qName}
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          {q.completed} completed
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-4 gap-2 text-center text-xs">
+                        <div className="p-1.5 rounded bg-slate-900 border border-slate-800">
+                          <div className="text-[10px] text-slate-400">Waiting</div>
+                          <div className="font-bold text-slate-200">{q.waiting}</div>
+                        </div>
+                        <div className="p-1.5 rounded bg-slate-900 border border-slate-800">
+                          <div className="text-[10px] text-indigo-400">Active</div>
+                          <div className="font-bold text-indigo-300">{q.active}</div>
+                        </div>
+                        <div className="p-1.5 rounded bg-slate-900 border border-slate-800">
+                          <div className="text-[10px] text-amber-400">Delayed</div>
+                          <div className="font-bold text-amber-300">{q.delayed || 0}</div>
+                        </div>
+                        <div className="p-1.5 rounded bg-slate-900 border border-slate-800">
+                          <div className="text-[10px] text-rose-400">Failed</div>
+                          <div className="font-bold text-rose-300">{q.failed}</div>
+                        </div>
+                      </div>
                     </div>
-                    <div className="grid grid-cols-4 gap-2 text-center text-xs">
-                      <div className="p-1.5 rounded bg-slate-900 border border-slate-800">
-                        <div className="text-[10px] text-slate-400">Waiting</div>
-                        <div className="font-bold text-slate-200">{q.waiting}</div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Tenant Metrics (TENANT_ADMIN) */}
+            {tenantQueueHealth && !queueHealth && (
+              <div className="space-y-3">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                  Tenant Background Activity
+                </span>
+
+                {/* Outbox Events */}
+                <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-white uppercase tracking-wider">
+                      Transactional Outbox
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-mono">
+                      {tenantQueueHealth.outbox.published} published
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                    <div className="p-1.5 rounded bg-slate-900 border border-slate-800">
+                      <div className="text-[10px] text-slate-400">Pending</div>
+                      <div className="font-bold text-slate-200">
+                        {tenantQueueHealth.outbox.pending}
                       </div>
-                      <div className="p-1.5 rounded bg-slate-900 border border-slate-800">
-                        <div className="text-[10px] text-indigo-400">Active</div>
-                        <div className="font-bold text-indigo-300">{q.active}</div>
+                    </div>
+                    <div className="p-1.5 rounded bg-slate-900 border border-slate-800">
+                      <div className="text-[10px] text-indigo-400">Processing</div>
+                      <div className="font-bold text-indigo-300">
+                        {tenantQueueHealth.outbox.processing}
                       </div>
-                      <div className="p-1.5 rounded bg-slate-900 border border-slate-800">
-                        <div className="text-[10px] text-amber-400">Delayed</div>
-                        <div className="font-bold text-amber-300">{q.delayed || 0}</div>
-                      </div>
-                      <div className="p-1.5 rounded bg-slate-900 border border-slate-800">
-                        <div className="text-[10px] text-rose-400">Failed</div>
-                        <div className="font-bold text-rose-300">{q.failed}</div>
+                    </div>
+                    <div className="p-1.5 rounded bg-slate-900 border border-slate-800">
+                      <div className="text-[10px] text-rose-400">Failed</div>
+                      <div className="font-bold text-rose-300">
+                        {tenantQueueHealth.outbox.failed}
                       </div>
                     </div>
                   </div>
-                );
-              })}
-            </div>
+                </div>
+
+                {/* Notifications & Webhooks */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
+                    <div className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">
+                      Notifications
+                    </div>
+                    <div className="text-xs text-white">
+                      <span className="text-emerald-400 font-bold">
+                        {tenantQueueHealth.notifications.sent}
+                      </span>{' '}
+                      sent /{' '}
+                      <span className="text-slate-300">
+                        {tenantQueueHealth.notifications.pending}
+                      </span>{' '}
+                      queued
+                    </div>
+                  </div>
+                  <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
+                    <div className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">
+                      Webhooks
+                    </div>
+                    <div className="text-xs text-white">
+                      <span className="text-indigo-400 font-bold">
+                        {tenantQueueHealth.webhooks.totalDeliveries}
+                      </span>{' '}
+                      deliveries across{' '}
+                      <span className="text-slate-300">
+                        {tenantQueueHealth.webhooks.activeEndpoints}
+                      </span>{' '}
+                      endpoints
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="flex justify-end pt-2">
               <button

@@ -240,6 +240,7 @@ export interface WebhookDeliverySummary {
   tenantId: string;
   subscriptionId: string;
   subscriptionName?: string;
+  eventId: string;
   eventType: string;
   payload: Record<string, unknown>;
   status: DeliveryStatus;
@@ -251,6 +252,48 @@ export interface WebhookDeliverySummary {
   durationMs?: number | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export type OutboxStatus = 'PENDING' | 'PROCESSING' | 'PUBLISHED' | 'FAILED';
+
+export interface OutboxEventSummary {
+  id: string;
+  tenantId: string;
+  eventType: string;
+  entityType: string;
+  entityId: string;
+  payload: Record<string, unknown>;
+  status: OutboxStatus;
+  retryCount: number;
+  maxRetries: number;
+  lastError: string | null;
+  idempotencyKey: string;
+  scheduledFor: string;
+  publishedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TenantQueueHealthStatus {
+  tenantId: string;
+  redisConnected: boolean;
+  timestamp: string;
+  outbox: {
+    pending: number;
+    processing: number;
+    published: number;
+    failed: number;
+  };
+  notifications: {
+    pending: number;
+    sent: number;
+    failed: number;
+  };
+  webhooks: {
+    activeEndpoints: number;
+    totalDeliveries: number;
+    failedDeliveries: number;
+  };
 }
 
 export interface CreateWebhookDto {

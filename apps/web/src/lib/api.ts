@@ -11,6 +11,7 @@ import {
   CreateWebhookDto,
   UpdateWebhookDto,
   QueueHealthStatus,
+  TenantQueueHealthStatus,
   NotificationLogSummary,
 } from '@flowgate/shared-types';
 
@@ -230,6 +231,10 @@ export const api = {
   // Queue Health (Admin)
   async getQueueHealth(): Promise<QueueHealthStatus> {
     return request<QueueHealthStatus>('/api/v1/admin/queues/status');
+  },
+
+  async getTenantQueueHealth(): Promise<TenantQueueHealthStatus> {
+    return request<TenantQueueHealthStatus>('/api/v1/admin/queues/tenant-status');
   },
 
   // Webhooks (Admin)

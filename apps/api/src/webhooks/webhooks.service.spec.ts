@@ -206,5 +206,95 @@ describe('WebhooksService', () => {
       );
       expect(res.status).toBe('PENDING');
     });
+
+    it('should strictly preserve the original eventId when retrying', async () => {
+      mockPrisma.webhookDelivery.findUnique.mockResolvedValue({
+        id: 'del-failed-2',
+        tenantId: 'tenant-1',
+        eventId: 'evt-original-stable-uuid',
+        status: 'FAILED',
+      });
+      mockPrisma.webhookDelivery.update.mockResolvedValue({
+        id: 'del-failed-2',
+        tenantId: 'tenant-1',
+        eventId: 'evt-original-stable-uuid',
+        status: 'PENDING',
+        attemptCount: 1,
+        maxAttempts: 3,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      const res = await service.retryDelivery('tenant-1', 'del-failed-2');
+      expect(res.eventId).toBe('evt-original-stable-uuid');
+    });
+  });
+
+  describe('SSRF Protection on create / update', () => {
+    it('should reject creating subscription targeting localhost or loopback', async () => {
+      await expect(
+        service.create('tenant-1', {
+          name: 'Malicious Endpoint',
+          url: 'https://localhost:4000/webhook',
+          eventTypes: ['*'],
+        }),
+      ).rejects.toThrow('Webhook destination URL fails security policy');
+    });
+
+    it('should reject creating subscription targeting private IP', async () => {
+      await expect(
+        service.create('tenant-1', {
+          name: 'Private Network',
+          url: 'https://192.168.1.1/webhook',
+          eventTypes: ['*'],
+        }),
+      ).rejects.toThrow('Webhook destination URL fails security policy');
+    });
+
+    it('should reject creating subscription targeting cloud metadata', async () => {
+      await expect(
+        service.create('tenant-1', {
+          name: 'AWS/GCP Metadata',
+          url: 'https://169.254.169.254/meta-data',
+          eventTypes: ['*'],
+        }),
+      ).rejects.toThrow('Webhook destination URL fails security policy');
+    });
+  });
+
+  describe('Inbound Webhook Deduplication', () => {
+    it('should record new event and detect repeated event within window as duplicate', async () => {
+      // 1. First event: not found in DB -> created
+      mockPrisma.inboundWebhookEvent = {
+        findUnique: jest.fn().mockResolvedValueOnce(null),
+        create: jest.fn().mockResolvedValueOnce({
+          eventId: 'evt-inbound-100',
+          tenantId: 'tenant-1',
+        }),
+      };
+
+      const firstResult = await service.recordInboundEvent(
+        'tenant-1',
+        'evt-inbound-100',
+        'payment.succeeded',
+      );
+      expect(firstResult.isDuplicate).toBe(false);
+      expect(firstResult.eventId).toBe('evt-inbound-100');
+
+      // 2. Second event with same eventId -> found in DB -> flagged as duplicate
+      mockPrisma.inboundWebhookEvent.findUnique.mockResolvedValueOnce({
+        eventId: 'evt-inbound-100',
+        tenantId: 'tenant-1',
+        processedAt: new Date(),
+      });
+
+      const secondResult = await service.recordInboundEvent(
+        'tenant-1',
+        'evt-inbound-100',
+        'payment.succeeded',
+      );
+      expect(secondResult.isDuplicate).toBe(true);
+      expect(secondResult.eventId).toBe('evt-inbound-100');
+    });
   });
 });

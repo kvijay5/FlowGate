@@ -10,6 +10,7 @@ import { QueuesModule } from './queues/queues.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { EscalationsModule } from './escalations/escalations.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
+import { OutboxModule } from './outbox/outbox.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { WebhooksModule } from './webhooks/webhooks.module';
     NotificationsModule,
     EscalationsModule,
     WebhooksModule,
+    OutboxModule,
   ],
 })
 export class AppModule {}

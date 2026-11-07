@@ -24,6 +24,14 @@ import { Prisma } from '@prisma/client';
 import { NotificationsService } from '../notifications/notifications.service';
 import { EscalationsService } from '../escalations/escalations.service';
 import { WebhooksService } from '../webhooks/webhooks.service';
+import { OutboxService } from '../outbox/outbox.service';
+import { OutboxPublisherService } from '../outbox/outbox-publisher.service';
+import {
+  OUTBOX_EVENT_NOTIFICATION,
+  OUTBOX_EVENT_WEBHOOK,
+  OUTBOX_EVENT_ESCALATION_SCHEDULE,
+  OUTBOX_EVENT_ESCALATION_CANCEL,
+} from '../outbox/outbox.constants';
 
 @Injectable()
 export class RequestsService {
@@ -35,6 +43,8 @@ export class RequestsService {
     private readonly notificationsService: NotificationsService,
     private readonly escalationsService: EscalationsService,
     private readonly webhooksService: WebhooksService,
+    private readonly outboxService: OutboxService,
+    private readonly outboxPublisher: OutboxPublisherService,
   ) {}
 
   /**
@@ -121,57 +131,88 @@ export class RequestsService {
         tx,
       );
 
+      // --- TRANSACTIONAL OUTBOX: Atomic writes inside business transaction ---
+      const step1Config = sortedConfigs[0] as any;
+      const step1Record = await tx.approvalStep.findFirst({
+        where: { approvalRequestId: request.id, stepOrder: 1 },
+      });
+
+      if (step1Record) {
+        await this.outboxService.createEvent(tx, {
+          tenantId,
+          eventType: OUTBOX_EVENT_ESCALATION_SCHEDULE,
+          entityType: 'ApprovalStep',
+          entityId: step1Record.id,
+          idempotencyKey: `esc_sched_${step1Record.id}_1`,
+          payload: {
+            tenantId,
+            approvalRequestId: request.id,
+            stepId: step1Record.id,
+            stepOrder: 1,
+            config: {
+              reminderIntervalHours: step1Config?.reminderIntervalHours,
+              reminderDelayMs: step1Config?.reminderDelayMs,
+              escalationTimeoutHours: step1Config?.escalationTimeoutHours,
+              escalationDelayMs: step1Config?.escalationDelayMs,
+              escalateToRole: step1Config?.escalateToRole,
+              escalateToUserId: step1Config?.escalateToUserId,
+              escalationReason: step1Config?.escalationReason,
+            },
+          },
+        });
+      }
+
+      await this.outboxService.createEvent(tx, {
+        tenantId,
+        eventType: OUTBOX_EVENT_WEBHOOK,
+        entityType: 'ApprovalRequest',
+        entityId: request.id,
+        idempotencyKey: `wh_req_created_${request.id}`,
+        payload: {
+          tenantId,
+          eventType: 'request.created',
+          data: {
+            event: 'request.created',
+            tenantId,
+            requestId: request.id,
+            title: request.title,
+            workflowId: workflow.id,
+            requestedById: userId,
+            totalSteps: sortedConfigs.length,
+            createdAt: request.createdAt,
+          },
+        },
+      });
+
+      const requesterUser = await tx.user.findUnique({
+        where: { id: userId },
+        select: { email: true },
+      });
+      const requesterEmail = requesterUser?.email || `requester@flowgate.local`;
+
+      await this.outboxService.createEvent(tx, {
+        tenantId,
+        eventType: OUTBOX_EVENT_NOTIFICATION,
+        entityType: 'ApprovalRequest',
+        entityId: request.id,
+        idempotencyKey: `notif_req_sub_${request.id}`,
+        payload: {
+          tenantId,
+          recipientEmail: requesterEmail,
+          recipientUserId: userId,
+          eventType: 'REQUEST_SUBMITTED',
+          subject: `Approval Request Submitted: "${request.title}"`,
+          content: `Your approval request "${request.title}" has been submitted and is currently in review.`,
+          idempotencyKey: `req-submitted:${request.id}`,
+          metadata: { requestId: request.id },
+        },
+      });
+
       return this.findOne(tenantId, request.id, tx);
     });
 
-    // Background hooks (non-blocking, executed safely after database transaction commits)
-    const step1 = created.steps?.find((s) => s.stepOrder === 1);
-    const step1Config = sortedConfigs[0] as any;
-    if (step1) {
-      this.escalationsService
-        .scheduleStepJobs({
-          tenantId,
-          approvalRequestId: created.id,
-          stepId: step1.id,
-          stepOrder: 1,
-          config: {
-            reminderIntervalHours: step1Config?.reminderIntervalHours,
-            reminderDelayMs: step1Config?.reminderDelayMs,
-            escalationTimeoutHours: step1Config?.escalationTimeoutHours,
-            escalationDelayMs: step1Config?.escalationDelayMs,
-            escalateToRole: step1Config?.escalateToRole,
-            escalateToUserId: step1Config?.escalateToUserId,
-            escalationReason: step1Config?.escalationReason,
-          },
-        })
-        .catch((err) => this.logger.error(`Failed to schedule step 1 jobs: ${err.message}`));
-    }
-
-    this.webhooksService
-      .triggerEvent(tenantId, 'request.created', {
-        event: 'request.created',
-        tenantId,
-        requestId: created.id,
-        title: created.title,
-        workflowId: workflow.id,
-        requestedById: userId,
-        totalSteps: sortedConfigs.length,
-        createdAt: created.createdAt,
-      })
-      .catch((err) => this.logger.error(`Webhook trigger error: ${err.message}`));
-
-    this.notificationsService
-      .dispatchWorkflowNotification({
-        tenantId,
-        recipientEmail: created.requesterEmail || `requester@flowgate.local`,
-        recipientUserId: userId,
-        eventType: 'REQUEST_SUBMITTED',
-        subject: `Approval Request Submitted: "${created.title}"`,
-        content: `Your approval request "${created.title}" has been submitted and is currently in review.`,
-        idempotencyKey: `req-submitted:${created.id}`,
-        metadata: { requestId: created.id },
-      })
-      .catch((err) => this.logger.error(`Notification dispatch error: ${err.message}`));
+    // Trigger immediate outbox publication sweep (non-blocking)
+    this.outboxPublisher.trigger();
 
     return created;
   }
@@ -677,144 +718,244 @@ export class RequestsService {
         );
       }
 
+      // --- TRANSACTIONAL OUTBOX: Atomic writes inside business transaction ---
+      const txSteps = await tx.approvalStep.findMany({
+        where: { approvalRequestId: id },
+        orderBy: { stepOrder: 'asc' },
+        include: { assignedTo: true },
+      });
+      const txReq = await tx.approvalRequest.findUnique({
+        where: { id },
+        include: { requestedBy: true },
+      });
+      const requesterEmail = txReq?.requestedBy?.email || `requester@flowgate.local`;
+
+      if (dto.action === 'APPROVE') {
+        const currentActive = txSteps.find((s) => s.status === 'IN_REVIEW');
+        const previousStep = currentStep;
+
+        if (previousStep) {
+          await this.outboxService.createEvent(tx, {
+            tenantId,
+            eventType: OUTBOX_EVENT_ESCALATION_CANCEL,
+            entityType: 'ApprovalStep',
+            entityId: previousStep.id,
+            idempotencyKey: `esc_cancel_${previousStep.id}_${Date.now()}`,
+            payload: { tenantId, stepId: previousStep.id },
+          });
+        }
+
+        if (currentActive) {
+          const workflowConfig = (request.workflowSnapshot ||
+            (
+              await tx.workflowDefinition.findUnique({
+                where: { id: request.workflowDefinitionId },
+              })
+            )?.configuration) as any;
+          const nextStepConfig = workflowConfig?.steps?.find(
+            (s: any) => s.stepOrder === currentActive.stepOrder,
+          );
+
+          await this.outboxService.createEvent(tx, {
+            tenantId,
+            eventType: OUTBOX_EVENT_ESCALATION_SCHEDULE,
+            entityType: 'ApprovalStep',
+            entityId: currentActive.id,
+            idempotencyKey: `esc_sched_${currentActive.id}_${currentActive.stepOrder}`,
+            payload: {
+              tenantId,
+              approvalRequestId: id,
+              stepId: currentActive.id,
+              stepOrder: currentActive.stepOrder,
+              config: nextStepConfig,
+            },
+          });
+
+          await this.outboxService.createEvent(tx, {
+            tenantId,
+            eventType: OUTBOX_EVENT_WEBHOOK,
+            entityType: 'ApprovalRequest',
+            entityId: id,
+            idempotencyKey: `wh_step_appr_${id}_${previousStep?.stepOrder}`,
+            payload: {
+              tenantId,
+              eventType: 'step.approved',
+              data: {
+                event: 'step.approved',
+                tenantId,
+                requestId: id,
+                stepOrder: previousStep?.stepOrder,
+                actionedById: userId,
+              },
+            },
+          });
+
+          const nextEmail =
+            currentActive.assignedTo?.email ||
+            `approvers@${currentActive.assignedRole?.toLowerCase() || 'approver'}.flowgate.local`;
+
+          await this.outboxService.createEvent(tx, {
+            tenantId,
+            eventType: OUTBOX_EVENT_NOTIFICATION,
+            entityType: 'ApprovalStep',
+            entityId: currentActive.id,
+            idempotencyKey: `notif_step_assign_${currentActive.id}`,
+            payload: {
+              tenantId,
+              recipientEmail: nextEmail,
+              recipientUserId: currentActive.assignedToId,
+              eventType: 'STEP_ASSIGNED',
+              subject: `Approval Required: "${request.title}"`,
+              content: `You have been assigned Step ${currentActive.stepOrder} for approval request "${request.title}".`,
+              idempotencyKey: `step-assigned:${currentActive.id}`,
+              metadata: { requestId: id, stepId: currentActive.id },
+            },
+          });
+        } else {
+          // Final approval
+          await this.outboxService.createEvent(tx, {
+            tenantId,
+            eventType: OUTBOX_EVENT_WEBHOOK,
+            entityType: 'ApprovalRequest',
+            entityId: id,
+            idempotencyKey: `wh_req_appr_${id}`,
+            payload: {
+              tenantId,
+              eventType: 'request.approved',
+              data: {
+                event: 'request.approved',
+                tenantId,
+                requestId: id,
+                title: request.title,
+                actionedById: userId,
+              },
+            },
+          });
+
+          await this.outboxService.createEvent(tx, {
+            tenantId,
+            eventType: OUTBOX_EVENT_NOTIFICATION,
+            entityType: 'ApprovalRequest',
+            entityId: id,
+            idempotencyKey: `notif_req_appr_${id}`,
+            payload: {
+              tenantId,
+              recipientEmail: requesterEmail,
+              recipientUserId: txReq?.requestedById,
+              eventType: 'REQUEST_APPROVED',
+              subject: `Approved: "${request.title}"`,
+              content: `Your approval request "${request.title}" has received final sign-off and is APPROVED.`,
+              idempotencyKey: `req-approved:${id}`,
+              metadata: { requestId: id },
+            },
+          });
+        }
+      } else if (dto.action === 'REJECT') {
+        for (const step of txSteps) {
+          await this.outboxService.createEvent(tx, {
+            tenantId,
+            eventType: OUTBOX_EVENT_ESCALATION_CANCEL,
+            entityType: 'ApprovalStep',
+            entityId: step.id,
+            idempotencyKey: `esc_cancel_rej_${step.id}`,
+            payload: { tenantId, stepId: step.id },
+          });
+        }
+
+        await this.outboxService.createEvent(tx, {
+          tenantId,
+          eventType: OUTBOX_EVENT_WEBHOOK,
+          entityType: 'ApprovalRequest',
+          entityId: id,
+          idempotencyKey: `wh_req_rej_${id}`,
+          payload: {
+            tenantId,
+            eventType: 'request.rejected',
+            data: {
+              event: 'request.rejected',
+              tenantId,
+              requestId: id,
+              title: request.title,
+              actionedById: userId,
+              comments: dto.comments,
+            },
+          },
+        });
+
+        await this.outboxService.createEvent(tx, {
+          tenantId,
+          eventType: OUTBOX_EVENT_NOTIFICATION,
+          entityType: 'ApprovalRequest',
+          entityId: id,
+          idempotencyKey: `notif_req_rej_${id}`,
+          payload: {
+            tenantId,
+            recipientEmail: requesterEmail,
+            recipientUserId: txReq?.requestedById,
+            eventType: 'REQUEST_REJECTED',
+            subject: `Rejected: "${request.title}"`,
+            content: `Your approval request "${request.title}" was REJECTED: ${dto.comments || 'No comments provided'}.`,
+            idempotencyKey: `req-rejected:${id}`,
+            metadata: { requestId: id },
+          },
+        });
+      } else if (dto.action === 'REQUEST_CHANGES') {
+        const activeStep = txSteps.find((s) => s.id === currentStep.id);
+        if (activeStep) {
+          await this.outboxService.createEvent(tx, {
+            tenantId,
+            eventType: OUTBOX_EVENT_ESCALATION_CANCEL,
+            entityType: 'ApprovalStep',
+            entityId: activeStep.id,
+            idempotencyKey: `esc_cancel_chg_${activeStep.id}`,
+            payload: { tenantId, stepId: activeStep.id },
+          });
+        }
+
+        await this.outboxService.createEvent(tx, {
+          tenantId,
+          eventType: OUTBOX_EVENT_WEBHOOK,
+          entityType: 'ApprovalRequest',
+          entityId: id,
+          idempotencyKey: `wh_req_chg_${id}`,
+          payload: {
+            tenantId,
+            eventType: 'request.changes_requested',
+            data: {
+              event: 'request.changes_requested',
+              tenantId,
+              requestId: id,
+              title: request.title,
+              actionedById: userId,
+              comments: dto.comments,
+            },
+          },
+        });
+
+        await this.outboxService.createEvent(tx, {
+          tenantId,
+          eventType: OUTBOX_EVENT_NOTIFICATION,
+          entityType: 'ApprovalRequest',
+          entityId: id,
+          idempotencyKey: `notif_req_chg_${id}`,
+          payload: {
+            tenantId,
+            recipientEmail: requesterEmail,
+            recipientUserId: txReq?.requestedById,
+            eventType: 'CHANGES_REQUESTED',
+            subject: `Changes Requested: "${request.title}"`,
+            content: `Changes have been requested on "${request.title}": ${dto.comments || 'Please revise your submission'}.`,
+            idempotencyKey: `req-changes:${id}`,
+            metadata: { requestId: id },
+          },
+        });
+      }
+
       return this.findOne(tenantId, id, tx);
     });
 
-    // Background hooks (non-blocking, executed safely after database transaction commits)
-    if (dto.action === 'APPROVE') {
-      const currentActive = updated.steps?.find((s) => s.status === 'IN_REVIEW');
-      const previousStep = updated.steps?.find(
-        (s) =>
-          s.stepOrder ===
-          (currentActive ? currentActive.stepOrder - 1 : updated.steps?.length || 1),
-      );
-      if (previousStep) {
-        this.escalationsService.cancelStepJobs(tenantId, previousStep.id).catch(() => {});
-      }
-
-      if (currentActive) {
-        const workflowConfig = (updated.workflowSnapshot ||
-          updated.workflowDefinition?.configuration) as any;
-        const nextStepConfig = workflowConfig?.steps?.find(
-          (s: any) => s.stepOrder === currentActive.stepOrder,
-        );
-        this.escalationsService
-          .scheduleStepJobs({
-            tenantId,
-            approvalRequestId: id,
-            stepId: currentActive.id,
-            stepOrder: currentActive.stepOrder,
-            config: nextStepConfig,
-          })
-          .catch(() => {});
-
-        this.webhooksService
-          .triggerEvent(tenantId, 'step.approved', {
-            event: 'step.approved',
-            tenantId,
-            requestId: id,
-            stepOrder: previousStep?.stepOrder,
-            actionedById: userId,
-          })
-          .catch(() => {});
-
-        const nextEmail =
-          currentActive.assignedTo?.email ||
-          `approvers@${currentActive.assignedRole?.toLowerCase() || 'approver'}.flowgate.local`;
-        this.notificationsService
-          .dispatchWorkflowNotification({
-            tenantId,
-            recipientEmail: nextEmail,
-            recipientUserId: currentActive.assignedToId,
-            eventType: 'STEP_ASSIGNED',
-            subject: `Approval Required: "${updated.title}"`,
-            content: `You have been assigned Step ${currentActive.stepOrder} for approval request "${updated.title}".`,
-            idempotencyKey: `step-assigned:${currentActive.id}`,
-            metadata: { requestId: id, stepId: currentActive.id },
-          })
-          .catch(() => {});
-      } else {
-        this.webhooksService
-          .triggerEvent(tenantId, 'request.approved', {
-            event: 'request.approved',
-            tenantId,
-            requestId: id,
-            title: updated.title,
-            actionedById: userId,
-          })
-          .catch(() => {});
-
-        this.notificationsService
-          .dispatchWorkflowNotification({
-            tenantId,
-            recipientEmail: updated.requesterEmail,
-            recipientUserId: updated.requestedById,
-            eventType: 'REQUEST_APPROVED',
-            subject: `Approved: "${updated.title}"`,
-            content: `Your approval request "${updated.title}" has received final sign-off and is APPROVED.`,
-            idempotencyKey: `req-approved:${updated.id}`,
-            metadata: { requestId: id },
-          })
-          .catch(() => {});
-      }
-    } else if (dto.action === 'REJECT') {
-      for (const step of updated.steps || []) {
-        this.escalationsService.cancelStepJobs(tenantId, step.id).catch(() => {});
-      }
-
-      this.webhooksService
-        .triggerEvent(tenantId, 'request.rejected', {
-          event: 'request.rejected',
-          tenantId,
-          requestId: id,
-          title: updated.title,
-          actionedById: userId,
-          comments: dto.comments,
-        })
-        .catch(() => {});
-
-      this.notificationsService
-        .dispatchWorkflowNotification({
-          tenantId,
-          recipientEmail: updated.requesterEmail,
-          recipientUserId: updated.requestedById,
-          eventType: 'REQUEST_REJECTED',
-          subject: `Rejected: "${updated.title}"`,
-          content: `Your approval request "${updated.title}" was REJECTED: ${dto.comments || 'No comments provided'}.`,
-          idempotencyKey: `req-rejected:${updated.id}`,
-          metadata: { requestId: id },
-        })
-        .catch(() => {});
-    } else if (dto.action === 'REQUEST_CHANGES') {
-      const activeStep = updated.steps?.find((s) => s.status === 'IN_REVIEW' || s.actionedAt);
-      if (activeStep) {
-        this.escalationsService.cancelStepJobs(tenantId, activeStep.id).catch(() => {});
-      }
-
-      this.webhooksService
-        .triggerEvent(tenantId, 'request.changes_requested', {
-          event: 'request.changes_requested',
-          tenantId,
-          requestId: id,
-          title: updated.title,
-          actionedById: userId,
-          comments: dto.comments,
-        })
-        .catch(() => {});
-
-      this.notificationsService
-        .dispatchWorkflowNotification({
-          tenantId,
-          recipientEmail: updated.requesterEmail,
-          recipientUserId: updated.requestedById,
-          eventType: 'CHANGES_REQUESTED',
-          subject: `Changes Requested: "${updated.title}"`,
-          content: `Changes have been requested on "${updated.title}": ${dto.comments || 'Please revise your submission'}.`,
-          idempotencyKey: `req-changes:${updated.id}`,
-          metadata: { requestId: id },
-        })
-        .catch(() => {});
-    }
+    // Trigger immediate outbox publication sweep (non-blocking)
+    this.outboxPublisher.trigger();
 
     return updated;
   }
@@ -887,54 +1028,84 @@ export class RequestsService {
         tx,
       );
 
+      // --- TRANSACTIONAL OUTBOX: Atomic writes inside business transaction ---
+      const txSteps = await tx.approvalStep.findMany({
+        where: { approvalRequestId: id },
+        orderBy: { stepOrder: 'asc' },
+        include: { assignedTo: true },
+      });
+      const activeStep = txSteps.find((s) => s.status === 'IN_REVIEW');
+      if (activeStep) {
+        const workflowConfig = (request.workflowSnapshot ||
+          (await tx.workflowDefinition.findUnique({ where: { id: request.workflowDefinitionId } }))
+            ?.configuration) as any;
+        const stepConfig = workflowConfig?.steps?.find(
+          (s: any) => s.stepOrder === activeStep.stepOrder,
+        );
+
+        await this.outboxService.createEvent(tx, {
+          tenantId,
+          eventType: OUTBOX_EVENT_ESCALATION_SCHEDULE,
+          entityType: 'ApprovalStep',
+          entityId: activeStep.id,
+          idempotencyKey: `esc_sched_resub_${activeStep.id}_${Date.now()}`,
+          payload: {
+            tenantId,
+            approvalRequestId: id,
+            stepId: activeStep.id,
+            stepOrder: activeStep.stepOrder,
+            config: stepConfig,
+          },
+        });
+
+        const recipientEmail =
+          activeStep.assignedTo?.email ||
+          `approvers@${activeStep.assignedRole?.toLowerCase() || 'approver'}.flowgate.local`;
+
+        await this.outboxService.createEvent(tx, {
+          tenantId,
+          eventType: OUTBOX_EVENT_NOTIFICATION,
+          entityType: 'ApprovalStep',
+          entityId: activeStep.id,
+          idempotencyKey: `notif_resub_${activeStep.id}_${Date.now()}`,
+          payload: {
+            tenantId,
+            recipientEmail,
+            recipientUserId: activeStep.assignedToId,
+            eventType: 'REQUEST_RESUBMITTED',
+            subject: `Request Resubmitted: "${request.title}"`,
+            content: `Approval request "${request.title}" has been revised and resubmitted for your review: ${dto.comments || 'No comments provided'}.`,
+            idempotencyKey: `req-resubmitted:${id}:${Date.now()}`,
+            metadata: { requestId: id, stepId: activeStep.id },
+          },
+        });
+      }
+
+      await this.outboxService.createEvent(tx, {
+        tenantId,
+        eventType: OUTBOX_EVENT_WEBHOOK,
+        entityType: 'ApprovalRequest',
+        entityId: id,
+        idempotencyKey: `wh_req_resub_${id}_${Date.now()}`,
+        payload: {
+          tenantId,
+          eventType: 'request.resubmitted',
+          data: {
+            event: 'request.resubmitted',
+            tenantId,
+            requestId: id,
+            title: request.title,
+            resubmittedById: userId,
+            comments: dto.comments,
+          },
+        },
+      });
+
       return this.findOne(tenantId, id, tx);
     });
 
-    // Background hooks (non-blocking, executed safely after database transaction commits)
-    const activeStep = updated.steps.find((s) => s.status === 'IN_REVIEW');
-    if (activeStep) {
-      const workflowConfig = (updated.workflowSnapshot ||
-        updated.workflowDefinition?.configuration) as any;
-      const stepConfig = workflowConfig?.steps?.find(
-        (s: any) => s.stepOrder === activeStep.stepOrder,
-      );
-      this.escalationsService
-        .scheduleStepJobs({
-          tenantId,
-          approvalRequestId: id,
-          stepId: activeStep.id,
-          stepOrder: activeStep.stepOrder,
-          config: stepConfig,
-        })
-        .catch(() => {});
-
-      const recipientEmail =
-        activeStep.assignedTo?.email ||
-        `approvers@${activeStep.assignedRole?.toLowerCase() || 'approver'}.flowgate.local`;
-      this.notificationsService
-        .dispatchWorkflowNotification({
-          tenantId,
-          recipientEmail,
-          recipientUserId: activeStep.assignedToId,
-          eventType: 'REQUEST_RESUBMITTED',
-          subject: `Request Resubmitted: "${updated.title}"`,
-          content: `Approval request "${updated.title}" has been revised and resubmitted for your review: ${dto.comments || 'No comments provided'}.`,
-          idempotencyKey: `req-resubmitted:${updated.id}:${Date.now()}`,
-          metadata: { requestId: id, stepId: activeStep.id },
-        })
-        .catch((err) => this.logger.error(`Notification dispatch error: ${err.message}`));
-    }
-
-    this.webhooksService
-      .triggerEvent(tenantId, 'request.resubmitted', {
-        event: 'request.resubmitted',
-        tenantId,
-        requestId: id,
-        title: updated.title,
-        resubmittedById: userId,
-        comments: dto.comments,
-      })
-      .catch((err) => this.logger.error(`Webhook trigger error: ${err.message}`));
+    // Trigger immediate outbox publication sweep (non-blocking)
+    this.outboxPublisher.trigger();
 
     return updated;
   }
@@ -1012,23 +1183,45 @@ export class RequestsService {
         tx,
       );
 
+      // --- TRANSACTIONAL OUTBOX: Atomic writes inside business transaction ---
+      const txSteps = await tx.approvalStep.findMany({
+        where: { approvalRequestId: id },
+      });
+      for (const step of txSteps) {
+        await this.outboxService.createEvent(tx, {
+          tenantId,
+          eventType: OUTBOX_EVENT_ESCALATION_CANCEL,
+          entityType: 'ApprovalStep',
+          entityId: step.id,
+          idempotencyKey: `esc_cancel_canc_${step.id}`,
+          payload: { tenantId, stepId: step.id },
+        });
+      }
+
+      await this.outboxService.createEvent(tx, {
+        tenantId,
+        eventType: OUTBOX_EVENT_WEBHOOK,
+        entityType: 'ApprovalRequest',
+        entityId: id,
+        idempotencyKey: `wh_req_cancel_${id}`,
+        payload: {
+          tenantId,
+          eventType: 'request.cancelled',
+          data: {
+            event: 'request.cancelled',
+            tenantId,
+            requestId: id,
+            title: request.title,
+            cancelledById: userId,
+          },
+        },
+      });
+
       return this.findOne(tenantId, id, tx);
     });
 
-    // Background hooks (non-blocking, executed safely after database transaction commits)
-    for (const step of updated.steps) {
-      this.escalationsService.cancelStepJobs(tenantId, step.id).catch(() => {});
-    }
-
-    this.webhooksService
-      .triggerEvent(tenantId, 'request.cancelled', {
-        event: 'request.cancelled',
-        tenantId,
-        requestId: id,
-        title: updated.title,
-        cancelledById: userId,
-      })
-      .catch((err) => this.logger.error(`Webhook trigger error: ${err.message}`));
+    // Trigger immediate outbox publication sweep (non-blocking)
+    this.outboxPublisher.trigger();
 
     return updated;
   }

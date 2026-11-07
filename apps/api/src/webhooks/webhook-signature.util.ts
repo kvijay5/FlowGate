@@ -6,8 +6,16 @@ export interface WebhookSignatureResult {
   signature: string;
 }
 
+export interface VerifyWebhookResult {
+  valid: boolean;
+  timestamp?: number;
+  eventId?: string;
+  reason?: string;
+}
+
 /**
  * Signs a webhook payload using HMAC-SHA256 with timestamp replay protection.
+ * Format: t={timestamp},v1={hmac_sha256_hex}
  */
 export function signWebhookPayload(
   payloadString: string,
@@ -27,15 +35,31 @@ export function signWebhookPayload(
 }
 
 /**
- * Verifies an incoming webhook signature using constant-time comparison
- * and enforces timestamp tolerance to protect against replay attacks.
+ * SECURITY NOTE ON REPLAY ATTACKS:
+ * Timestamp validation enforces an upper bound on how long a signature is considered fresh
+ * (default tolerance: 300 seconds). However, timestamp validation alone CANNOT prevent
+ * replay attacks within that allowed window. An adversary capturing a valid HTTP request
+ * could replay the exact payload and headers within the 300-second window.
+ *
+ * Receiver-Side Deduplication Instructions:
+ * 1. Extract the stable logical event ID from the `X-FlowGate-Event-Id` header (or payload `eventId`).
+ * 2. Maintain a persistent deduplication store (e.g., Redis key with TTL >= 600s, or a DB table).
+ * 3. Before executing business logic, check if `(tenantId, eventId)` was already processed.
+ * 4. If already processed, acknowledge with 200 OK (idempotent no-op) and discard the duplicate.
+ * 5. If not processed, record the event ID atomically and proceed with processing.
+ *
+ * Logical Event vs. Delivery Attempt:
+ * - A "logical event" (`eventId`) represents a single business state change (e.g. request approved).
+ * - A "delivery attempt" (`deliveryId`) represents a single HTTP transmission.
+ * - When retrying an outbound delivery due to network failure, the `eventId` is strictly preserved,
+ *   while the `deliveryId` identifies the attempt.
  */
 export function verifyWebhookSignature(
   rawPayload: string,
   signatureHeader: string,
   secret: string,
   toleranceSeconds = 300,
-): { valid: boolean; reason?: string } {
+): VerifyWebhookResult {
   if (!signatureHeader) {
     return { valid: false, reason: 'Missing signature header' };
   }
@@ -59,7 +83,7 @@ export function verifyWebhookSignature(
     return { valid: false, reason: 'Invalid timestamp in signature' };
   }
 
-  // 1. Replay attack verification: check age against tolerance window
+  // 1. Timestamp drift verification: check age against tolerance window
   const now = Math.floor(Date.now() / 1000);
   if (Math.abs(now - timestamp) > toleranceSeconds) {
     return {
@@ -68,7 +92,7 @@ export function verifyWebhookSignature(
     };
   }
 
-  // 2. Cryptographic signature check
+  // 2. Cryptographic signature check with constant-time comparison
   const signaturePayload = `${timestamp}.${rawPayload}`;
   const expectedSignature = createHmac('sha256', secret).update(signaturePayload).digest('hex');
 
@@ -84,5 +108,5 @@ export function verifyWebhookSignature(
     return { valid: false, reason: 'Signature mismatch' };
   }
 
-  return { valid: true };
+  return { valid: true, timestamp };
 }

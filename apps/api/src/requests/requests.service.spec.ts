@@ -5,6 +5,8 @@ import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { EscalationsService } from '../escalations/escalations.service';
 import { WebhooksService } from '../webhooks/webhooks.service';
+import { OutboxService } from '../outbox/outbox.service';
+import { OutboxPublisherService } from '../outbox/outbox-publisher.service';
 import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 
 describe('RequestsService', () => {
@@ -14,6 +16,8 @@ describe('RequestsService', () => {
   let mockNotifications: any;
   let mockEscalations: any;
   let mockWebhooks: any;
+  let mockOutbox: any;
+  let mockOutboxPublisher: any;
 
   beforeEach(async () => {
     mockNotifications = {
@@ -31,8 +35,25 @@ describe('RequestsService', () => {
       triggerEvent: jest.fn().mockResolvedValue([]),
     };
 
+    mockOutbox = {
+      createEvent: jest.fn().mockResolvedValue({ id: 'outbox-1' }),
+      claimPendingEvents: jest.fn().mockResolvedValue([]),
+      markPublished: jest.fn().mockResolvedValue(undefined),
+      markFailed: jest.fn().mockResolvedValue(undefined),
+    };
+
+    mockOutboxPublisher = {
+      trigger: jest.fn(),
+      processBatch: jest.fn().mockResolvedValue(0),
+    };
+
     mockPrisma = {
       $transaction: jest.fn().mockImplementation((cb) => cb(mockPrisma)),
+      user: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({ id: 'user-1', email: 'requester@flowgate.local' }),
+      },
       workflowDefinition: {
         findUnique: jest.fn(),
       },
@@ -57,6 +78,8 @@ describe('RequestsService', () => {
         create: jest
           .fn()
           .mockImplementation((args) => Promise.resolve({ id: 'step-1', ...args.data })),
+        findFirst: jest.fn().mockResolvedValue({ id: 'step-1', stepOrder: 1 }),
+        findMany: jest.fn().mockResolvedValue([]),
         update: jest
           .fn()
           .mockImplementation((args) => Promise.resolve({ id: args.where.id, ...args.data })),
@@ -77,6 +100,8 @@ describe('RequestsService', () => {
         { provide: NotificationsService, useValue: mockNotifications },
         { provide: EscalationsService, useValue: mockEscalations },
         { provide: WebhooksService, useValue: mockWebhooks },
+        { provide: OutboxService, useValue: mockOutbox },
+        { provide: OutboxPublisherService, useValue: mockOutboxPublisher },
       ],
     }).compile();
 

@@ -1,8 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
 import * as request from 'supertest';
 import * as http from 'http';
 import { AppModule } from '../src/app.module';
+import { PrismaService } from '../src/prisma/prisma.service';
 import { verifyWebhookSignature } from '../src/webhooks/webhook-signature.util';
 
 describe('Background Processing & Escalation Engine (Integration)', () => {
@@ -10,6 +12,7 @@ describe('Background Processing & Escalation Engine (Integration)', () => {
 
   let app: INestApplication;
 
+  let superAdminToken: string;
   let acmeAdminToken: string;
   let acmeRequesterToken: string;
   let globexAdminToken: string;
@@ -24,6 +27,9 @@ describe('Background Processing & Escalation Engine (Integration)', () => {
   }> = [];
 
   beforeAll(async () => {
+    process.env.ALLOW_INSECURE_HTTP_WEBHOOKS = 'true';
+    process.env.ALLOW_LOOPBACK_WEBHOOK_FOR_TESTS = 'true';
+
     // 1. Start local webhook receiver server
     await new Promise<void>((resolve) => {
       webhookServer = http.createServer((req, res) => {
@@ -75,6 +81,7 @@ describe('Background Processing & Escalation Engine (Integration)', () => {
       password: 'FlowGatePass123!',
     });
     acmeAdminToken = acmeAdminLogin.body.accessToken;
+    const acmeTenantId = acmeAdminLogin.body.tenant.id;
 
     const acmeReqLogin = await request(app.getHttpServer()).post('/api/v1/auth/login').send({
       tenantSlug: 'acme-corp',
@@ -89,6 +96,37 @@ describe('Background Processing & Escalation Engine (Integration)', () => {
       password: 'FlowGatePass123!',
     });
     globexAdminToken = globexAdminLogin.body.accessToken;
+
+    // Generate SUPER_ADMIN token with real DB user
+    const prisma = app.get(PrismaService);
+    const superAdmin = await prisma.user.upsert({
+      where: {
+        tenant_user_email_unique: {
+          tenantId: acmeTenantId,
+          email: 'superadmin@acme.com',
+        },
+      },
+      update: {
+        role: 'SUPER_ADMIN',
+        status: 'ACTIVE',
+      },
+      create: {
+        tenantId: acmeTenantId,
+        name: 'Super Administrator',
+        email: 'superadmin@acme.com',
+        passwordHash: 'seeded_hash',
+        role: 'SUPER_ADMIN',
+        status: 'ACTIVE',
+      },
+    });
+
+    const jwtService = app.get(JwtService);
+    superAdminToken = jwtService.sign({
+      sub: superAdmin.id,
+      email: superAdmin.email,
+      tenantId: superAdmin.tenantId,
+      role: superAdmin.role,
+    });
   });
 
   afterAll(async () => {
@@ -100,8 +138,13 @@ describe('Background Processing & Escalation Engine (Integration)', () => {
     }
   });
 
-  describe('1. Queue Health Status Endpoint', () => {
-    it('should return 403 when accessed by non-admin user', async () => {
+  describe('1. Queue Health Authorization & Tenant Isolation', () => {
+    it('should return 401 when accessed without authentication', async () => {
+      const res = await request(app.getHttpServer()).get('/api/v1/admin/queues/status');
+      expect(res.status).toBe(401);
+    });
+
+    it('should return 403 when global status is accessed by non-admin requester', async () => {
       const res = await request(app.getHttpServer())
         .get('/api/v1/admin/queues/status')
         .set('Authorization', `Bearer ${acmeRequesterToken}`);
@@ -109,10 +152,18 @@ describe('Background Processing & Escalation Engine (Integration)', () => {
       expect(res.status).toBe(403);
     });
 
-    it('should return redis and queue metrics when accessed by TENANT_ADMIN', async () => {
+    it('should return 403 when global status is accessed by TENANT_ADMIN (restricted strictly to SUPER_ADMIN)', async () => {
       const res = await request(app.getHttpServer())
         .get('/api/v1/admin/queues/status')
         .set('Authorization', `Bearer ${acmeAdminToken}`);
+
+      expect(res.status).toBe(403);
+    });
+
+    it('should return global queue metrics when accessed by SUPER_ADMIN', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/admin/queues/status')
+        .set('Authorization', `Bearer ${superAdminToken}`);
 
       expect(res.status).toBe(200);
       expect(res.body.redisConnected).toBe(true);
@@ -121,6 +172,29 @@ describe('Background Processing & Escalation Engine (Integration)', () => {
       expect(res.body.queues.escalations).toBeDefined();
       expect(res.body.queues.webhooks).toBeDefined();
       expect(typeof res.body.queues.notifications.waiting).toBe('number');
+    });
+
+    it('should return tenant-scoped metrics to TENANT_ADMIN without global queue totals', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/admin/queues/tenant-status')
+        .set('Authorization', `Bearer ${acmeAdminToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.redisConnected).toBe(true);
+      expect(res.body.tenantId).toBeDefined();
+      expect(res.body.outbox).toBeDefined();
+      expect(typeof res.body.outbox.published).toBe('number');
+      expect(res.body.notifications).toBeDefined();
+      expect(res.body.webhooks).toBeDefined();
+      expect(res.body.queues).toBeUndefined(); // Guarantees global queue counts are omitted
+    });
+
+    it('should return 403 when tenant-status is accessed by ordinary REQUESTER', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/admin/queues/tenant-status')
+        .set('Authorization', `Bearer ${acmeRequesterToken}`);
+
+      expect(res.status).toBe(403);
     });
   });
 

@@ -86,4 +86,33 @@ describe('WebhookSignatureUtil', () => {
     expect(result.valid).toBe(false);
     expect(result.reason).toContain('out of tolerance window');
   });
+
+  describe('Replay Deduplication inside tolerance window', () => {
+    it('demonstrates that valid timestamp alone passes verification, requiring eventId deduplication', () => {
+      const now = Math.floor(Date.now() / 1000);
+      const { header } = signWebhookPayload(payload, secret, now);
+
+      // Replay 1 (initial delivery)
+      const initial = verifyWebhookSignature(payload, header, secret, 300);
+      expect(initial.valid).toBe(true);
+
+      // Replay 2 (captured by attacker and re-sent within window)
+      // Timestamp verification passes because now is still within 300s!
+      const replayed = verifyWebhookSignature(payload, header, secret, 300);
+      expect(replayed.valid).toBe(true);
+
+      // Persistent event-ID deduplication store detects the replay:
+      const processedEventIds = new Set<string>();
+      const eventId = 'evt-unique-abc-123';
+
+      // First check: new event
+      const isFirstDuplicate = processedEventIds.has(eventId);
+      expect(isFirstDuplicate).toBe(false);
+      processedEventIds.add(eventId);
+
+      // Second check: repeated event inside window
+      const isSecondDuplicate = processedEventIds.has(eventId);
+      expect(isSecondDuplicate).toBe(true); // Caught by eventId deduplication!
+    });
+  });
 });

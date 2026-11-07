@@ -3,8 +3,9 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
-import { QueueHealthStatus } from '@flowgate/shared-types';
+import { QueueHealthStatus, TenantQueueHealthStatus } from '@flowgate/shared-types';
 import { QUEUE_NOTIFICATIONS, QUEUE_ESCALATIONS, QUEUE_WEBHOOKS } from './queue.constants';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class QueueHealthService implements OnModuleInit, OnModuleDestroy {
@@ -16,6 +17,7 @@ export class QueueHealthService implements OnModuleInit, OnModuleDestroy {
     @InjectQueue(QUEUE_ESCALATIONS) private readonly escQueue: Queue,
     @InjectQueue(QUEUE_WEBHOOKS) private readonly webhookQueue: Queue,
     private readonly configService: ConfigService,
+    private readonly prisma: PrismaService,
   ) {}
 
   onModuleInit() {
@@ -90,6 +92,61 @@ export class QueueHealthService implements OnModuleInit, OnModuleDestroy {
           failed: webhookCounts.failed || 0,
           delayed: webhookCounts.delayed || 0,
         },
+      },
+    };
+  }
+
+  /**
+   * Retrieves tenant-isolated health metrics.
+   * Derives tenant identity strictly from verified authentication context.
+   * Never exposes global queue job totals or other tenants' data.
+   */
+  async getTenantHealthStatus(tenantId: string): Promise<TenantQueueHealthStatus> {
+    const redisConnected = await this.checkRedisPing();
+
+    const [
+      outboxPending,
+      outboxProcessing,
+      outboxPublished,
+      outboxFailed,
+      notifPending,
+      notifSent,
+      notifFailed,
+      webhookActive,
+      webhookDeliveriesTotal,
+      webhookDeliveriesFailed,
+    ] = await Promise.all([
+      this.prisma.outboxEvent.count({ where: { tenantId, status: 'PENDING' } }),
+      this.prisma.outboxEvent.count({ where: { tenantId, status: 'PROCESSING' } }),
+      this.prisma.outboxEvent.count({ where: { tenantId, status: 'PUBLISHED' } }),
+      this.prisma.outboxEvent.count({ where: { tenantId, status: 'FAILED' } }),
+      this.prisma.notificationLog.count({ where: { tenantId, status: 'PENDING' } }),
+      this.prisma.notificationLog.count({ where: { tenantId, status: 'SENT' } }),
+      this.prisma.notificationLog.count({ where: { tenantId, status: 'FAILED' } }),
+      this.prisma.webhookSubscription.count({ where: { tenantId, status: 'ACTIVE' } }),
+      this.prisma.webhookDelivery.count({ where: { tenantId } }),
+      this.prisma.webhookDelivery.count({ where: { tenantId, status: 'FAILED' } }),
+    ]);
+
+    return {
+      tenantId,
+      redisConnected,
+      timestamp: new Date().toISOString(),
+      outbox: {
+        pending: outboxPending,
+        processing: outboxProcessing,
+        published: outboxPublished,
+        failed: outboxFailed,
+      },
+      notifications: {
+        pending: notifPending,
+        sent: notifSent,
+        failed: notifFailed,
+      },
+      webhooks: {
+        activeEndpoints: webhookActive,
+        totalDeliveries: webhookDeliveriesTotal,
+        failedDeliveries: webhookDeliveriesFailed,
       },
     };
   }
