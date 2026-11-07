@@ -1,0 +1,31 @@
+{
+  "name": "flowgate-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "FlowGate - Multi-Tenant Approval Workflow SaaS Monorepo",
+  "packageManager": "pnpm@12.18.0",
+  "scripts": {
+    "build:shared": "pnpm --filter @flowgate/shared-types build",
+    "build": "pnpm build:shared && pnpm --filter \"./apps/*\" build",
+    "dev": "pnpm --parallel --filter \"./apps/*\" dev",
+    "dev:api": "pnpm --filter api dev",
+    "dev:web": "pnpm --filter web dev",
+    "lint": "pnpm --filter \"*\" lint",
+    "check-types": "pnpm --filter \"*\" check-types",
+    "test": "pnpm --filter api test",
+    "test:e2e": "pnpm --filter api test:e2e",
+    "db:generate": "pnpm --filter api prisma:generate",
+    "db:migrate": "pnpm --filter api prisma:migrate",
+    "db:deploy": "pnpm --filter api prisma:deploy",
+    "db:seed": "pnpm --filter api prisma:seed",
+    "format": "prettier --write \"**/*.{ts,tsx,js,json,md,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md,yml,yaml}\"",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f"
+  },
+  "devDependencies": {
+    "prettier": "^3.3.3",
+    "typescript": "^5.4.5"
+  }
+}

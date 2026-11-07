@@ -1,0 +1,109 @@
+name: FlowGate CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  lint-and-typecheck:
+    name: Lint & Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 12
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma Client
+        run: pnpm db:generate
+
+      - name: Check code formatting
+        run: pnpm format:check
+
+      - name: Type check all workspaces
+        run: pnpm check-types
+
+      - name: Lint all workspaces
+        run: pnpm lint
+
+  test-and-build:
+    name: Test & Build
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: flowgate
+          POSTGRES_PASSWORD: flowgate_dev_password
+          POSTGRES_DB: flowgate_dev
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 12
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma Client
+        run: pnpm db:generate
+
+      - name: Deploy Prisma Migrations
+        run: pnpm db:deploy
+        env:
+          DATABASE_URL: postgresql://flowgate:flowgate_dev_password@localhost:5432/flowgate_dev?schema=public
+
+      - name: Run Unit Tests
+        run: pnpm test
+
+      - name: Run E2E & Integration Tests
+        run: pnpm test:e2e
+        env:
+          DATABASE_URL: postgresql://flowgate:flowgate_dev_password@localhost:5432/flowgate_dev?schema=public
+
+      - name: Build Shared Packages & Applications
+        run: pnpm build
+
+      - name: Validate Docker Compose Configuration
+        run: docker compose config

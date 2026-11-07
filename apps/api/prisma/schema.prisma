@@ -1,0 +1,352 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================================================
+// Enums
+// =============================================================================
+
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+  PENDING
+
+  @@map("tenant_status")
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  TENANT_ADMIN
+  MANAGER
+  REQUESTER
+  APPROVER
+
+  @@map("user_role")
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  INVITED
+  SUSPENDED
+
+  @@map("user_status")
+}
+
+enum WorkflowStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+
+  @@map("workflow_status")
+}
+
+enum ApprovalRequestStatus {
+  PENDING
+  IN_PROGRESS
+  APPROVED
+  REJECTED
+  CANCELLED
+  CHANGES_REQUESTED
+
+  @@map("approval_request_status")
+}
+
+enum StepStatus {
+  PENDING
+  IN_REVIEW
+  APPROVED
+  REJECTED
+  SKIPPED
+
+  @@map("step_status")
+}
+
+enum NotificationChannel {
+  EMAIL
+  SLACK_MOCK
+
+  @@map("notification_channel")
+}
+
+enum DeliveryStatus {
+  PENDING
+  SENT
+  FAILED
+
+  @@map("delivery_status")
+}
+
+enum WebhookStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+
+  @@map("webhook_status")
+}
+
+// =============================================================================
+// Models
+// =============================================================================
+
+model Tenant {
+  id        String       @id @default(uuid()) @db.Uuid
+  name      String       @db.VarChar(255)
+  slug      String       @unique @db.VarChar(100)
+  status    TenantStatus @default(ACTIVE)
+  settings  Json         @default("{}")
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
+
+  // Relationships
+  users                User[]
+  workflowDefinitions  WorkflowDefinition[]
+  approvalRequests     ApprovalRequest[]
+  approvalSteps        ApprovalStep[]
+  auditLogs            AuditLog[]
+  auditChainHead       AuditChainHead?
+  notifications        NotificationLog[]
+  webhookSubscriptions WebhookSubscription[]
+  webhookDeliveries    WebhookDelivery[]
+
+  @@map("tenants")
+}
+
+model User {
+  id           String     @id @default(uuid()) @db.Uuid
+  tenantId     String     @map("tenant_id") @db.Uuid
+  name         String     @db.VarChar(255)
+  email        String     @db.VarChar(255)
+  passwordHash String     @map("password_hash") @db.VarChar(255)
+  role         UserRole   @default(REQUESTER)
+  status       UserStatus @default(ACTIVE)
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  // Relationships
+  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  approvalRequests ApprovalRequest[] @relation("UserApprovalRequests")
+  assignedSteps    ApprovalStep[]    @relation("UserAssignedSteps")
+  actionedSteps    ApprovalStep[]    @relation("UserActionedSteps")
+  escalatedSteps   ApprovalStep[]    @relation("UserEscalatedSteps")
+  auditLogs        AuditLog[]        @relation("UserAuditLogs")
+  notifications    NotificationLog[]
+
+  // Multi-tenant uniqueness
+  @@unique([tenantId, email], name: "tenant_user_email_unique")
+  @@unique([tenantId, id], name: "tenant_user_id_unique")
+  @@index([tenantId])
+  @@index([tenantId, role])
+  @@index([tenantId, status])
+  @@map("users")
+}
+
+model WorkflowDefinition {
+  id            String         @id @default(uuid()) @db.Uuid
+  tenantId      String         @map("tenant_id") @db.Uuid
+  name          String         @db.VarChar(255)
+  description   String?        @db.Text
+  status        WorkflowStatus @default(DRAFT)
+  configuration Json           @default("{}")
+  version       Int            @default(1)
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+
+  // Relationships
+  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  approvalRequests ApprovalRequest[]
+
+  @@unique([tenantId, id], name: "tenant_workflow_id_unique")
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@map("workflow_definitions")
+}
+
+model ApprovalRequest {
+  id                   String                @id @default(uuid()) @db.Uuid
+  tenantId             String                @map("tenant_id") @db.Uuid
+  workflowDefinitionId String                @map("workflow_definition_id") @db.Uuid
+  requestedById        String                @map("requested_by_id") @db.Uuid
+  title                String                @db.VarChar(255)
+  description          String?               @db.Text
+  status               ApprovalRequestStatus @default(PENDING)
+  workflowVersion      Int                   @default(1) @map("workflow_version")
+  workflowSnapshot     Json?                 @map("workflow_snapshot")
+  createdAt            DateTime              @default(now()) @map("created_at")
+  updatedAt            DateTime              @updatedAt @map("updated_at")
+
+  // Relationships (Composite FKs: Database enforces tenant consistency)
+  tenant             Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  workflowDefinition WorkflowDefinition @relation(fields: [tenantId, workflowDefinitionId], references: [tenantId, id], onDelete: Restrict)
+  requestedBy        User               @relation("UserApprovalRequests", fields: [tenantId, requestedById], references: [tenantId, id], onDelete: Restrict)
+  steps              ApprovalStep[]
+
+  @@unique([tenantId, id], name: "tenant_request_id_unique")
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, requestedById])
+  @@index([workflowDefinitionId])
+  @@map("approval_requests")
+}
+
+model ApprovalStep {
+  id                String     @id @default(uuid()) @db.Uuid
+  tenantId          String     @map("tenant_id") @db.Uuid
+  approvalRequestId String     @map("approval_request_id") @db.Uuid
+  stepName          String     @default("Approval Step") @map("step_name") @db.VarChar(255)
+  assignedToId      String?    @map("assigned_to_id") @db.Uuid
+  assignedRole      UserRole?  @map("assigned_role")
+  actionedById      String?    @map("actioned_by_id") @db.Uuid
+  actionedAt        DateTime?  @map("actioned_at")
+  stepOrder         Int        @map("step_order")
+  status            StepStatus @default(PENDING)
+  comments          String?    @db.Text
+  reminderCount     Int        @default(0) @map("reminder_count")
+  lastRemindedAt    DateTime?  @map("last_reminded_at")
+  isEscalated       Boolean    @default(false) @map("is_escalated")
+  escalatedAt       DateTime?  @map("escalated_at")
+  escalatedToRole   UserRole?  @map("escalated_to_role")
+  escalatedToUserId String?    @map("escalated_to_user_id") @db.Uuid
+  escalationReason  String?    @map("escalation_reason") @db.VarChar(255)
+  createdAt         DateTime   @default(now()) @map("created_at")
+  updatedAt         DateTime   @updatedAt @map("updated_at")
+
+  // Relationships (Composite FKs: Database enforces tenant consistency)
+  tenant          Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  approvalRequest ApprovalRequest @relation(fields: [tenantId, approvalRequestId], references: [tenantId, id], onDelete: Cascade)
+  assignedTo      User?           @relation("UserAssignedSteps", fields: [tenantId, assignedToId], references: [tenantId, id], onDelete: SetNull)
+  actionedBy      User?           @relation("UserActionedSteps", fields: [tenantId, actionedById], references: [tenantId, id], onDelete: SetNull)
+  escalatedTo     User?           @relation("UserEscalatedSteps", fields: [tenantId, escalatedToUserId], references: [tenantId, id], onDelete: SetNull)
+
+  // Enforces unique step order within an approval request
+  @@unique([approvalRequestId, stepOrder], name: "request_step_order_unique")
+  @@index([tenantId])
+  @@index([approvalRequestId])
+  @@index([assignedToId])
+  @@index([tenantId, assignedRole])
+  @@index([actionedById])
+  @@index([escalatedToUserId])
+  @@index([tenantId, escalatedToRole])
+  @@map("approval_steps")
+}
+
+model AuditLog {
+  id             String   @id @default(uuid()) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  actorId        String?  @map("actor_id") @db.Uuid
+  entityType     String   @map("entity_type") @db.VarChar(100)
+  entityId       String   @map("entity_id") @db.VarChar(100)
+  action         String   @db.VarChar(100)
+  metadata       Json     @default("{}")
+  previousHash   String?  @map("previous_hash") @db.VarChar(64)
+  hash           String?  @map("hash") @db.VarChar(64)
+  sequenceNumber Int?     @map("sequence_number")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  // Relationships (Composite FK: Database enforces tenant consistency; No updatedAt: strictly append-only)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  actor  User?  @relation("UserAuditLogs", fields: [tenantId, actorId], references: [tenantId, id], onDelete: SetNull)
+
+  @@unique([tenantId, sequenceNumber], name: "tenant_audit_sequence_unique")
+  @@index([tenantId])
+  @@index([tenantId, sequenceNumber])
+  @@index([tenantId, entityType, entityId])
+  @@index([tenantId, createdAt])
+  @@index([actorId])
+  @@map("audit_logs")
+}
+
+model AuditChainHead {
+  tenantId       String    @id @map("tenant_id") @db.Uuid
+  lastHash       String    @map("last_hash") @db.VarChar(64)
+  sequenceNumber Int       @default(0) @map("sequence_number")
+  lastCreatedAt  DateTime? @map("last_created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("audit_chain_heads")
+}
+
+model NotificationLog {
+  id              String              @id @default(uuid()) @db.Uuid
+  tenantId        String              @map("tenant_id") @db.Uuid
+  recipientEmail  String              @map("recipient_email") @db.VarChar(255)
+  recipientUserId String?             @map("recipient_user_id") @db.Uuid
+  channel         NotificationChannel @default(EMAIL)
+  eventType       String              @map("event_type") @db.VarChar(100)
+  subject         String              @db.VarChar(255)
+  content         String              @db.Text
+  status          DeliveryStatus      @default(PENDING)
+  idempotencyKey  String              @map("idempotency_key") @db.VarChar(255)
+  attemptCount    Int                 @default(0) @map("attempt_count")
+  errorMessage    String?             @map("error_message") @db.Text
+  metadata        Json                @default("{}")
+  sentAt          DateTime?           @map("sent_at")
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+
+  tenant    Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  recipient User?  @relation(fields: [tenantId, recipientUserId], references: [tenantId, id], onDelete: SetNull)
+
+  @@unique([tenantId, idempotencyKey], name: "tenant_notification_idempotency_unique")
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, eventType])
+  @@index([recipientUserId])
+  @@map("notification_logs")
+}
+
+model WebhookSubscription {
+  id           String        @id @default(uuid()) @db.Uuid
+  tenantId     String        @map("tenant_id") @db.Uuid
+  name         String        @db.VarChar(255)
+  url          String        @db.VarChar(1024)
+  secret       String        @db.VarChar(255)
+  eventTypes   Json          @default("[]") @map("event_types")
+  status       WebhookStatus @default(ACTIVE)
+  failureCount Int           @default(0) @map("failure_count")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+
+  tenant     Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  deliveries WebhookDelivery[]
+
+  @@unique([tenantId, id], name: "tenant_webhook_subscription_id_unique")
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@map("webhook_subscriptions")
+}
+
+model WebhookDelivery {
+  id             String         @id @default(uuid()) @db.Uuid
+  tenantId       String         @map("tenant_id") @db.Uuid
+  subscriptionId String         @map("subscription_id") @db.Uuid
+  eventType      String         @map("event_type") @db.VarChar(100)
+  payload        Json           @default("{}")
+  status         DeliveryStatus @default(PENDING)
+  httpStatusCode Int?           @map("http_status_code")
+  attemptCount   Int            @default(0) @map("attempt_count")
+  maxAttempts    Int            @default(3) @map("max_attempts")
+  nextRetryAt    DateTime?      @map("next_retry_at")
+  requestHeaders Json?          @map("request_headers")
+  responseBody   String?        @map("response_body") @db.Text
+  errorMessage   String?        @map("error_message") @db.Text
+  durationMs     Int?           @map("duration_ms")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+
+  tenant       Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  subscription WebhookSubscription @relation(fields: [tenantId, subscriptionId], references: [tenantId, id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([subscriptionId])
+  @@index([tenantId, status])
+  @@index([tenantId, eventType])
+  @@map("webhook_deliveries")
+}

@@ -1,0 +1,51 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: flowgate-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-flowgate}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-flowgate_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-flowgate_dev}
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-flowgate} -d ${POSTGRES_DB:-flowgate_dev}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - flowgate-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: flowgate-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-flowgate_redis_pass}
+    ports:
+      - '${REDIS_PORT:-6379}:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', '-a', '${REDIS_PASSWORD:-flowgate_redis_pass}', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - flowgate-network
+
+volumes:
+  postgres_data:
+    name: flowgate_postgres_data
+  redis_data:
+    name: flowgate_redis_data
+
+networks:
+  flowgate-network:
+    name: flowgate_network
+    driver: bridge
