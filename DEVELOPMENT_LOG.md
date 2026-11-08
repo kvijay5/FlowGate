@@ -2,6 +2,85 @@
 
 ---
 
+## [Milestone 6.2: Workflow Graph Validator & Transactional DAG Execution Engine] - 2026-11-08
+
+### 1. Executive Summary
+
+Milestone 6.2 implements the comprehensive DAG validation engine and transactional state machine for FlowGate:
+
+1. **Schema & Contract Alignment**:
+   - Updated `DelegationStatus` in PostgreSQL and `@flowgate/shared-types` to explicitly support `INACTIVE` alongside `ACTIVE`, `REVOKED`, and `EXPIRED` via forward-only migration `20261108120000_milestone6_2_delegation_inactive_enum`.
+   - Enhanced `WorkflowNodeType` to include all 6 architecture node types (`TRIGGER`, `APPROVAL_STEP`, `PARALLEL_APPROVAL`, `CONDITION`, `JOIN`, `END`) while preserving `APPROVAL` and `PARALLEL` aliases.
+   - Added `source` and `target` aliases to `WorkflowEdge` for seamless visual canvas compatibility.
+2. **Workflow Graph Validator Service (`WorkflowGraphValidatorService`)**:
+   - Implemented Kahn's topological sort algorithm for strict cycle detection (rejecting back-edges and circular references with descriptive cycle node paths).
+   - Implemented bidirectional reachability analysis: forward BFS from `TRIGGER` (eliminating orphaned nodes) and reverse BFS from `END` nodes (eliminating dead-end paths).
+   - Structural boundary enforcement: exactly one `TRIGGER` (in-degree 0, out-degree >= 1), at least one `END` (out-degree 0, in-degree >= 1), unique node and edge IDs, self-loop prevention.
+   - Node-specific invariant checks: `CONDITION` minimum 2 outgoing edges and mandatory fallback target; `PARALLEL_APPROVAL` threshold validation ($1 \le \text{requiredApprovals} \le \text{totalAssigned}$ for `PARALLEL_OR`, $\text{requiredApprovals} = \text{totalAssigned}$ for `PARALLEL_AND`); `JOIN` minimum 2 incoming edges and static deadlock prevention.
+   - Provided seamless compilation of legacy sequential step workflows into standard DAG graphs.
+3. **Transactional DAG Execution Engine (`WorkflowGraphEngineService`)**:
+   - Automated graph initialization (`initializeGraphExecution`): payload schema validation, 32 KB payload bounds, immutable snapshotting, and atomic generation of Round 1 `WorkflowNodeExecution` and `WorkflowBranchExecution` rows.
+   - Dynamic node traversal: automated evaluation of `CONDITION` nodes with AST expressions, winning branch activation, and recursive downstream branch pruning (`PRUNED_SKIPPED`).
+   - Concurrency-safe `ALL_INCOMING` join synchronization: PostgreSQL row locks (`SELECT ... FOR UPDATE`) serialize converging parallel paths; advances idempotently only when all incoming paths are resolved (`COMPLETED` or `PRUNED_SKIPPED`) with zero false skips.
+   - Quorum-loss reachability mathematics: tracks `totalAssigned`, `requiredApprovals`, `approvedCount`, and `rejectedCount`; triggers immediate `QUORUM_LOST` termination the instant max achievable approvals drops below the required threshold, preventing stalled workflows.
+   - Multi-round resubmission (`resubmitGraphRequest`): increments `currentReviewRound` ($N \to N+1$), preserving historical step, assignee, and execution records immutably with continuous SHA-256 audit log continuity.
+4. **Verification & Quality Gates**:
+   - Monorepo automated test count increased from 253 to **283 passing tests** (183 unit tests across 17 suites, 100 integration/e2e tests across 8 suites).
+   - 0 type errors, 0 lint warnings, 100% Prettier compliance, clean monorepo production build.
+
+### 2. Summary of Work Completed & Deliverables
+
+- **Database & Enums (`apps/api/prisma/`)**:
+  - `schema.prisma`: Added `INACTIVE` to `DelegationStatus`.
+  - Migration `20261108120000_milestone6_2_delegation_inactive_enum`: Applied cleanly via `prisma migrate deploy`.
+- **Validation Engine (`apps/api/src/workflows/workflow-graph-validator.service.ts` & `.spec.ts`)**:
+  - Full structural and invariant validation for arbitrary workflow DAGs.
+  - 19 unit tests covering valid topologies, cycle detection, reachability, dead ends, threshold checks, and legacy compilation.
+- **Transactional DAG Engine (`apps/api/src/workflows/workflow-graph-engine.service.ts` & `.spec.ts`)**:
+  - Complete runtime traversal state machine with row-locked join synchronization and quorum reachability calculations.
+  - 8 unit tests covering graph initialization, payload sizing, `PARALLEL_AND` veto, `PARALLEL_OR` soft rejection, strict veto, quorum loss, duplicate vote prevention, and multi-round resubmission.
+- **Integration & Concurrency Suite (`apps/api/test/dag-execution-engine.integration-spec.ts`)**:
+  - 3 database integration tests validating a full diamond DAG (`TRIGGER -> CONDITION -> PARALLEL + LEGAL -> JOIN -> END`), concurrent `Promise.all` voting with row-lock serialization, and immediate quorum-loss termination.
+
+### 3. Technical Decisions & Rationale
+
+- **Why Row Locking (`SELECT ... FOR UPDATE`) is Required for Parallel Voting & Join Synchronization**:
+  When multiple approvers vote simultaneously on a parallel step or when multiple parallel branches complete at the same millisecond and converge on a `JOIN` node, concurrent database transactions read stale counter or branch status values without row-level locking. By acquiring exclusive locks on `approval_steps` and `workflow_node_executions`, PostgreSQL serializes the evaluation, ensuring exact counter increments (`approvedCount`), preventing duplicate downstream step instantiations, and preserving audit hash chain integrity.
+- **Why Quorum Loss Must Terminate Immediately Instead of Waiting for Pending Approvers**:
+  In a 2-of-3 required parallel approval stage (`PARALLEL_OR` with `SOFT_REJECTION`), once 2 approvers have rejected, the maximum achievable approvals is 1. Waiting for the 3rd approver leaves the workflow in `IN_REVIEW` indefinitely for an outcome that is mathematically impossible. Calculating $\text{maxAchievableApprovals} = \text{approvedCount} + \text{pendingEligibleCount}$ and evaluating $\text{maxAchievableApprovals} < \text{requiredApprovals}$ guarantees that impossible approvals abort immediately with `QUORUM_LOST`.
+
+### 4. Verification and Actual Test Results
+
+- **TypeScript Compilation (`pnpm check-types`)**:
+  - `packages/shared-types`: 0 errors
+  - `apps/api`: 0 errors
+  - `apps/web`: 0 errors
+- **Linting (`pnpm lint`)**:
+  - 0 warnings, 0 errors across all workspaces
+- **Code Formatting (`pnpm format:check`)**:
+  - 100% compliant with Prettier
+- **Backend Unit Tests (`pnpm --filter api test`)**:
+  - **17 test suites passed**, **183 tests passed**, 0 failed
+- **Backend Integration / E2E Tests (`pnpm --filter api test:e2e`)**:
+  - **8 test suites passed**, **100 tests passed**, 0 failed
+- **Total Automated Test Count**:
+  - **283 automated tests passed**, 0 failed
+- **Production Build (`pnpm build`)**:
+  - Exit code 0 across all workspaces.
+
+### 5. Known Limitations or Environmental Blockers
+
+- GitHub push was initially rejected due to the local GitHub Personal Access Token lacking the `workflow` scope for `.github/workflows/ci.yml`. The repository `https://github.com/kvijay5/FlowGate` has been created and remote `origin` configured.
+
+### 6. Recommended Next Steps
+
+- Proceed to **Phase 6.3: Visual Workflow Builder UI in Next.js**:
+  - Implement interactive React Flow DAG canvas with custom nodes (`TriggerNode`, `ApprovalNode`, `ConditionNode`, `JoinNode`, `EndNode`).
+  - Implement live graph validation feedback and condition rule builder drawer.
+  - Implement dynamic form rendering from `TriggerNode.inputSchema`.
+
+---
+
 ## [Milestone 6.1: Core Data Layer, Prisma Schema Migration, Shared Domain Types, and Safe AST Condition Evaluator] - 2026-11-08
 
 ### 1. Executive Summary

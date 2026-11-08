@@ -89,6 +89,13 @@ export class AstConditionEvaluatorService {
   }
 
   /**
+   * Statically validates an AST condition expression against a required input schema.
+   */
+  public validateAgainstSchema(ast: AstNode, schema: InputSchema): void {
+    this.validateAst(ast, schema, 1);
+  }
+
+  /**
    * Evaluates an AST condition expression against the provided requestData.
    * Returns a boolean result and structured trace metadata for audit logging.
    */
@@ -578,7 +585,7 @@ export class AstConditionEvaluatorService {
     }
   }
 
-  private assertPayloadSize(requestData: Record<string, unknown>): void {
+  public assertPayloadSize(requestData: Record<string, unknown>): void {
     try {
       const payloadStr = JSON.stringify(requestData ?? {});
       const payloadBytes = Buffer.byteLength(payloadStr, 'utf8');

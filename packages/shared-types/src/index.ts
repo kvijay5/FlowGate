@@ -31,13 +31,20 @@ export type AssigneeType = 'ROLE' | 'USER';
 // Milestone 6 DAG, Policy & Execution Enums
 export type StepPolicy = 'SEQUENTIAL' | 'PARALLEL_AND' | 'PARALLEL_OR';
 export type RejectionPolicy = 'SOFT_REJECTION' | 'STRICT_VETO';
-export type DelegationStatus = 'ACTIVE' | 'REVOKED' | 'EXPIRED';
+export type DelegationStatus = 'ACTIVE' | 'INACTIVE' | 'REVOKED' | 'EXPIRED';
 export type NodeExecutionStatus =
   'PENDING' | 'IN_REVIEW' | 'COMPLETED' | 'SKIPPED' | 'FAILED' | 'CANCELLED';
 export type BranchExecutionStatus =
   'NOT_EVALUATED' | 'ACTIVE' | 'COMPLETED' | 'PRUNED_SKIPPED' | 'FAILED' | 'CANCELLED';
 export type WorkflowNodeType =
-  'TRIGGER' | 'APPROVAL_STEP' | 'PARALLEL_APPROVAL' | 'CONDITION' | 'JOIN' | 'END';
+  | 'TRIGGER'
+  | 'APPROVAL_STEP'
+  | 'PARALLEL_APPROVAL'
+  | 'CONDITION'
+  | 'JOIN'
+  | 'END'
+  | 'APPROVAL'
+  | 'PARALLEL';
 export type JoinPolicy = 'ALL_INCOMING' | 'ANY_INCOMING';
 export type EndOutcome = 'APPROVED' | 'REJECTED' | 'AUTO_APPROVED';
 export type ResubmissionPolicy = 'REOPEN_ALL' | 'SELECTIVE_FAST_FORWARD';
@@ -146,6 +153,8 @@ export interface WorkflowEdge {
   id: string;
   sourceNodeId: string;
   targetNodeId: string;
+  source?: string; // ReactFlow / Graph builder compatibility alias
+  target?: string; // ReactFlow / Graph builder compatibility alias
   sourceHandle?: string; // branchKey for CONDITION node
   label?: string;
 }

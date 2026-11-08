@@ -116,6 +116,7 @@ enum RejectionPolicy {
 
 enum DelegationStatus {
   ACTIVE
+  INACTIVE
   REVOKED
   EXPIRED
 
