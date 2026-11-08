@@ -28,6 +28,128 @@ export type WorkflowStatus = 'DRAFT' | 'ACTIVE' | 'ARCHIVED';
 
 export type AssigneeType = 'ROLE' | 'USER';
 
+// Milestone 6 DAG, Policy & Execution Enums
+export type StepPolicy = 'SEQUENTIAL' | 'PARALLEL_AND' | 'PARALLEL_OR';
+export type RejectionPolicy = 'SOFT_REJECTION' | 'STRICT_VETO';
+export type DelegationStatus = 'ACTIVE' | 'REVOKED' | 'EXPIRED';
+export type NodeExecutionStatus =
+  'PENDING' | 'IN_REVIEW' | 'COMPLETED' | 'SKIPPED' | 'FAILED' | 'CANCELLED';
+export type BranchExecutionStatus =
+  'NOT_EVALUATED' | 'ACTIVE' | 'COMPLETED' | 'PRUNED_SKIPPED' | 'FAILED' | 'CANCELLED';
+export type WorkflowNodeType =
+  'TRIGGER' | 'APPROVAL_STEP' | 'PARALLEL_APPROVAL' | 'CONDITION' | 'JOIN' | 'END';
+export type JoinPolicy = 'ALL_INCOMING' | 'ANY_INCOMING';
+export type EndOutcome = 'APPROVED' | 'REJECTED' | 'AUTO_APPROVED';
+export type ResubmissionPolicy = 'REOPEN_ALL' | 'SELECTIVE_FAST_FORWARD';
+
+// Input Schema Domain (Trigger Node Payload Validation)
+export type FieldDataType = 'STRING' | 'NUMBER' | 'BOOLEAN';
+
+export interface InputSchemaField {
+  name: string;
+  label: string;
+  type: FieldDataType;
+  required: boolean;
+  defaultValue?: string | number | boolean;
+  minimum?: number;
+  maximum?: number;
+  allowedValues?: string[];
+  description?: string;
+}
+
+export interface InputSchema {
+  fields: InputSchemaField[];
+}
+
+// AST Condition Expression Domain
+export type AstNumericOperator =
+  'EQ' | 'NEQ' | 'GT' | 'GTE' | 'LT' | 'LTE' | 'IN' | '==' | '!=' | '>' | '>=' | '<' | '<=';
+export type AstStringOperator =
+  'EQ' | 'NEQ' | 'IN' | 'NOT_IN' | 'CONTAINS' | 'STARTS_WITH' | 'ENDS_WITH' | '==' | '!=';
+export type AstBooleanOperator = 'EQ' | 'NEQ' | '==' | '!=';
+export type AstComparisonOperator = AstNumericOperator | AstStringOperator | AstBooleanOperator;
+export type AstLogicalOperator = 'AND' | 'OR' | 'NOT';
+
+export interface AstComparisonNode {
+  field: string;
+  operator: AstComparisonOperator;
+  value: string | number | boolean | (string | number)[];
+}
+
+export interface AstLogicalNode {
+  operator: AstLogicalOperator;
+  children: AstNode[];
+}
+
+export type AstNode = AstComparisonNode | AstLogicalNode;
+
+export interface ConditionRule {
+  id: string;
+  targetNodeId: string;
+  branchKey: string;
+  expression: AstNode;
+  description?: string;
+}
+
+// DAG Node & Edge Definitions
+export interface WorkflowNodePosition {
+  x: number;
+  y: number;
+}
+
+export interface StepAssigneeConfig {
+  assigneeType: AssigneeType;
+  role?: UserRole;
+  userId?: string;
+  userEmail?: string;
+}
+
+export interface WorkflowNodeConfig {
+  // Trigger config
+  inputSchema?: InputSchema;
+  // Sequential / Single approval config
+  assigneeType?: AssigneeType;
+  role?: UserRole;
+  userId?: string;
+  userEmail?: string;
+  // Parallel approval config
+  policy?: StepPolicy;
+  rejectionPolicy?: RejectionPolicy;
+  requiredApprovals?: number;
+  assignees?: StepAssigneeConfig[];
+  // Condition config
+  rules?: ConditionRule[];
+  defaultTargetNodeId?: string;
+  // Join config
+  joinPolicy?: JoinPolicy;
+  // End config
+  outcome?: EndOutcome;
+  // Escalation config
+  escalationTimeoutMinutes?: number;
+  escalateToRole?: UserRole;
+  escalateToUserId?: string;
+  // Metadata & resubmission
+  name?: string;
+  description?: string;
+  fastForwardOnResubmit?: boolean;
+}
+
+export interface WorkflowNode {
+  id: string;
+  type: WorkflowNodeType;
+  name: string;
+  position?: WorkflowNodePosition;
+  config: WorkflowNodeConfig;
+}
+
+export interface WorkflowEdge {
+  id: string;
+  sourceNodeId: string;
+  targetNodeId: string;
+  sourceHandle?: string; // branchKey for CONDITION node
+  label?: string;
+}
+
 export interface WorkflowStepConfig {
   stepOrder: number;
   name: string;
@@ -38,8 +160,18 @@ export interface WorkflowStepConfig {
   description?: string;
 }
 
-export interface WorkflowConfiguration {
-  steps: WorkflowStepConfig[];
+export interface WorkflowGraphConfiguration {
+  nodes?: WorkflowNode[];
+  edges?: WorkflowEdge[];
+  inputSchema?: InputSchema;
+  resubmissionPolicy?: ResubmissionPolicy;
+  steps?: WorkflowStepConfig[];
+  approvalThresholdUsd?: number;
+  metadata?: Record<string, unknown>;
+}
+
+export interface WorkflowConfiguration extends WorkflowGraphConfiguration {
+  steps?: WorkflowStepConfig[];
   approvalThresholdUsd?: number;
   metadata?: Record<string, unknown>;
 }
@@ -67,12 +199,106 @@ export type StepStatus = 'PENDING' | 'IN_REVIEW' | 'APPROVED' | 'REJECTED' | 'SK
 
 export type ApprovalActionType = 'APPROVE' | 'REJECT' | 'REQUEST_CHANGES' | 'CANCEL';
 
+export interface ApprovalStepAssigneeSummary {
+  id: string;
+  tenantId: string;
+  stepId: string;
+  reviewRound: number;
+  assignedToId?: string | null;
+  assignedTo?: UserSummary | null;
+  assignedRole?: UserRole | null;
+  status: StepStatus;
+  actionedById?: string | null;
+  actionedBy?: {
+    id: string;
+    name: string;
+    email: string;
+  } | null;
+  delegatedFromUserId?: string | null;
+  delegatedFromUser?: {
+    id: string;
+    name: string;
+    email: string;
+  } | null;
+  actionedAt?: string | null;
+  comments?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WorkflowNodeExecutionSummary {
+  id: string;
+  tenantId: string;
+  approvalRequestId: string;
+  reviewRound: number;
+  nodeId: string;
+  nodeType: string;
+  status: NodeExecutionStatus;
+  activatedAt?: string | null;
+  completedAt?: string | null;
+  executionData?: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WorkflowBranchExecutionSummary {
+  id: string;
+  tenantId: string;
+  approvalRequestId: string;
+  reviewRound: number;
+  branchKey: string;
+  sourceNodeId: string;
+  targetNodeId: string;
+  status: BranchExecutionStatus;
+  activatedAt?: string | null;
+  completedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UserDelegationSummary {
+  id: string;
+  tenantId: string;
+  delegatorId: string;
+  delegator?: UserSummary;
+  delegateeId: string;
+  delegatee?: UserSummary;
+  workflowDefinitionId?: string | null;
+  workflowDefinitionName?: string | null;
+  delegateRoles: boolean;
+  startDate: string;
+  endDate: string;
+  status: DelegationStatus;
+  reason?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateDelegationDto {
+  delegateeId: string;
+  workflowDefinitionId?: string | null;
+  delegateRoles?: boolean;
+  startDate: string;
+  endDate: string;
+  reason?: string;
+}
+
 export interface ApprovalStepDetail {
   id: string;
   tenantId: string;
   approvalRequestId: string;
   stepName: string;
   stepOrder: number;
+  reviewRound?: number;
+  nodeId?: string;
+  nodeType?: string;
+  branchKey?: string | null;
+  policy?: StepPolicy;
+  rejectionPolicy?: RejectionPolicy;
+  totalAssigned?: number;
+  requiredApprovals?: number;
+  approvedCount?: number;
+  rejectedCount?: number;
   status: StepStatus;
   assignedRole?: UserRole | null;
   assignedToId?: string | null;
@@ -90,6 +316,7 @@ export interface ApprovalStepDetail {
   } | null;
   actionedAt?: string | null;
   comments?: string | null;
+  assignees?: ApprovalStepAssigneeSummary[];
   createdAt: string;
   updatedAt: string;
 }
@@ -107,6 +334,8 @@ export interface ApprovalRequestSummary {
   description?: string | null;
   status: ApprovalRequestStatus;
   currentStep?: number | null;
+  currentNodeId?: string | null;
+  currentReviewRound?: number;
   totalSteps: number;
   createdAt: string;
   updatedAt: string;
@@ -115,7 +344,10 @@ export interface ApprovalRequestSummary {
 export interface ApprovalRequestDetail extends ApprovalRequestSummary {
   workflowDefinition: WorkflowDefinitionSummary;
   workflowSnapshot?: Record<string, unknown> | null;
+  requestData?: Record<string, unknown>;
   steps: ApprovalStepDetail[];
+  nodeExecutions?: WorkflowNodeExecutionSummary[];
+  branchExecutions?: WorkflowBranchExecutionSummary[];
   auditLogs?: AuditLogSummary[];
 }
 

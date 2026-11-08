@@ -99,6 +99,51 @@ enum OutboxStatus {
   @@map("outbox_status")
 }
 
+enum StepPolicy {
+  SEQUENTIAL
+  PARALLEL_AND
+  PARALLEL_OR
+
+  @@map("step_policy")
+}
+
+enum RejectionPolicy {
+  SOFT_REJECTION
+  STRICT_VETO
+
+  @@map("rejection_policy")
+}
+
+enum DelegationStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
+
+  @@map("delegation_status")
+}
+
+enum NodeExecutionStatus {
+  PENDING
+  IN_REVIEW
+  COMPLETED
+  SKIPPED
+  FAILED
+  CANCELLED
+
+  @@map("node_execution_status")
+}
+
+enum BranchExecutionStatus {
+  NOT_EVALUATED
+  ACTIVE
+  COMPLETED
+  PRUNED_SKIPPED
+  FAILED
+  CANCELLED
+
+  @@map("branch_execution_status")
+}
+
 // =============================================================================
 // Models
 // =============================================================================
@@ -113,17 +158,21 @@ model Tenant {
   updatedAt DateTime     @updatedAt @map("updated_at")
 
   // Relationships
-  users                User[]
-  workflowDefinitions  WorkflowDefinition[]
-  approvalRequests     ApprovalRequest[]
-  approvalSteps        ApprovalStep[]
-  auditLogs            AuditLog[]
-  auditChainHead       AuditChainHead?
-  notifications        NotificationLog[]
-  webhookSubscriptions WebhookSubscription[]
-  webhookDeliveries    WebhookDelivery[]
-  outboxEvents         OutboxEvent[]
-  inboundWebhookEvents InboundWebhookEvent[]
+  users                    User[]
+  workflowDefinitions      WorkflowDefinition[]
+  approvalRequests         ApprovalRequest[]
+  approvalSteps            ApprovalStep[]
+  approvalStepAssignees    ApprovalStepAssignee[]
+  workflowNodeExecutions   WorkflowNodeExecution[]
+  workflowBranchExecutions WorkflowBranchExecution[]
+  userDelegations          UserDelegation[]
+  auditLogs                AuditLog[]
+  auditChainHead           AuditChainHead?
+  notifications            NotificationLog[]
+  webhookSubscriptions     WebhookSubscription[]
+  webhookDeliveries        WebhookDelivery[]
+  outboxEvents             OutboxEvent[]
+  inboundWebhookEvents     InboundWebhookEvent[]
 
   @@map("tenants")
 }
@@ -140,13 +189,18 @@ model User {
   updatedAt    DateTime   @updatedAt @map("updated_at")
 
   // Relationships
-  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  approvalRequests ApprovalRequest[] @relation("UserApprovalRequests")
-  assignedSteps    ApprovalStep[]    @relation("UserAssignedSteps")
-  actionedSteps    ApprovalStep[]    @relation("UserActionedSteps")
-  escalatedSteps   ApprovalStep[]    @relation("UserEscalatedSteps")
-  auditLogs        AuditLog[]        @relation("UserAuditLogs")
-  notifications    NotificationLog[]
+  tenant                 Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  approvalRequests       ApprovalRequest[]      @relation("UserApprovalRequests")
+  assignedSteps          ApprovalStep[]         @relation("UserAssignedSteps")
+  actionedSteps          ApprovalStep[]         @relation("UserActionedSteps")
+  escalatedSteps         ApprovalStep[]         @relation("UserEscalatedSteps")
+  assignedStepAssignees  ApprovalStepAssignee[] @relation("AssigneeAssignedTo")
+  actionedStepAssignees  ApprovalStepAssignee[] @relation("AssigneeActionedBy")
+  delegatedStepAssignees ApprovalStepAssignee[] @relation("AssigneeDelegatedFrom")
+  delegationsGiven       UserDelegation[]       @relation("DelegatorUser")
+  delegationsReceived    UserDelegation[]       @relation("DelegateeUser")
+  auditLogs              AuditLog[]             @relation("UserAuditLogs")
+  notifications          NotificationLog[]
 
   // Multi-tenant uniqueness
   @@unique([tenantId, email], name: "tenant_user_email_unique")
@@ -171,6 +225,7 @@ model WorkflowDefinition {
   // Relationships
   tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   approvalRequests ApprovalRequest[]
+  delegations      UserDelegation[]
 
   @@unique([tenantId, id], name: "tenant_workflow_id_unique")
   @@index([tenantId])
@@ -179,23 +234,28 @@ model WorkflowDefinition {
 }
 
 model ApprovalRequest {
-  id                   String                @id @default(uuid()) @db.Uuid
-  tenantId             String                @map("tenant_id") @db.Uuid
-  workflowDefinitionId String                @map("workflow_definition_id") @db.Uuid
-  requestedById        String                @map("requested_by_id") @db.Uuid
-  title                String                @db.VarChar(255)
-  description          String?               @db.Text
-  status               ApprovalRequestStatus @default(PENDING)
-  workflowVersion      Int                   @default(1) @map("workflow_version")
-  workflowSnapshot     Json?                 @map("workflow_snapshot")
-  createdAt            DateTime              @default(now()) @map("created_at")
-  updatedAt            DateTime              @updatedAt @map("updated_at")
+  id                   String                    @id @default(uuid()) @db.Uuid
+  tenantId             String                    @map("tenant_id") @db.Uuid
+  workflowDefinitionId String                    @map("workflow_definition_id") @db.Uuid
+  requestedById        String                    @map("requested_by_id") @db.Uuid
+  title                String                    @db.VarChar(255)
+  description          String?                   @db.Text
+  requestData          Json                      @default("{}") @map("request_data")
+  status               ApprovalRequestStatus     @default(PENDING)
+  workflowVersion      Int                       @default(1) @map("workflow_version")
+  workflowSnapshot     Json?                     @map("workflow_snapshot")
+  currentNodeId        String?                   @map("current_node_id") @db.VarChar(100)
+  currentReviewRound   Int                       @default(1) @map("current_review_round")
+  createdAt            DateTime                  @default(now()) @map("created_at")
+  updatedAt            DateTime                  @updatedAt @map("updated_at")
 
   // Relationships (Composite FKs: Database enforces tenant consistency)
-  tenant             Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  workflowDefinition WorkflowDefinition @relation(fields: [tenantId, workflowDefinitionId], references: [tenantId, id], onDelete: Restrict)
-  requestedBy        User               @relation("UserApprovalRequests", fields: [tenantId, requestedById], references: [tenantId, id], onDelete: Restrict)
+  tenant             Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  workflowDefinition WorkflowDefinition        @relation(fields: [tenantId, workflowDefinitionId], references: [tenantId, id], onDelete: Restrict)
+  requestedBy        User                      @relation("UserApprovalRequests", fields: [tenantId, requestedById], references: [tenantId, id], onDelete: Restrict)
   steps              ApprovalStep[]
+  nodeExecutions     WorkflowNodeExecution[]
+  branchExecutions   WorkflowBranchExecution[]
 
   @@unique([tenantId, id], name: "tenant_request_id_unique")
   @@index([tenantId])
@@ -206,44 +266,154 @@ model ApprovalRequest {
 }
 
 model ApprovalStep {
-  id                String     @id @default(uuid()) @db.Uuid
-  tenantId          String     @map("tenant_id") @db.Uuid
-  approvalRequestId String     @map("approval_request_id") @db.Uuid
-  stepName          String     @default("Approval Step") @map("step_name") @db.VarChar(255)
-  assignedToId      String?    @map("assigned_to_id") @db.Uuid
-  assignedRole      UserRole?  @map("assigned_role")
-  actionedById      String?    @map("actioned_by_id") @db.Uuid
-  actionedAt        DateTime?  @map("actioned_at")
-  stepOrder         Int        @map("step_order")
-  status            StepStatus @default(PENDING)
-  comments          String?    @db.Text
-  reminderCount     Int        @default(0) @map("reminder_count")
-  lastRemindedAt    DateTime?  @map("last_reminded_at")
-  isEscalated       Boolean    @default(false) @map("is_escalated")
-  escalatedAt       DateTime?  @map("escalated_at")
-  escalatedToRole   UserRole?  @map("escalated_to_role")
-  escalatedToUserId String?    @map("escalated_to_user_id") @db.Uuid
-  escalationReason  String?    @map("escalation_reason") @db.VarChar(255)
-  createdAt         DateTime   @default(now()) @map("created_at")
-  updatedAt         DateTime   @updatedAt @map("updated_at")
+  id                String                 @id @default(uuid()) @db.Uuid
+  tenantId          String                 @map("tenant_id") @db.Uuid
+  approvalRequestId String                 @map("approval_request_id") @db.Uuid
+  reviewRound       Int                    @default(1) @map("review_round")
+  nodeId            String                 @default("legacy_step") @map("node_id") @db.VarChar(100)
+  nodeType          String                 @default("APPROVAL_STEP") @map("node_type") @db.VarChar(50)
+  stepName          String                 @default("Approval Step") @map("step_name") @db.VarChar(255)
+  stepOrder         Int                    @map("step_order")
+  branchKey         String?                @map("branch_key") @db.VarChar(150)
+  policy            StepPolicy             @default(SEQUENTIAL)
+  rejectionPolicy   RejectionPolicy        @default(SOFT_REJECTION) @map("rejection_policy")
+  totalAssigned     Int                    @default(1) @map("total_assigned")
+  requiredApprovals Int                    @default(1) @map("required_approvals")
+  approvedCount     Int                    @default(0) @map("approved_count")
+  rejectedCount     Int                    @default(0) @map("rejected_count")
+  assignedToId      String?                @map("assigned_to_id") @db.Uuid
+  assignedRole      UserRole?              @map("assigned_role")
+  actionedById      String?                @map("actioned_by_id") @db.Uuid
+  actionedAt        DateTime?              @map("actioned_at")
+  status            StepStatus             @default(PENDING)
+  comments          String?                @db.Text
+  reminderCount     Int                    @default(0) @map("reminder_count")
+  lastRemindedAt    DateTime?              @map("last_reminded_at")
+  isEscalated       Boolean                @default(false) @map("is_escalated")
+  escalatedAt       DateTime?              @map("escalated_at")
+  escalatedToRole   UserRole?              @map("escalated_to_role")
+  escalatedToUserId String?                @map("escalated_to_user_id") @db.Uuid
+  escalationReason  String?                @map("escalation_reason") @db.VarChar(255)
+  createdAt         DateTime               @default(now()) @map("created_at")
+  updatedAt         DateTime               @updatedAt @map("updated_at")
 
   // Relationships (Composite FKs: Database enforces tenant consistency)
-  tenant          Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  approvalRequest ApprovalRequest @relation(fields: [tenantId, approvalRequestId], references: [tenantId, id], onDelete: Cascade)
-  assignedTo      User?           @relation("UserAssignedSteps", fields: [tenantId, assignedToId], references: [tenantId, id], onDelete: SetNull)
-  actionedBy      User?           @relation("UserActionedSteps", fields: [tenantId, actionedById], references: [tenantId, id], onDelete: SetNull)
-  escalatedTo     User?           @relation("UserEscalatedSteps", fields: [tenantId, escalatedToUserId], references: [tenantId, id], onDelete: SetNull)
+  tenant          Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  approvalRequest ApprovalRequest        @relation(fields: [tenantId, approvalRequestId], references: [tenantId, id], onDelete: Cascade)
+  assignedTo      User?                  @relation("UserAssignedSteps", fields: [tenantId, assignedToId], references: [tenantId, id], onDelete: SetNull)
+  actionedBy      User?                  @relation("UserActionedSteps", fields: [tenantId, actionedById], references: [tenantId, id], onDelete: SetNull)
+  escalatedTo     User?                  @relation("UserEscalatedSteps", fields: [tenantId, escalatedToUserId], references: [tenantId, id], onDelete: SetNull)
+  assignees       ApprovalStepAssignee[]
 
-  // Enforces unique step order within an approval request
-  @@unique([approvalRequestId, stepOrder], name: "request_step_order_unique")
+  // Enforces unique step order within an approval request review round
+  @@unique([approvalRequestId, reviewRound, stepOrder], name: "request_round_step_order_unique")
+  @@unique([tenantId, id], name: "tenant_step_id_unique")
   @@index([tenantId])
-  @@index([approvalRequestId])
+  @@index([approvalRequestId, reviewRound])
   @@index([assignedToId])
   @@index([tenantId, assignedRole])
   @@index([actionedById])
   @@index([escalatedToUserId])
   @@index([tenantId, escalatedToRole])
+  @@index([tenantId, nodeId])
   @@map("approval_steps")
+}
+
+model ApprovalStepAssignee {
+  id                  String     @id @default(uuid()) @db.Uuid
+  tenantId            String     @map("tenant_id") @db.Uuid
+  stepId              String     @map("step_id") @db.Uuid
+  reviewRound         Int        @default(1) @map("review_round")
+  assignedToId        String?    @map("assigned_to_id") @db.Uuid
+  assignedRole        UserRole?  @map("assigned_role")
+  status              StepStatus @default(PENDING)
+  actionedById        String?    @map("actioned_by_id") @db.Uuid
+  delegatedFromUserId String?    @map("delegated_from_user_id") @db.Uuid
+  actionedAt          DateTime?  @map("actioned_at")
+  comments            String?    @db.Text
+  createdAt           DateTime   @default(now()) @map("created_at")
+  updatedAt           DateTime   @updatedAt @map("updated_at")
+
+  tenant            Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  step              ApprovalStep @relation(fields: [tenantId, stepId], references: [tenantId, id], onDelete: Cascade)
+  assignedTo        User?        @relation("AssigneeAssignedTo", fields: [tenantId, assignedToId], references: [tenantId, id], onDelete: SetNull)
+  actionedBy        User?        @relation("AssigneeActionedBy", fields: [tenantId, actionedById], references: [tenantId, id], onDelete: SetNull)
+  delegatedFromUser User?        @relation("AssigneeDelegatedFrom", fields: [tenantId, delegatedFromUserId], references: [tenantId, id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([stepId])
+  @@index([tenantId, assignedToId, status])
+  @@index([tenantId, assignedRole, status])
+  @@map("approval_step_assignees")
+}
+
+model WorkflowNodeExecution {
+  id                String              @id @default(uuid()) @db.Uuid
+  tenantId          String              @map("tenant_id") @db.Uuid
+  approvalRequestId String              @map("approval_request_id") @db.Uuid
+  reviewRound       Int                 @default(1) @map("review_round")
+  nodeId            String              @map("node_id") @db.VarChar(100)
+  nodeType          String              @map("node_type") @db.VarChar(50)
+  status            NodeExecutionStatus @default(PENDING)
+  activatedAt       DateTime?           @map("activated_at")
+  completedAt       DateTime?           @map("completed_at")
+  executionData     Json?               @default("{}") @map("execution_data")
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime            @updatedAt @map("updated_at")
+
+  tenant          Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  approvalRequest ApprovalRequest @relation(fields: [tenantId, approvalRequestId], references: [tenantId, id], onDelete: Cascade)
+
+  @@unique([approvalRequestId, reviewRound, nodeId])
+  @@index([tenantId, status])
+  @@map("workflow_node_executions")
+}
+
+model WorkflowBranchExecution {
+  id                String                @id @default(uuid()) @db.Uuid
+  tenantId          String                @map("tenant_id") @db.Uuid
+  approvalRequestId String                @map("approval_request_id") @db.Uuid
+  reviewRound       Int                   @default(1) @map("review_round")
+  branchKey         String                @map("branch_key") @db.VarChar(150)
+  sourceNodeId      String                @map("source_node_id") @db.VarChar(100)
+  targetNodeId      String                @map("target_node_id") @db.VarChar(100)
+  status            BranchExecutionStatus @default(NOT_EVALUATED)
+  activatedAt       DateTime?             @map("activated_at")
+  completedAt       DateTime?             @map("completed_at")
+  createdAt         DateTime              @default(now()) @map("created_at")
+  updatedAt         DateTime              @updatedAt @map("updated_at")
+
+  tenant          Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  approvalRequest ApprovalRequest @relation(fields: [tenantId, approvalRequestId], references: [tenantId, id], onDelete: Cascade)
+
+  @@unique([approvalRequestId, reviewRound, branchKey])
+  @@index([tenantId, targetNodeId, status])
+  @@map("workflow_branch_executions")
+}
+
+model UserDelegation {
+  id                   String           @id @default(uuid()) @db.Uuid
+  tenantId             String           @map("tenant_id") @db.Uuid
+  delegatorId          String           @map("delegator_id") @db.Uuid
+  delegateeId          String           @map("delegatee_id") @db.Uuid
+  workflowDefinitionId String?          @map("workflow_definition_id") @db.Uuid
+  delegateRoles        Boolean          @default(true) @map("delegate_roles")
+  startDate            DateTime         @map("start_date")
+  endDate              DateTime         @map("end_date")
+  status               DelegationStatus @default(ACTIVE)
+  reason               String?          @db.VarChar(500)
+  createdAt            DateTime         @default(now()) @map("created_at")
+  updatedAt            DateTime         @updatedAt @map("updated_at")
+
+  tenant             Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  delegator          User                @relation("DelegatorUser", fields: [tenantId, delegatorId], references: [tenantId, id], onDelete: Cascade)
+  delegatee          User                @relation("DelegateeUser", fields: [tenantId, delegateeId], references: [tenantId, id], onDelete: Cascade)
+  workflowDefinition WorkflowDefinition? @relation(fields: [tenantId, workflowDefinitionId], references: [tenantId, id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([tenantId, delegateeId, status, startDate, endDate])
+  @@index([tenantId, delegatorId, status])
+  @@map("user_delegations")
 }
 
 model AuditLog {

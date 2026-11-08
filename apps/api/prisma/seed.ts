@@ -19,8 +19,18 @@ async function main() {
 
   // 2. Clear existing demo data cleanly in reverse dependency order
   console.log('🧹 Cleaning existing data...');
+  await prisma.outboxEvent.deleteMany({});
+  await prisma.webhookDelivery.deleteMany({});
+  await prisma.webhookSubscription.deleteMany({});
+  await prisma.inboundWebhookEvent.deleteMany({});
+  await prisma.notificationLog.deleteMany({});
+  await prisma.auditChainHead.deleteMany({});
   await prisma.auditLog.deleteMany({});
+  await prisma.workflowBranchExecution.deleteMany({});
+  await prisma.workflowNodeExecution.deleteMany({});
+  await prisma.approvalStepAssignee.deleteMany({});
   await prisma.approvalStep.deleteMany({});
+  await prisma.userDelegation.deleteMany({});
   await prisma.approvalRequest.deleteMany({});
   await prisma.workflowDefinition.deleteMany({});
   await prisma.user.deleteMany({});

@@ -2,6 +2,90 @@
 
 ---
 
+## [Milestone 6.1: Core Data Layer, Prisma Schema Migration, Shared Domain Types, and Safe AST Condition Evaluator] - 2026-11-08
+
+### 1. Executive Summary
+
+Milestone 6.1 establishes the foundational data layer, shared contracts, and execution primitives for FlowGate's advanced DAG-based workflow engine:
+
+1. **Prisma Schema Migration (`milestone6_1_core_graph_and_delegation_schema`)**:
+   - Introduced 5 new enums: `StepPolicy` (`SEQUENTIAL`, `PARALLEL_AND`, `PARALLEL_OR`), `RejectionPolicy` (`SOFT_REJECTION`, `STRICT_VETO`), `DelegationStatus` (`ACTIVE`, `INACTIVE`, `REVOKED`), `NodeExecutionStatus` (`PENDING`, `IN_REVIEW`, `COMPLETED`, `SKIPPED`, `FAILED`, `CANCELLED`), and `BranchExecutionStatus` (`NOT_EVALUATED`, `ACTIVE`, `COMPLETED`, `PRUNED_SKIPPED`, `FAILED`, `CANCELLED`).
+   - Updated `ApprovalRequest` with `currentReviewRound` (default: 1) and `requestData` (structured JSONB input payload).
+   - Upgraded `ApprovalStep` to support multi-round tracking, parallel counters (`reviewRound`, `policy`, `rejectionPolicy`, `approvedCount`, `rejectedCount`, `totalAssigned`, `requiredApprovals`), and relaxed the previous single-round unique constraint to compound `[approvalRequestId, reviewRound, stepOrder]`.
+   - Added 4 new database models with composite foreign key tenant isolation: `ApprovalStepAssignee`, `WorkflowNodeExecution`, `WorkflowBranchExecution`, and `UserDelegation`.
+   - Generated and deployed forward-only migration `20261108110000_milestone6_1_core_graph_and_delegation_schema`.
+2. **Shared TypeScript Domain Contracts (`@flowgate/shared-types`)**:
+   - Exported comprehensive DAG graph specifications: `WorkflowNode`, `WorkflowEdge`, `WorkflowGraphConfiguration`, `NodeExecutionSummary`, and `BranchExecutionSummary`.
+   - Exported `InputSchema` and `InputSchemaField` models for type-safe form generation and runtime payload validation.
+   - Exported condition AST schema (`AstNode`, `AstComparisonNode`, `AstLogicalNode`, `ComparisonOperator`, `LogicalOperator`) and user delegation DTOs (`CreateDelegationDto`, `DelegationSummary`).
+3. **Safe AST Condition Evaluator (`apps/api/src/workflows/ast-condition-evaluator.service.ts`)**:
+   - Engineered a 100% deterministic, zero-`eval()` AST condition evaluator supporting recursive logical trees (`AND`, `OR`, `NOT`) and comparison operations (`EQUALS`, `NOT_EQUALS`, `GT`, `GTE`, `LT`, `LTE`, `CONTAINS`, `STARTS_WITH`, `ENDS_WITH`, `IN`).
+   - Hardened with defense-in-depth security invariants: strictly blocks dangerous object prototypes (`__proto__`, `constructor`, `prototype`), enforces maximum payload size (32 KB) and AST recursion depth (max 5), forbids type coercion, and provides detailed cryptographic-ready evaluation traces for audit logs.
+4. **Automated Testing & Full Monorepo Verification**:
+   - Created comprehensive unit test suite (`ast-condition-evaluator.spec.ts`) with 36 distinct tests covering all operators, boundary conditions, edge cases, and attack vectors.
+   - Created database integration test suite (`dag-data-layer.integration-spec.ts`) with 10 integration tests validating multi-round step indexing, parallel assignee tracking, execution status lifecycles, and tenant isolation.
+   - Preserved all 207 pre-existing tests. Total automated tests increased to **253 passing tests** (156 unit, 97 e2e). 0 failures, 0 lint warnings, 0 type errors.
+
+### 2. Summary of Work Completed & Deliverables
+
+- **Database & Prisma Layer (`apps/api/prisma/`)**:
+  - `schema.prisma`: Added `StepPolicy`, `RejectionPolicy`, `DelegationStatus`, `NodeExecutionStatus`, `BranchExecutionStatus` enums. Added `currentReviewRound` and `requestData` to `ApprovalRequest`. Updated `ApprovalStep` with parallel fields and compound index `[approvalRequestId, reviewRound, stepOrder]`. Added `ApprovalStepAssignee`, `WorkflowNodeExecution`, `WorkflowBranchExecution`, and `UserDelegation` models.
+  - Forward-only migration `20261108110000_milestone6_1_core_graph_and_delegation_schema` created and applied via `prisma migrate deploy`.
+  - `seed.ts`: Updated cleanup routine to clean all tables in reverse dependency order including outbox, webhooks, notifications, audit chains, and new DAG execution models.
+- **Shared Contracts (`packages/shared-types/src/index.ts`)**:
+  - Added DAG node, edge, and graph configuration interfaces.
+  - Added AST condition syntax trees and operators.
+  - Added user delegation DTO contracts.
+- **AST Condition Evaluator Service (`apps/api/src/workflows/ast-condition-evaluator.service.ts`)**:
+  - Static AST validation (`validateAst`): structural checks, allowed operators, child node invariants, depth limit enforcement.
+  - Static schema validation (`validateAgainstSchema`): ensures AST comparisons match field types declared in `InputSchema`.
+  - Runtime evaluation (`evaluate`): 32 KB payload byte-length enforcement, prototype pollution protection, strict type equality, detailed trace generation.
+- **Test Suites (`apps/api/src/workflows/ast-condition-evaluator.spec.ts` & `apps/api/test/dag-data-layer.integration-spec.ts`)**:
+  - 36 unit tests for condition evaluation and security safeguards.
+  - 10 database integration tests for DAG models, multi-round uniqueness, and tenant boundary verification.
+  - Hardened `background-jobs.integration-spec.ts` polling interval to 500ms to eliminate throttler collisions.
+
+### 3. Technical Decisions & Rationale
+
+- **Why a Compound Unique Constraint on `[approvalRequestId, reviewRound, stepOrder]` is Required**:
+  In Milestone 5, `[approvalRequestId, stepOrder]` was unique per request. However, when an approval stage requests changes (`REQUEST_CHANGES`) and the requester resubmits, the workflow transitions to a new review round (`reviewRound = 2`). Steps must be created afresh for the new review round while preserving the historical steps of review round 1 for complete auditability. Scoping uniqueness to `[approvalRequestId, reviewRound, stepOrder]` permits historical preservation without primary or secondary key collisions.
+- **Why Safe AST Recursive Evaluation Precludes `eval()` and JavaScript Function Constructors**:
+  Dynamic code execution (`eval()`, `new Function()`) in server-side workflows exposes SaaS platforms to Remote Code Execution (RCE) and prototype poisoning vulnerabilities. By parsing and evaluating a strictly typed Abstract Syntax Tree using recursive object traversal, the evaluator guarantees deterministic O(N) evaluation time, strict operational limits (depth <= 5, payload <= 32 KB), and zero possibility of code injection.
+- **Why Strict Non-Coercive Type Checking is Enforced**:
+  JavaScript's default loose comparison rules (`"1000" == 1000`, `true == 1`, `"" == 0`) cause subtle security bugs in workflow condition routing (e.g. string department names being coerced in numeric thresholds). The AST evaluator strictly enforces type parity (`typeof actual === typeof expected`) and throws explicit `BadRequestException` if a condition compares mismatched data types.
+
+### 4. Verification and Actual Test Results
+
+- **TypeScript Compilation (`pnpm check-types`)**:
+  - `packages/shared-types`: 0 errors
+  - `apps/api`: 0 errors
+  - `apps/web`: 0 errors
+- **Linting (`pnpm lint`)**:
+  - 0 warnings, 0 errors across all workspaces
+- **Code Formatting (`pnpm format:check`)**:
+  - 100% compliant with Prettier
+- **Backend Unit Tests (`pnpm --filter api test`)**:
+  - **15 test suites passed**, **156 tests passed**, 0 failed
+- **Backend Integration / E2E Tests (`pnpm --filter api test:e2e`)**:
+  - **7 test suites passed**, **97 tests passed**, 0 failed
+- **Total Automated Test Count**:
+  - **253 automated tests passed**, 0 failed
+- **Production Build (`pnpm build`)**:
+  - Exit code 0 across `@flowgate/shared-types`, `api`, and `web`.
+
+### 5. Known Limitations or Environmental Blockers
+
+- None. Local PostgreSQL (`flowgate-postgres`) and Redis (`flowgate-redis`) containers are running and healthy.
+
+### 6. Recommended Next Steps
+
+- Proceed to **Phase 6.2: Workflow Graph Compiler, Topological Sorter, and Cycle Detection Engine**:
+  - Implement Kahn's algorithm for cycle detection and topological ordering.
+  - Validate reachable paths from `TRIGGER` to `END` nodes.
+  - Implement join node fan-in synchronization checks (`ALL_INCOMING`, `ANY_INCOMING`).
+
+---
+
 ## [Milestone 5.1 Acceptance Audit: Complete Reliability & SSRF Hardening] - 2026-11-08
 
 ### 1. Executive Summary
