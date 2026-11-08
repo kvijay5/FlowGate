@@ -2,6 +2,98 @@
 
 ---
 
+## [Milestone 6.3: Out-of-Office Approval Delegation Engine] - 2026-11-09
+
+### 1. Executive Summary
+
+Milestone 6.3 implements the enterprise-grade Out-of-Office Approval Delegation Engine for FlowGate:
+
+1. **Delegation Service & Lifecycle Engine (`DelegationService`)**:
+   - Comprehensive configuration supporting temporal windows, tenant isolation, optional workflow definition scoping, and optional role filters.
+   - Forward-only database migration `20261108130000_milestone6_3_delegation_roles` adding `roles TEXT[]` to `user_delegations`.
+   - Strict security invariants on delegation creation:
+     - Self-delegation blocked (`delegatorId !== delegateeId`).
+     - Strict temporal validation: `startDate < endDate` and `endDate > now()`.
+     - Both delegator and delegatee must be `ACTIVE` users in the same tenant.
+     - Circular delegation prevention: Blocks if delegatee already delegates to delegator ($A \to B \to A$).
+     - Transitive / chain delegation prevention: Single-hop only ($A \to B \to C$ strictly blocked; delegatee cannot be delegator, and delegator cannot be delegatee in an active window).
+     - Overlapping window prevention: Prevents overlapping active delegations for the same delegator and workflow/global scope.
+   - Automated state lifecycle: dynamically updates `INACTIVE` delegations to `ACTIVE` when `startDate` arrives, and transitions `ACTIVE` delegations to `EXPIRED` when `endDate` elapses.
+   - Delegator and tenant admin manual revocation (`REVOKED`) with tamper-evident audit logging.
+2. **Runtime Execution & Dual-Actor Attribution Hook**:
+   - Integrated with `WorkflowGraphEngineService.submitGraphAction`:
+     - Authorizes actions when user $X$ is directly assigned OR is an active, authorized delegatee of assigned user $Y$.
+     - Enforces dynamic role verification: delegator must currently hold the required step role and remain `ACTIVE` (revokes authority immediately if delegator was demoted).
+     - Enforces delegate account active state invariant (`status === 'ACTIVE'`).
+     - Enforces workflow-specific delegation precedence over tenant-wide global delegation.
+     - Records dual-actor database attribution on `ApprovalStepAssignee`: `actionedById = X`, `delegatedFromUserId = Y`.
+     - Emits SHA-256 cryptographic audit logs with action `STEP_APPROVED_DELEGATED`, `STEP_REJECTED_DELEGATED`, or `REQUEST_CHANGES_REQUESTED_DELEGATED` with metadata `{ delegatedFromUserId, delegationId }`.
+3. **REST Controller (`DelegationsController`)**:
+   - Exposed versioned REST API endpoints under `/api/v1/delegations`: `POST /` (create), `GET /` (list/filter), `POST /:id/revoke` (manual revoke), and `POST /sync-lifecycle` (manual state reconciliation).
+4. **Verification & Quality Gates**:
+   - Monorepo automated test count increased from 283 to **308 passing tests** (202 unit tests across 18 suites, 106 integration/e2e tests across 9 suites).
+   - 100% test pass rate with zero flaky tests, 0 type errors, 0 lint warnings, 100% Prettier compliance, and clean monorepo production build.
+
+### 2. Summary of Work Completed & Deliverables
+
+- **Database & Prisma (`apps/api/prisma/`)**:
+  - `schema.prisma`: Added `roles String[] @default([]) @map("roles")` to `UserDelegation`.
+  - Migration `20261108130000_milestone6_3_delegation_roles`: Applied cleanly via `prisma migrate deploy`.
+- **Shared Types (`packages/shared-types/src/index.ts`)**:
+  - Updated `UserDelegationSummary` and `CreateDelegationDto` to support `roles?: string[]` and `delegateRoles?: boolean | string[]`. Rebuilt with `pnpm build:shared`.
+- **Delegation Engine (`apps/api/src/workflows/delegation.service.ts` & `.spec.ts`)**:
+  - Implemented `DelegationService` covering creation invariants, circular/chain checks, window overlaps, lifecycle sync, manual revocation, and dynamic authorization resolution.
+  - 19 unit tests covering all creation guards, temporal rules, circular/transitive blocks, overlap checks, demotion role checks, and scope precedence.
+- **Controller & DTO (`apps/api/src/workflows/delegations.controller.ts` & `dto/create-delegation.dto.ts`)**:
+  - REST API controller with JWT authentication and tenant/role decorators.
+  - Class-validator DTO enforcing UUIDs, ISO 8601 timestamps, and reason length bounds.
+- **DAG Engine Integration (`apps/api/src/workflows/workflow-graph-engine.service.ts`)**:
+  - Integrated `DelegationService` into `WorkflowGraphEngineService`.
+  - Implemented dual-actor attribution on assignees, delegated audit actions (`STEP_APPROVED_DELEGATED`), and post-advancement request status resolution.
+- **Integration Test Suite (`apps/api/test/delegation-execution.integration-spec.ts`)**:
+  - 6 end-to-end database tests validating active delegation approval, dual-actor DB attribution, SHA-256 audit log hash chain continuity, post-revocation `ForbiddenException` safeguards, and post-expiration `ForbiddenException` safeguards.
+
+### 3. Technical Decisions & Rationale
+
+- **Why Transitive Delegation ($A \to B \to C$) is Forbidden**:
+  Allowing delegation chains creates accountability opacity and escalation loops where approvals can be signed off by individuals far removed from organizational authority. Restricting delegation to a single hop guarantees unambiguous dual-actor attribution ($X$ acting strictly for $Y$).
+- **Why Dynamic Role Verification is Mandatory**:
+  Static snapshotting of roles at delegation creation is dangerous: if Manager $A$ delegates approval power to Assistant $B$, and Manager $A$ is subsequently demoted or transferred to a non-managerial role, $B$ should immediately lose the ability to approve managerial requests. Dynamically verifying that $A$ still holds `UserRole.MANAGER` at the moment of vote execution prevents privilege escalation.
+- **Why Post-Advancement Request Status Must be Refreshed in `submitGraphAction`**:
+  When a step approval triggers downstream node advancement that terminates at an `END` node, the approval request status transitions from `IN_PROGRESS` to `APPROVED` inside the same transaction. Refreshing the request record before returning ensures callers receive the final, accurate lifecycle state rather than an interim status.
+
+### 4. Verification and Actual Test Results
+
+- **TypeScript Compilation (`pnpm check-types`)**:
+  - `packages/shared-types`: 0 errors
+  - `apps/api`: 0 errors
+  - `apps/web`: 0 errors
+- **Linting (`pnpm lint`)**:
+  - 0 warnings, 0 errors across all workspaces
+- **Code Formatting (`pnpm format:check`)**:
+  - 100% compliant with Prettier
+- **Backend Unit Tests (`pnpm --filter api test`)**:
+  - **18 test suites passed**, **202 tests passed**, 0 failed
+- **Backend Integration / E2E Tests (`pnpm --filter api test:e2e`)**:
+  - **9 test suites passed**, **106 tests passed**, 0 failed
+- **Total Automated Test Count**:
+  - **308 automated tests passed**, 0 failed
+- **Production Build (`pnpm build`)**:
+  - Exit code 0 across all workspaces.
+
+### 5. Known Limitations or Environmental Blockers
+
+- GitHub push to `https://github.com/kvijay5/FlowGate.git` requires the `workflow` scope on the Personal Access Token due to `.github/workflows/ci.yml`. The local commits are staged, committed, and ready for push once the scope is updated.
+
+### 6. Recommended Next Steps
+
+- Proceed to **Phase 6.4: Visual Workflow Builder UI with React Flow**:
+  - Implement interactive canvas with drag-and-drop workflow nodes.
+  - Implement edge connection handles and branch condition configuration drawer.
+  - Implement visual delegation indicator in approval inbox.
+
+---
+
 ## [Milestone 6.2: Workflow Graph Validator & Transactional DAG Execution Engine] - 2026-11-08
 
 ### 1. Executive Summary

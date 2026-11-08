@@ -8,6 +8,7 @@ describe('WorkflowGraphEngineService (Unit)', () => {
   let mockPrisma: any;
   let mockAudit: any;
   let mockOutbox: any;
+  let mockDelegation: any;
   let astEvaluator: AstConditionEvaluatorService;
   let graphValidator: WorkflowGraphValidatorService;
 
@@ -26,6 +27,12 @@ describe('WorkflowGraphEngineService (Unit)', () => {
 
     mockOutbox = {
       createEvent: jest.fn().mockResolvedValue({ id: 'outbox-1' }),
+    };
+
+    mockDelegation = {
+      findActiveDelegationById: jest.fn(),
+      findActiveDelegationForDelegatee: jest.fn(),
+      resolveActiveDelegation: jest.fn(),
     };
 
     // Transaction mock that passes itself into callback
@@ -77,6 +84,7 @@ describe('WorkflowGraphEngineService (Unit)', () => {
       mockOutbox,
       astEvaluator,
       graphValidator,
+      mockDelegation,
     );
   });
 

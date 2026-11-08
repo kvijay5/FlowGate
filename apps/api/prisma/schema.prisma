@@ -399,6 +399,7 @@ model UserDelegation {
   delegateeId          String           @map("delegatee_id") @db.Uuid
   workflowDefinitionId String?          @map("workflow_definition_id") @db.Uuid
   delegateRoles        Boolean          @default(true) @map("delegate_roles")
+  roles                String[]         @default([]) @map("roles")
   startDate            DateTime         @map("start_date")
   endDate              DateTime         @map("end_date")
   status               DelegationStatus @default(ACTIVE)

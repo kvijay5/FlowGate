@@ -14,6 +14,7 @@ import {
   WorkflowGraphValidatorService,
   ValidatedWorkflowGraph,
 } from './workflow-graph-validator.service';
+import { DelegationService } from './delegation.service';
 import {
   WorkflowNode,
   WorkflowEdge,
@@ -47,6 +48,7 @@ export class WorkflowGraphEngineService {
     private readonly outboxService: OutboxService,
     private readonly astEvaluator: AstConditionEvaluatorService,
     private readonly graphValidator: WorkflowGraphValidatorService,
+    private readonly delegationService: DelegationService,
   ) {}
 
   /**
@@ -258,12 +260,13 @@ export class WorkflowGraphEngineService {
       }
 
       // 3. Authorize voter (direct assignment, role match, or valid delegation)
-      const { effectiveVoterId, delegatorId } = await this.resolveVoterAuthorization(
+      const { effectiveVoterId, delegatorId, delegationId } = await this.resolveVoterAuthorization(
         tenantId,
         userId,
         userRole,
         step,
         dto.delegationId,
+        request.workflowDefinitionId,
         tx,
       );
 
@@ -308,14 +311,19 @@ export class WorkflowGraphEngineService {
           },
         });
 
+        const auditAction = delegatorId
+          ? 'REQUEST_CHANGES_REQUESTED_DELEGATED'
+          : 'REQUEST_CHANGES_REQUESTED';
+
         await this.auditService.log(
           {
             tenantId,
             actorId: userId,
             entityType: 'ApprovalRequest',
             entityId: requestId,
-            action: 'REQUEST_CHANGES_REQUESTED',
+            action: auditAction,
             metadata: {
+              ...(delegatorId ? { delegatedFromUserId: delegatorId, delegationId } : {}),
               stepId: step.id,
               nodeId: step.nodeId,
               comments: dto.comments,
@@ -438,16 +446,21 @@ export class WorkflowGraphEngineService {
           data: { status: 'REJECTED' },
         });
 
+        const isQuorumLost = rejectionReason.includes('QUORUM_LOST');
+        let rejectionAction = isQuorumLost ? 'STEP_REJECTED_QUORUM_LOST' : 'STEP_REJECTED';
+        if (delegatorId && !isQuorumLost) {
+          rejectionAction = 'STEP_REJECTED_DELEGATED';
+        }
+
         await this.auditService.log(
           {
             tenantId,
             actorId: userId,
             entityType: 'ApprovalStep',
             entityId: step.id,
-            action: rejectionReason.includes('QUORUM_LOST')
-              ? 'STEP_REJECTED_QUORUM_LOST'
-              : 'STEP_REJECTED',
+            action: rejectionAction,
             metadata: {
+              ...(delegatorId ? { delegatedFromUserId: delegatorId, delegationId } : {}),
               rejectionReason,
               approvedCount: newApprovedCount,
               rejectedCount: newRejectedCount,
@@ -504,14 +517,16 @@ export class WorkflowGraphEngineService {
           },
         });
 
+        const approvalAction = delegatorId ? 'STEP_APPROVED_DELEGATED' : 'STEP_APPROVED';
         await this.auditService.log(
           {
             tenantId,
             actorId: userId,
             entityType: 'ApprovalStep',
             entityId: step.id,
-            action: 'STEP_APPROVED',
+            action: approvalAction,
             metadata: {
+              ...(delegatorId ? { delegatedFromUserId: delegatorId, delegationId } : {}),
               approvedCount: newApprovedCount,
               requiredApprovals,
               reviewRound: currentRound,
@@ -523,10 +538,43 @@ export class WorkflowGraphEngineService {
         // Advance execution into downstream nodes
         await this.advanceExecution(tenantId, requestId, currentRound, validatedGraph, tx);
 
-        return { success: true, stepStatus: 'APPROVED', requestStatus: 'IN_PROGRESS' };
+        const updatedRequest = await tx.approvalRequest.findUnique({
+          where: { id: requestId },
+        });
+
+        return {
+          success: true,
+          stepStatus: 'APPROVED',
+          requestStatus: updatedRequest?.status || 'IN_PROGRESS',
+        };
       }
 
       // Still in review (e.g. 1-of-3 approved in PARALLEL_AND)
+      if (delegatorId) {
+        const interimAction = isApproved ? 'STEP_APPROVED_DELEGATED' : 'STEP_REJECTED_DELEGATED';
+
+        await this.auditService.log(
+          {
+            tenantId,
+            actorId: userId,
+            entityType: 'ApprovalStep',
+            entityId: step.id,
+            action: interimAction,
+            metadata: {
+              delegatedFromUserId: delegatorId,
+              delegationId,
+              approvedCount: newApprovedCount,
+              rejectedCount: newRejectedCount,
+              totalAssigned,
+              requiredApprovals,
+              reviewRound: currentRound,
+              interim: true,
+            },
+          },
+          tx,
+        );
+      }
+
       return { success: true, stepStatus: 'IN_REVIEW', requestStatus: 'IN_PROGRESS' };
     });
   }
@@ -1378,32 +1426,27 @@ export class WorkflowGraphEngineService {
       id: string;
       assignedToId: string | null;
       assignedRole: string | null;
-      assignees: Array<{ assignedToId: string; status: string }>;
+      assignees: Array<{ assignedToId: string | null; status: string }>;
     },
     delegationId: string | undefined,
+    workflowDefinitionId: string,
     tx: Prisma.TransactionClient,
-  ): Promise<{ effectiveVoterId: string; delegatorId?: string }> {
+  ): Promise<{ effectiveVoterId: string; delegatorId?: string; delegationId?: string }> {
     // 1. Check if user is directly assigned
     const directAssignee = step.assignees.find((a) => a.assignedToId === userId);
     if (directAssignee || step.assignedToId === userId) {
       return { effectiveVoterId: userId };
     }
 
-    // 2. Check if acting via valid delegation
+    // 2. Check if acting via explicit delegation ID
     if (delegationId) {
-      const now = new Date();
-      const delegation = await tx.userDelegation.findFirst({
-        where: {
-          id: delegationId,
-          tenantId,
-          delegateeId: userId,
-          status: 'ACTIVE',
-          startDate: { lte: now },
-          endDate: { gte: now },
-        },
-      });
+      const delegation = await this.delegationService.findActiveDelegationById(
+        tenantId,
+        delegationId,
+        tx,
+      );
 
-      if (!delegation) {
+      if (!delegation || delegation.delegateeId !== userId) {
         throw new ForbiddenException('Invalid or expired delegation authority');
       }
 
@@ -1411,15 +1454,76 @@ export class WorkflowGraphEngineService {
       const delegatorAssignee = step.assignees.find(
         (a) => a.assignedToId === delegation.delegatorId,
       );
-      if (delegatorAssignee || step.assignedToId === delegation.delegatorId) {
+      if (!delegatorAssignee && step.assignedToId !== delegation.delegatorId) {
+        throw new ForbiddenException('Delegator is not an assigned voter on this approval step');
+      }
+
+      const activeDelegation = await this.delegationService.findActiveDelegationForDelegatee(
+        tenantId,
+        userId,
+        delegation.delegatorId,
+        workflowDefinitionId,
+        step.assignedRole,
+        tx,
+      );
+
+      if (!activeDelegation) {
+        throw new ForbiddenException(
+          'Delegation is not currently active or delegator lacks required role',
+        );
+      }
+
+      return {
+        effectiveVoterId: delegation.delegatorId,
+        delegatorId: delegation.delegatorId,
+        delegationId: delegation.id,
+      };
+    }
+
+    // 3. Automatic delegation resolution: check if userId is an authorized delegatee of any pending assignee
+    for (const assignee of step.assignees) {
+      if (!assignee.assignedToId || assignee.status !== 'PENDING') {
+        continue;
+      }
+
+      const activeDelegation = await this.delegationService.findActiveDelegationForDelegatee(
+        tenantId,
+        userId,
+        assignee.assignedToId,
+        workflowDefinitionId,
+        step.assignedRole,
+        tx,
+      );
+
+      if (activeDelegation) {
         return {
-          effectiveVoterId: delegation.delegatorId,
-          delegatorId: delegation.delegatorId,
+          effectiveVoterId: assignee.assignedToId,
+          delegatorId: assignee.assignedToId,
+          delegationId: activeDelegation.id,
         };
       }
     }
 
-    // 3. Check role assignment fallback
+    if (step.assignedToId) {
+      const activeDelegation = await this.delegationService.findActiveDelegationForDelegatee(
+        tenantId,
+        userId,
+        step.assignedToId,
+        workflowDefinitionId,
+        step.assignedRole,
+        tx,
+      );
+
+      if (activeDelegation) {
+        return {
+          effectiveVoterId: step.assignedToId,
+          delegatorId: step.assignedToId,
+          delegationId: activeDelegation.id,
+        };
+      }
+    }
+
+    // 4. Check role assignment fallback
     if (step.assignedRole && step.assignedRole === userRole) {
       return { effectiveVoterId: userId };
     }

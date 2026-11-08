@@ -275,6 +275,7 @@ export interface UserDelegationSummary {
   workflowDefinitionId?: string | null;
   workflowDefinitionName?: string | null;
   delegateRoles: boolean;
+  roles?: string[];
   startDate: string;
   endDate: string;
   status: DelegationStatus;
@@ -284,12 +285,14 @@ export interface UserDelegationSummary {
 }
 
 export interface CreateDelegationDto {
+  delegatorId?: string;
   delegateeId: string;
   workflowDefinitionId?: string | null;
-  delegateRoles?: boolean;
+  delegateRoles?: boolean | string[];
+  roles?: string[];
   startDate: string;
   endDate: string;
-  reason?: string;
+  reason?: string | null;
 }
 
 export interface ApprovalStepDetail {
