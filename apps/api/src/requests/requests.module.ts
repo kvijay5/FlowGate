@@ -6,9 +6,17 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { EscalationsModule } from '../escalations/escalations.module';
 import { WebhooksModule } from '../webhooks/webhooks.module';
 import { OutboxModule } from '../outbox/outbox.module';
+import { WorkflowsModule } from '../workflows/workflows.module';
 
 @Module({
-  imports: [AuditModule, NotificationsModule, EscalationsModule, WebhooksModule, OutboxModule],
+  imports: [
+    AuditModule,
+    NotificationsModule,
+    EscalationsModule,
+    WebhooksModule,
+    OutboxModule,
+    WorkflowsModule,
+  ],
   controllers: [RequestsController],
   providers: [RequestsService],
   exports: [RequestsService],

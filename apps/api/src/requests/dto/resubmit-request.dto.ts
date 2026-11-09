@@ -14,4 +14,14 @@ export class ResubmitRequestDto {
   @IsOptional()
   @IsString()
   comments?: string;
+
+  @IsOptional()
+  requestData?: Record<string, unknown>;
+
+  @IsOptional()
+  updatedData?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsString()
+  resubmissionPolicy?: 'REOPEN_ALL' | 'SELECTIVE_FAST_FORWARD';
 }

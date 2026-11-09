@@ -2,6 +2,88 @@
 
 ---
 
+## [Milestone 6.4: Workflow Publishing, Version Cloning, and DAG Request Execution APIs] - 2026-11-09
+
+### 1. Executive Summary
+
+Milestone 6.4 delivers the production REST APIs and execution bridges connecting FlowGate's DAG Workflow Engine, Out-of-Office Delegation Engine, and Transactional State Machine to clients:
+
+1. **Workflow Definition DTOs & Pre-Persistence Validation**:
+   - Enhanced `CreateWorkflowDto` and `UpdateWorkflowDto` to accept both canonical DAG graphs (`nodes`, `edges`, `inputSchema`) and legacy sequential steps.
+   - When DAG graph is provided, validates structural integrity (trigger node existence, unique end nodes, cycle detection, reachability, dangling edge prevention, and AST condition rules) via `WorkflowGraphValidatorService.validateDAG` prior to persistence.
+   - Retains 100% backward compatibility for legacy workflows without introducing synthetic graph nodes into legacy configurations.
+2. **Immutable Workflow Publishing (`POST /api/v1/workflows/:id/publish`)**:
+   - Verifies graph validity and transitions draft workflows to `ACTIVE` status.
+   - Writes tamper-evident SHA-256 chained `AuditLog` entry with action `WORKFLOW_PUBLISHED`.
+   - Restricted to `TENANT_ADMIN`, `SUPER_ADMIN`, and `MANAGER` roles with strict tenant isolation.
+3. **Draft Version Cloning ($N \to N+1$) (`POST /api/v1/workflows/:id/clone-draft` & alias `POST /api/v1/workflows/:id/versions`)**:
+   - Clones an active workflow family into a new `DRAFT` record with version bumped ($N \to N+1$).
+   - Completely preserves source workflow and in-flight approval requests on their original version and snapshot without disruption.
+   - Records `WORKFLOW_DRAFT_CLONED` in the audit log chain.
+4. **Dual-Mode Request Execution Engine Integration (`RequestsService` & `RequestsController`)**:
+   - Seamlessly differentiates Milestone 6 DAG requests from legacy sequential requests based on `currentNodeId` and workflow configuration.
+   - `RequestsService.create`: Automatically validates input payload against `inputSchema` using safe AST evaluation, creates immutable request snapshot, initializes Review Round 1 node/branch execution states, and advances execution to initial approval nodes via `WorkflowGraphEngineService.initializeGraphExecution`.
+   - `RequestsService.submitAction`: Automatically resolves active steps/assignees and executes parallel voting, quorum policies (`PARALLEL_AND`, `PARALLEL_OR`), rejection policies (`SOFT_REJECTION`, `STRICT_VETO`), reachability invariants, and out-of-office delegation via `WorkflowGraphEngineService.submitGraphAction`.
+   - `RequestsService.resubmit`: Resubmits requests in `CHANGES_REQUESTED` with updated payload into a new Review Round via `WorkflowGraphEngineService.resubmitGraphRequest`, preserving historical round execution records immutable.
+5. **Execution Graph / Tree Query Endpoints**:
+   - Exposed `GET /api/v1/requests/:id/execution-tree`, `GET /api/v1/requests/:id/execution-graph`, and `GET /api/v1/workflows/requests/:id/execution-graph`.
+   - Returns normalized topology, node execution states, branch execution states, and step assignees for real-time frontend visualization.
+6. **Verification & Quality Gates**:
+   - Monorepo automated test count increased from 308 to **332 passing tests** (210 unit tests across 18 suites, 122 integration/E2E tests across 10 suites).
+   - 100% test pass rate with zero flaky tests, 0 TypeScript errors, 0 lint warnings, 100% Prettier formatting compliance, and clean production builds.
+
+### 2. Summary of Work Completed & Deliverables
+
+- **Shared Types (`packages/shared-types/src/index.ts`)**:
+  - Added and exported `RequestExecutionGraph` interface containing normalized `nodeExecutions`, `branchExecutions`, `steps` with assignees, and review round metadata.
+  - Rebuilt shared package with `pnpm build:shared`.
+- **Workflow & Request DTOs (`apps/api/src/workflows/dto/` & `apps/api/src/requests/dto/`)**:
+  - Updated `CreateWorkflowDto` and `UpdateWorkflowDto` with optional `nodes`, `edges`, `inputSchema`, `status`, and `configuration`.
+  - Updated `CreateApprovalRequestDto` with `requestData` and `payload`.
+  - Updated `ApprovalActionDto` with optional `stepId` and `delegationId`.
+  - Updated `ResubmitRequestDto` with `updatedData`, `requestData`, and `resubmissionPolicy`.
+- **Workflows Service & Controller (`apps/api/src/workflows/`)**:
+  - Implemented `publishWorkflow(tenantId, id, actorId)` with AST graph validation and audit logging.
+  - Implemented `cloneDraftVersion(tenantId, id, actorId)` with automatic version incrementing ($N \to N+1$).
+  - Added controller endpoints: `POST :id/publish`, `POST :id/clone-draft`, `POST :id/versions`, and `GET requests/:id/execution-graph`.
+- **Requests Service & Controller (`apps/api/src/requests/`)**:
+  - Imported `WorkflowsModule` into `RequestsModule` with zero circular dependencies.
+  - Updated `create`, `submitAction`, and `resubmit` in `RequestsService` to branch between DAG execution engine and legacy state machine based on `currentNodeId` and workflow configuration.
+  - Added controller endpoints: `GET :id/execution-tree` and `GET :id/execution-graph`.
+- **Testing (`apps/api/src/` & `apps/api/test/`)**:
+  - Updated `workflows.service.spec.ts` with 4 new unit tests covering DAG publishing, draft cloning, invalid DAG rejection, and execution graph querying (13 passing).
+  - Updated `requests.service.spec.ts` with 4 new unit tests covering DAG routing for creation, action submission, resubmission, and graph querying (12 passing).
+  - Created `apps/api/test/workflow-publishing-and-api.integration-spec.ts` with 16 end-to-end integration tests using Supertest covering cycle rejection, draft creation, publishing, version cloning, request submission, inputSchema validation, execution graph retrieval, changes requesting, resubmission across rounds, and final approval.
+
+### 3. Technical Decisions & Rationale
+
+- **Why `currentNodeId` is the Definitive DAG Execution Marker**:
+  In Milestone 6, DAG workflows track graph progression by storing the currently active node ID (`currentNodeId`) on `ApprovalRequest`. Legacy requests have `currentNodeId === null`. Checking `Boolean(request.currentNodeId)` allows `RequestsService` to reliably branch between graph traversal and legacy sequential logic with zero risk of legacy regression.
+- **Why Audit Logs Must Never be Deleted in Teardown Hooks**:
+  FlowGate's audit logs form an append-only, tamper-evident hash chain (`AuditLog.sequenceNumber` and `AuditLog.hash`). Deleting audit records during test teardown breaks sequence contiguity and causes cryptographic audit verification (`auditService.verifyChain`) to detect sequence gaps. Teardown hooks must strictly preserve audit log entries.
+- **Why Version Cloning Preserves In-Flight Requests**:
+  Publishing a workflow definition produces an immutable version snapshot. When administrators draft version 2 (`POST /api/v1/workflows/:id/clone-draft`), existing in-flight approval requests remain pinned to version 1 and its immutable `workflowSnapshot`. New requests submitted against version 2 execute the updated graph topology without migrating or corrupting in-progress evaluations.
+
+### 4. Verification and Actual Test Results
+
+- **TypeScript Compilation (`pnpm check-types`)**:
+  - `packages/shared-types`: 0 errors
+  - `apps/api`: 0 errors
+  - `apps/web`: 0 errors
+- **Linting & Formatting (`pnpm lint` & `pnpm format:check`)**:
+  - All workspaces passed with 0 errors and 0 warnings.
+  - Prettier verified 100% of files cleanly formatted.
+- **Unit Test Suite (`pnpm --filter api test`)**:
+  - **18 test suites passed**, **210 unit tests passed** (0 failed).
+- **Integration & E2E Test Suite (`pnpm --filter api test:e2e`)**:
+  - **10 test suites passed**, **122 integration tests passed** (0 failed).
+- **Total Test Count**:
+  - **332 automated tests passed** across the monorepo.
+- **Production Build (`pnpm build`)**:
+  - Monorepo production build succeeded with exit code 0.
+
+---
+
 ## [Milestone 6.3: Out-of-Office Approval Delegation Engine] - 2026-11-09
 
 ### 1. Executive Summary

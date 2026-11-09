@@ -1,13 +1,13 @@
-import {
-  IsArray,
-  IsOptional,
-  IsString,
-  ValidateNested,
-  ArrayMinSize,
-  IsNumber,
-} from 'class-validator';
+import { IsArray, IsOptional, IsString, ValidateNested, IsNumber, IsEnum } from 'class-validator';
 import { Type } from 'class-transformer';
 import { WorkflowStepConfigDto } from './workflow-step.dto';
+import { WorkflowStatus } from '@prisma/client';
+import {
+  WorkflowNode,
+  WorkflowEdge,
+  InputSchema,
+  WorkflowGraphConfiguration,
+} from '@flowgate/shared-types';
 
 export class UpdateWorkflowDto {
   @IsOptional()
@@ -19,13 +19,28 @@ export class UpdateWorkflowDto {
   description?: string;
 
   @IsOptional()
+  @IsEnum(WorkflowStatus)
+  status?: WorkflowStatus;
+
+  @IsOptional()
   @IsArray()
-  @ArrayMinSize(1, {
-    message: 'Workflow must define at least one approval step if steps are provided',
-  })
   @ValidateNested({ each: true })
   @Type(() => WorkflowStepConfigDto)
   steps?: WorkflowStepConfigDto[];
+
+  @IsOptional()
+  @IsArray()
+  nodes?: WorkflowNode[];
+
+  @IsOptional()
+  @IsArray()
+  edges?: WorkflowEdge[];
+
+  @IsOptional()
+  inputSchema?: InputSchema;
+
+  @IsOptional()
+  configuration?: WorkflowGraphConfiguration;
 
   @IsOptional()
   @IsNumber()

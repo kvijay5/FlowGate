@@ -26,6 +26,7 @@ import { EscalationsService } from '../escalations/escalations.service';
 import { WebhooksService } from '../webhooks/webhooks.service';
 import { OutboxService } from '../outbox/outbox.service';
 import { OutboxPublisherService } from '../outbox/outbox-publisher.service';
+import { WorkflowGraphEngineService } from '../workflows/workflow-graph-engine.service';
 import {
   OUTBOX_EVENT_NOTIFICATION,
   OUTBOX_EVENT_WEBHOOK,
@@ -45,6 +46,7 @@ export class RequestsService {
     private readonly webhooksService: WebhooksService,
     private readonly outboxService: OutboxService,
     private readonly outboxPublisher: OutboxPublisherService,
+    private readonly graphEngine: WorkflowGraphEngineService,
   ) {}
 
   /**
@@ -69,7 +71,28 @@ export class RequestsService {
       throw new BadRequestException('Cannot create request using an inactive or archived workflow');
     }
 
-    const config = workflow.configuration as { steps?: WorkflowStepConfig[] };
+    const config = (workflow.configuration || {}) as {
+      nodes?: any[];
+      edges?: any[];
+      steps?: WorkflowStepConfig[];
+    };
+    const hasDAG = Array.isArray(config.nodes) && config.nodes.length > 0;
+
+    if (hasDAG) {
+      const initResult = await this.graphEngine.initializeGraphExecution(
+        tenantId,
+        userId,
+        workflow.id,
+        {
+          title: dto.title,
+          description: dto.description,
+          requestData: dto.requestData || dto.payload || {},
+        },
+      );
+      this.outboxPublisher.trigger();
+      return this.findOne(tenantId, initResult.id);
+    }
+
     const stepConfigs = config?.steps || [];
 
     if (stepConfigs.length === 0) {
@@ -447,24 +470,80 @@ export class RequestsService {
     id: string,
     dto: ApprovalActionDto,
   ) {
-    const updated = await this.prisma.$transaction(async (tx) => {
-      // 1. Fetch request with strict tenant isolation and lock verification
-      const request = await tx.approvalRequest.findUnique({
-        where: {
-          tenant_request_id_unique: {
-            tenantId,
-            id,
-          },
+    // 1. Fetch request with strict tenant isolation
+    const request = await this.prisma.approvalRequest.findUnique({
+      where: {
+        tenant_request_id_unique: {
+          tenantId,
+          id,
         },
-        include: {
-          steps: { orderBy: { stepOrder: 'asc' } },
+      },
+      include: {
+        steps: {
+          include: { assignees: true },
+          orderBy: { stepOrder: 'asc' },
         },
-      });
+      },
+    });
 
-      if (!request) {
-        throw new NotFoundException(`Approval request '${id}' not found in this tenant`);
+    if (!request) {
+      throw new NotFoundException(`Approval request '${id}' not found in this tenant`);
+    }
+
+    const isDag = Boolean(request.currentNodeId);
+
+    if (isDag) {
+      if (dto.action === 'CANCEL') {
+        throw new BadRequestException('Use POST /api/v1/requests/:id/cancel to cancel a request');
       }
 
+      if (request.status !== 'IN_PROGRESS') {
+        throw new ConflictException(
+          `Cannot perform action '${dto.action}' on request with status '${request.status}'`,
+        );
+      }
+
+      let targetStepId = dto.stepId;
+      if (!targetStepId) {
+        const currentRound = request.currentReviewRound || 1;
+        const activeSteps = request.steps.filter(
+          (s) =>
+            s.status === 'IN_REVIEW' &&
+            (s.reviewRound === undefined || s.reviewRound === currentRound),
+        );
+
+        if (activeSteps.length === 0) {
+          throw new ConflictException('No active step is currently awaiting review');
+        }
+
+        const userStep = activeSteps.find(
+          (s) =>
+            s.assignedToId === userId ||
+            (s.assignees &&
+              s.assignees.some((a) => a.assignedToId === userId && a.status === 'PENDING')),
+        );
+
+        if (userStep) {
+          targetStepId = userStep.id;
+        } else if (activeSteps.length === 1) {
+          targetStepId = activeSteps[0].id;
+        } else {
+          const roleStep = activeSteps.find((s) => s.assignedRole === userRole);
+          targetStepId = roleStep ? roleStep.id : activeSteps[0].id;
+        }
+      }
+
+      await this.graphEngine.submitGraphAction(tenantId, userId, userRole, id, targetStepId, {
+        action: dto.action,
+        comments: dto.comments,
+        delegationId: dto.delegationId,
+      });
+
+      this.outboxPublisher.trigger();
+      return this.findOne(tenantId, id);
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
       // 2. Validate current request status
       if (request.status !== 'IN_PROGRESS') {
         throw new ConflictException(
@@ -970,20 +1049,44 @@ export class RequestsService {
     id: string,
     dto: ResubmitRequestDto,
   ) {
-    const updated = await this.prisma.$transaction(async (tx) => {
-      const request = await tx.approvalRequest.findUnique({
-        where: {
-          tenant_request_id_unique: {
-            tenantId,
-            id,
-          },
+    const request = await this.prisma.approvalRequest.findUnique({
+      where: {
+        tenant_request_id_unique: {
+          tenantId,
+          id,
         },
-      });
+      },
+    });
 
-      if (!request) {
-        throw new NotFoundException(`Approval request '${id}' not found in this tenant`);
+    if (!request) {
+      throw new NotFoundException(`Approval request '${id}' not found in this tenant`);
+    }
+
+    const isDag = Boolean(request.currentNodeId);
+
+    if (isDag) {
+      if (request.status !== 'CHANGES_REQUESTED') {
+        throw new ConflictException(
+          `Cannot resubmit a request with status '${request.status}'. Must be in 'CHANGES_REQUESTED'`,
+        );
       }
 
+      const isTenantAdmin = userRole === 'TENANT_ADMIN' || userRole === 'SUPER_ADMIN';
+      if (request.requestedById !== userId && !isTenantAdmin) {
+        throw new ForbiddenException('Only the original requester can resubmit changes');
+      }
+
+      await this.graphEngine.resubmitGraphRequest(tenantId, userId, id, {
+        updatedData: dto.updatedData || dto.requestData,
+        comments: dto.comments,
+        resubmissionPolicy: dto.resubmissionPolicy,
+      });
+
+      this.outboxPublisher.trigger();
+      return this.findOne(tenantId, id);
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
       if (request.status !== 'CHANGES_REQUESTED') {
         throw new ConflictException(
           `Cannot resubmit a request with status '${request.status}'. Must be in 'CHANGES_REQUESTED'`,
@@ -1224,5 +1327,12 @@ export class RequestsService {
     this.outboxPublisher.trigger();
 
     return updated;
+  }
+
+  /**
+   * Retrieves the normalized execution graph / tree for visual DAG rendering
+   */
+  async getExecutionGraph(tenantId: string, requestId: string) {
+    return this.graphEngine.getExecutionGraph(tenantId, requestId);
   }
 }

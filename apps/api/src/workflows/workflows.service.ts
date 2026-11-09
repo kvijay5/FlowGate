@@ -4,6 +4,8 @@ import { AuditService } from '../audit/audit.service';
 import { CreateWorkflowDto } from './dto/create-workflow.dto';
 import { UpdateWorkflowDto } from './dto/update-workflow.dto';
 import { WorkflowStepConfigDto } from './dto/workflow-step.dto';
+import { WorkflowGraphValidatorService } from './workflow-graph-validator.service';
+import { WorkflowGraphEngineService } from './workflow-graph-engine.service';
 import { Prisma, WorkflowStatus } from '@prisma/client';
 
 @Injectable()
@@ -13,6 +15,8 @@ export class WorkflowsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
+    private readonly graphValidator: WorkflowGraphValidatorService,
+    private readonly graphEngine: WorkflowGraphEngineService,
   ) {}
 
   /**
@@ -52,22 +56,59 @@ export class WorkflowsService {
 
   /**
    * Creates a new workflow definition scoped to the authenticated tenant.
+   * Supports both Milestone 6 DAG graphs (nodes & edges) and legacy sequential steps.
    */
   async create(tenantId: string, actorId: string, dto: CreateWorkflowDto) {
-    this.validateStepConfiguration(dto.steps);
+    const hasDAG =
+      (dto.nodes && dto.nodes.length > 0) ||
+      (dto.configuration?.nodes && dto.configuration.nodes.length > 0);
+    const hasSteps =
+      (dto.steps && dto.steps.length > 0) ||
+      (dto.configuration?.steps && dto.configuration.steps.length > 0);
 
-    return this.prisma.$transaction(async (tx) => {
-      const configuration = {
-        steps: dto.steps,
+    if (!hasDAG && !hasSteps) {
+      throw new BadRequestException(
+        'Workflow must configure approval steps or a valid DAG graph (nodes & edges)',
+      );
+    }
+
+    let configuration: Record<string, unknown> = {};
+
+    if (hasDAG) {
+      const configNodes = dto.configuration?.nodes;
+      const nodes = dto.nodes || (configNodes as any);
+      const edges = dto.edges || dto.configuration?.edges || [];
+      const inputSchema = dto.inputSchema || dto.configuration?.inputSchema;
+
+      this.graphValidator.validateDAG({ nodes, edges, inputSchema });
+
+      configuration = {
+        nodes,
+        edges,
+        inputSchema,
+        steps: dto.steps || dto.configuration?.steps,
         approvalThresholdUsd: dto.approvalThresholdUsd,
       };
+    } else {
+      const configSteps = dto.configuration?.steps;
+      const steps = (dto.steps || configSteps) as WorkflowStepConfigDto[];
+      this.validateStepConfiguration(steps);
 
+      configuration = {
+        steps,
+        approvalThresholdUsd: dto.approvalThresholdUsd,
+      };
+    }
+
+    const initialStatus = dto.status || WorkflowStatus.ACTIVE;
+
+    return this.prisma.$transaction(async (tx) => {
       const workflow = await tx.workflowDefinition.create({
         data: {
           tenantId,
           name: dto.name.trim(),
           description: dto.description?.trim(),
-          status: WorkflowStatus.ACTIVE,
+          status: initialStatus,
           version: 1,
           configuration: configuration as unknown as Prisma.InputJsonValue,
         },
@@ -83,7 +124,8 @@ export class WorkflowsService {
           metadata: {
             name: workflow.name,
             version: workflow.version,
-            stepCount: dto.steps.length,
+            status: workflow.status,
+            hasDAG: !!hasDAG,
           },
         },
         tx,
@@ -139,17 +181,36 @@ export class WorkflowsService {
    */
   async update(tenantId: string, actorId: string, id: string, dto: UpdateWorkflowDto) {
     const existing = await this.findOne(tenantId, id);
+    const existingConfig = (existing.configuration || {}) as any;
 
-    let newSteps = (existing.configuration as any)?.steps;
-    if (dto.steps) {
-      this.validateStepConfiguration(dto.steps);
-      newSteps = dto.steps;
+    const newNodes = dto.nodes || dto.configuration?.nodes || existingConfig.nodes;
+    const newEdges = dto.edges || dto.configuration?.edges || existingConfig.edges;
+    const newInputSchema =
+      dto.inputSchema || dto.configuration?.inputSchema || existingConfig.inputSchema;
+    const newSteps = dto.steps || dto.configuration?.steps || existingConfig.steps;
+
+    const hasNewDAG =
+      (dto.nodes && dto.nodes.length > 0) ||
+      (dto.configuration?.nodes && dto.configuration.nodes.length > 0);
+    const hasNewSteps =
+      (dto.steps && dto.steps.length > 0) ||
+      (dto.configuration?.steps && dto.configuration.steps.length > 0);
+
+    if (hasNewDAG) {
+      this.graphValidator.validateDAG({
+        nodes: newNodes,
+        edges: newEdges || [],
+        inputSchema: newInputSchema,
+      });
+    } else if (hasNewSteps) {
+      const configSteps = dto.configuration?.steps;
+      this.validateStepConfiguration((dto.steps || configSteps) as WorkflowStepConfigDto[]);
     }
 
     return this.prisma.$transaction(async (tx) => {
       let nextVersion = existing.version;
 
-      if (dto.steps) {
+      if (hasNewDAG || hasNewSteps) {
         // Check if there are active requests using this workflow
         const activeRequestsCount = await tx.approvalRequest.count({
           where: {
@@ -168,10 +229,11 @@ export class WorkflowsService {
       }
 
       const updatedConfiguration = {
-        ...(existing.configuration as Record<string, unknown>),
+        ...existingConfig,
+        ...(hasNewDAG || existingConfig.nodes ? { nodes: newNodes, edges: newEdges } : {}),
+        inputSchema: newInputSchema,
         steps: newSteps,
-        approvalThresholdUsd:
-          dto.approvalThresholdUsd ?? (existing.configuration as any)?.approvalThresholdUsd,
+        approvalThresholdUsd: dto.approvalThresholdUsd ?? existingConfig.approvalThresholdUsd,
       };
 
       const updated = await tx.workflowDefinition.update({
@@ -184,6 +246,7 @@ export class WorkflowsService {
         data: {
           name: dto.name ? dto.name.trim() : undefined,
           description: dto.description !== undefined ? dto.description?.trim() : undefined,
+          status: dto.status ?? undefined,
           configuration: updatedConfiguration as unknown as Prisma.InputJsonValue,
           version: nextVersion,
         },
@@ -207,6 +270,112 @@ export class WorkflowsService {
 
       return updated;
     });
+  }
+
+  /**
+   * Publishes a draft workflow, validating DAG integrity and freezing the definition.
+   */
+  async publishWorkflow(tenantId: string, id: string, actorId: string) {
+    const workflow = await this.findOne(tenantId, id);
+    const config = (workflow.configuration || {}) as any;
+
+    if (config.nodes && config.nodes.length > 0) {
+      this.graphValidator.validateDAG({
+        nodes: config.nodes,
+        edges: config.edges || [],
+        inputSchema: config.inputSchema,
+      });
+    } else if (config.steps && config.steps.length > 0) {
+      this.validateStepConfiguration(config.steps);
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.workflowDefinition.update({
+        where: {
+          tenant_workflow_id_unique: {
+            tenantId,
+            id,
+          },
+        },
+        data: {
+          status: WorkflowStatus.ACTIVE,
+        },
+      });
+
+      await this.auditService.log(
+        {
+          tenantId,
+          actorId,
+          entityType: 'WorkflowDefinition',
+          entityId: id,
+          action: 'WORKFLOW_PUBLISHED',
+          metadata: {
+            name: updated.name,
+            version: updated.version,
+            status: WorkflowStatus.ACTIVE,
+          },
+        },
+        tx,
+      );
+
+      return updated;
+    });
+  }
+
+  /**
+   * Clones an existing workflow into a new DRAFT version record (vN -> vN+1).
+   * In-flight requests remain pinned to their original version and workflow definition ID.
+   */
+  async cloneDraftVersion(tenantId: string, id: string, actorId: string) {
+    const source = await this.findOne(tenantId, id);
+
+    // Compute next version for workflow family
+    const family = await this.prisma.workflowDefinition.findMany({
+      where: { tenantId, name: source.name },
+      select: { version: true },
+    });
+
+    const maxVersion = Math.max(source.version, ...family.map((w) => w.version));
+    const nextVersion = maxVersion + 1;
+
+    return this.prisma.$transaction(async (tx) => {
+      const cloned = await tx.workflowDefinition.create({
+        data: {
+          tenantId,
+          name: source.name,
+          description: source.description,
+          status: WorkflowStatus.DRAFT,
+          version: nextVersion,
+          configuration: source.configuration as unknown as Prisma.InputJsonValue,
+        },
+      });
+
+      await this.auditService.log(
+        {
+          tenantId,
+          actorId,
+          entityType: 'WorkflowDefinition',
+          entityId: cloned.id,
+          action: 'WORKFLOW_DRAFT_CLONED',
+          metadata: {
+            sourceWorkflowId: source.id,
+            sourceVersion: source.version,
+            newVersion: nextVersion,
+            status: WorkflowStatus.DRAFT,
+          },
+        },
+        tx,
+      );
+
+      return cloned;
+    });
+  }
+
+  /**
+   * Returns normalized execution graph for frontend rendering.
+   */
+  async getExecutionGraph(tenantId: string, requestId: string) {
+    return this.graphEngine.getExecutionGraph(tenantId, requestId);
   }
 
   /**

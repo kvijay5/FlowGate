@@ -59,6 +59,28 @@ export class RequestsController {
   }
 
   /**
+   * Retrieve normalized execution graph/tree for DAG visualization
+   */
+  @Get(':id/execution-tree')
+  async getExecutionTree(
+    @CurrentTenant() tenantId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.requestsService.getExecutionGraph(tenantId, id);
+  }
+
+  /**
+   * Retrieve normalized execution graph/tree for DAG visualization
+   */
+  @Get(':id/execution-graph')
+  async getExecutionGraph(
+    @CurrentTenant() tenantId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.requestsService.getExecutionGraph(tenantId, id);
+  }
+
+  /**
    * Execute approval action (APPROVE, REJECT, REQUEST_CHANGES)
    */
   @Post(':id/actions')

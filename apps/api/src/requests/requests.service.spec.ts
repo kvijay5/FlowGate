@@ -7,6 +7,7 @@ import { EscalationsService } from '../escalations/escalations.service';
 import { WebhooksService } from '../webhooks/webhooks.service';
 import { OutboxService } from '../outbox/outbox.service';
 import { OutboxPublisherService } from '../outbox/outbox-publisher.service';
+import { WorkflowGraphEngineService } from '../workflows/workflow-graph-engine.service';
 import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 
 describe('RequestsService', () => {
@@ -18,6 +19,7 @@ describe('RequestsService', () => {
   let mockWebhooks: any;
   let mockOutbox: any;
   let mockOutboxPublisher: any;
+  let mockGraphEngine: any;
 
   beforeEach(async () => {
     mockNotifications = {
@@ -92,6 +94,13 @@ describe('RequestsService', () => {
       getEntityAuditTrail: jest.fn().mockResolvedValue([]),
     };
 
+    mockGraphEngine = {
+      initializeGraphExecution: jest.fn().mockResolvedValue({ id: 'req-dag-1' }),
+      submitGraphAction: jest.fn().mockResolvedValue({ success: true }),
+      resubmitGraphRequest: jest.fn().mockResolvedValue({ id: 'req-dag-1' }),
+      getExecutionGraph: jest.fn().mockResolvedValue({ requestId: 'req-dag-1' }),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         RequestsService,
@@ -102,6 +111,7 @@ describe('RequestsService', () => {
         { provide: WebhooksService, useValue: mockWebhooks },
         { provide: OutboxService, useValue: mockOutbox },
         { provide: OutboxPublisherService, useValue: mockOutboxPublisher },
+        { provide: WorkflowGraphEngineService, useValue: mockGraphEngine },
       ],
     }).compile();
 
@@ -347,6 +357,121 @@ describe('RequestsService', () => {
         expect.objectContaining({ action: 'REQUEST_CHANGES_REQUESTED' }),
         expect.anything(),
       );
+    });
+  });
+
+  describe('DAG workflow request routing', () => {
+    it('should route create to graphEngine.initializeGraphExecution if workflow has DAG nodes', async () => {
+      mockPrisma.workflowDefinition.findUnique.mockResolvedValue({
+        id: 'wf-dag-1',
+        status: 'ACTIVE',
+        version: 1,
+        configuration: {
+          nodes: [
+            { id: 't1', type: 'TRIGGER', name: 'Start' },
+            { id: 'e1', type: 'END', name: 'Finish' },
+          ],
+          edges: [{ id: 'ed1', sourceNodeId: 't1', targetNodeId: 'e1' }],
+        },
+      });
+
+      jest.spyOn(service, 'findOne').mockResolvedValue({ id: 'req-dag-1' } as any);
+
+      const result = await service.create('tenant-1', 'user-1', {
+        workflowDefinitionId: 'wf-dag-1',
+        title: 'New DAG Request',
+        requestData: { amount: 500 },
+      });
+
+      expect(mockGraphEngine.initializeGraphExecution).toHaveBeenCalledWith(
+        'tenant-1',
+        'user-1',
+        'wf-dag-1',
+        expect.objectContaining({
+          title: 'New DAG Request',
+          requestData: { amount: 500 },
+        }),
+      );
+      expect(result.id).toBe('req-dag-1');
+    });
+
+    it('should route submitAction to graphEngine.submitGraphAction for DAG request', async () => {
+      mockPrisma.approvalRequest.findUnique.mockResolvedValue({
+        id: 'req-dag-1',
+        tenantId: 'tenant-1',
+        status: 'IN_PROGRESS',
+        currentNodeId: 'node-appr-1',
+        currentReviewRound: 1,
+        workflowSnapshot: {
+          nodes: [{ id: 'node-appr-1', type: 'APPROVAL', name: 'Approval' }],
+          edges: [],
+        },
+        steps: [
+          {
+            id: 'step-dag-1',
+            status: 'IN_REVIEW',
+            reviewRound: 1,
+            assignedRole: 'APPROVER',
+            assignees: [],
+          },
+        ],
+      });
+
+      jest.spyOn(service, 'findOne').mockResolvedValue({ id: 'req-dag-1' } as any);
+
+      await service.submitAction('tenant-1', 'user-approver', 'APPROVER', 'req-dag-1', {
+        action: 'APPROVE',
+        comments: 'Looks good',
+      });
+
+      expect(mockGraphEngine.submitGraphAction).toHaveBeenCalledWith(
+        'tenant-1',
+        'user-approver',
+        'APPROVER',
+        'req-dag-1',
+        'step-dag-1',
+        expect.objectContaining({
+          action: 'APPROVE',
+          comments: 'Looks good',
+        }),
+      );
+    });
+
+    it('should route resubmit to graphEngine.resubmitGraphRequest for DAG request', async () => {
+      mockPrisma.approvalRequest.findUnique.mockResolvedValue({
+        id: 'req-dag-1',
+        tenantId: 'tenant-1',
+        status: 'CHANGES_REQUESTED',
+        requestedById: 'user-requester',
+        currentNodeId: 'node-appr-1',
+        workflowSnapshot: {
+          nodes: [{ id: 'node-appr-1', type: 'APPROVAL', name: 'Approval' }],
+          edges: [],
+        },
+      });
+
+      jest.spyOn(service, 'findOne').mockResolvedValue({ id: 'req-dag-1' } as any);
+
+      await service.resubmit('tenant-1', 'user-requester', 'REQUESTER', 'req-dag-1', {
+        updatedData: { amount: 750 },
+        comments: 'Increased budget',
+      });
+
+      expect(mockGraphEngine.resubmitGraphRequest).toHaveBeenCalledWith(
+        'tenant-1',
+        'user-requester',
+        'req-dag-1',
+        expect.objectContaining({
+          updatedData: { amount: 750 },
+          comments: 'Increased budget',
+        }),
+      );
+    });
+
+    it('should delegate getExecutionGraph to graph engine', async () => {
+      const graph = await service.getExecutionGraph('tenant-1', 'req-dag-1');
+      expect(mockGraphEngine.getExecutionGraph).toHaveBeenCalledWith('tenant-1', 'req-dag-1');
+      expect(graph.requestId).toBe('req-dag-1');
     });
   });
 });

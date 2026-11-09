@@ -684,6 +684,17 @@ export class WorkflowGraphEngineService {
       );
 
       // Publish Outbox Event
+      let recipientEmail = 'requester@flowgate.local';
+      if (tx.user?.findUnique) {
+        const requester = await tx.user.findUnique({
+          where: { id: request.requestedById },
+          select: { email: true },
+        });
+        if (requester?.email) {
+          recipientEmail = requester.email;
+        }
+      }
+
       await this.outboxService.createEvent(tx, {
         tenantId,
         eventType: OUTBOX_EVENT_NOTIFICATION,
@@ -692,6 +703,8 @@ export class WorkflowGraphEngineService {
         idempotencyKey: `notif_graph_resub_${requestId}_r${newRound}`,
         payload: {
           tenantId,
+          recipientEmail,
+          recipientUserId: request.requestedById,
           eventType: 'REQUEST_RESUBMITTED',
           subject: `Request Resubmitted (Round ${newRound}): "${request.title}"`,
           content: `Approval request "${request.title}" has been resubmitted for Review Round ${newRound}.`,
@@ -718,6 +731,62 @@ export class WorkflowGraphEngineService {
         },
       });
     });
+  }
+
+  /**
+   * Retrieves normalized execution graph topology, node states, branch states, and step assignees
+   * for visual DAG graph rendering in the frontend.
+   */
+  public async getExecutionGraph(tenantId: string, requestId: string) {
+    const request = await this.prisma.approvalRequest.findUnique({
+      where: {
+        tenant_request_id_unique: {
+          tenantId,
+          id: requestId,
+        },
+      },
+      include: {
+        nodeExecutions: {
+          orderBy: [{ reviewRound: 'asc' }, { createdAt: 'asc' }],
+        },
+        branchExecutions: {
+          orderBy: [{ reviewRound: 'asc' }, { createdAt: 'asc' }],
+        },
+        steps: {
+          include: {
+            assignees: {
+              include: {
+                assignedTo: { select: { id: true, name: true, email: true, role: true } },
+                actionedBy: { select: { id: true, name: true, email: true, role: true } },
+                delegatedFromUser: { select: { id: true, name: true, email: true, role: true } },
+              },
+            },
+          },
+          orderBy: [{ reviewRound: 'asc' }, { stepOrder: 'asc' }],
+        },
+      },
+    });
+
+    if (!request) {
+      throw new NotFoundException(`Approval request '${requestId}' not found in this tenant`);
+    }
+
+    return {
+      requestId: request.id,
+      tenantId: request.tenantId,
+      workflowDefinitionId: request.workflowDefinitionId,
+      workflowVersion: request.workflowVersion,
+      status: request.status,
+      currentReviewRound: request.currentReviewRound,
+      currentNodeId: request.currentNodeId,
+      workflowSnapshot: request.workflowSnapshot,
+      requestData: request.requestData,
+      nodeExecutions: request.nodeExecutions,
+      branchExecutions: request.branchExecutions,
+      steps: request.steps,
+      createdAt: request.createdAt,
+      updatedAt: request.updatedAt,
+    };
   }
 
   /**

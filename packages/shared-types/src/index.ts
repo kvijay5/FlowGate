@@ -265,6 +265,23 @@ export interface WorkflowBranchExecutionSummary {
   updatedAt: string;
 }
 
+export interface RequestExecutionGraph {
+  requestId: string;
+  tenantId: string;
+  workflowDefinitionId: string;
+  workflowVersion: number;
+  status: ApprovalRequestStatus;
+  currentReviewRound: number;
+  currentNodeId?: string | null;
+  workflowSnapshot?: unknown;
+  requestData?: Record<string, unknown>;
+  nodeExecutions: WorkflowNodeExecutionSummary[];
+  branchExecutions: WorkflowBranchExecutionSummary[];
+  steps: ApprovalStepDetail[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface UserDelegationSummary {
   id: string;
   tenantId: string;

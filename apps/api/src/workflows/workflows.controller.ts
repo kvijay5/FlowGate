@@ -47,6 +47,17 @@ export class WorkflowsController {
   }
 
   /**
+   * Retrieve execution graph for visual rendering
+   */
+  @Get('requests/:id/execution-graph')
+  async getRequestExecutionGraph(
+    @CurrentTenant() tenantId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.workflowsService.getExecutionGraph(tenantId, id);
+  }
+
+  /**
    * Retrieve a specific workflow definition by ID
    */
   @Get(':id')
@@ -94,5 +105,47 @@ export class WorkflowsController {
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.workflowsService.deactivate(tenantId, actorId, id);
+  }
+
+  /**
+   * Publish a draft workflow definition (Admin & Manager only)
+   */
+  @Post(':id/publish')
+  @Roles('TENANT_ADMIN', 'SUPER_ADMIN', 'MANAGER')
+  @HttpCode(HttpStatus.OK)
+  async publish(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser('id') actorId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.workflowsService.publishWorkflow(tenantId, id, actorId);
+  }
+
+  /**
+   * Clone workflow into a new DRAFT version (Admin & Manager only)
+   */
+  @Post(':id/clone-draft')
+  @Roles('TENANT_ADMIN', 'SUPER_ADMIN', 'MANAGER')
+  @HttpCode(HttpStatus.CREATED)
+  async cloneDraft(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser('id') actorId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.workflowsService.cloneDraftVersion(tenantId, id, actorId);
+  }
+
+  /**
+   * Alias: Clone workflow version (POST /api/v1/workflows/:id/versions)
+   */
+  @Post(':id/versions')
+  @Roles('TENANT_ADMIN', 'SUPER_ADMIN', 'MANAGER')
+  @HttpCode(HttpStatus.CREATED)
+  async createVersion(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser('id') actorId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.workflowsService.cloneDraftVersion(tenantId, id, actorId);
   }
 }

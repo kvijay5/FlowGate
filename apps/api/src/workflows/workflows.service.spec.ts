@@ -2,12 +2,16 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { WorkflowsService } from './workflows.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { AstConditionEvaluatorService } from './ast-condition-evaluator.service';
+import { WorkflowGraphValidatorService } from './workflow-graph-validator.service';
+import { WorkflowGraphEngineService } from './workflow-graph-engine.service';
 import { BadRequestException } from '@nestjs/common';
 
 describe('WorkflowsService', () => {
   let service: WorkflowsService;
   let mockPrisma: any;
   let mockAudit: any;
+  let mockGraphEngine: any;
 
   beforeEach(async () => {
     mockPrisma = {
@@ -34,11 +38,22 @@ describe('WorkflowsService', () => {
       log: jest.fn().mockResolvedValue({ id: 'audit-1' }),
     };
 
+    mockGraphEngine = {
+      getExecutionGraph: jest.fn().mockResolvedValue({
+        requestId: 'req-1',
+        nodeExecutions: [],
+        branchExecutions: [],
+      }),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         WorkflowsService,
+        AstConditionEvaluatorService,
+        WorkflowGraphValidatorService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: AuditService, useValue: mockAudit },
+        { provide: WorkflowGraphEngineService, useValue: mockGraphEngine },
       ],
     }).compile();
 
@@ -164,6 +179,127 @@ describe('WorkflowsService', () => {
           data: { status: 'ARCHIVED' },
         }),
       );
+    });
+  });
+
+  describe('publishWorkflow', () => {
+    it('should publish a valid DAG workflow into ACTIVE status and record audit log', async () => {
+      mockPrisma.workflowDefinition.findUnique.mockResolvedValue({
+        id: 'wf-dag-1',
+        tenantId: 'tenant-1',
+        name: 'DAG Workflow',
+        version: 1,
+        status: 'DRAFT',
+        configuration: {
+          nodes: [
+            { id: 'node-trigger', type: 'TRIGGER', name: 'Start' },
+            { id: 'node-end', type: 'END', name: 'Finish' },
+          ],
+          edges: [{ id: 'edge-1', sourceNodeId: 'node-trigger', targetNodeId: 'node-end' }],
+        },
+      });
+
+      const published = await service.publishWorkflow('tenant-1', 'wf-dag-1', 'actor-1');
+
+      expect(mockPrisma.workflowDefinition.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            tenant_workflow_id_unique: {
+              tenantId: 'tenant-1',
+              id: 'wf-dag-1',
+            },
+          },
+          data: { status: 'ACTIVE' },
+        }),
+      );
+      expect(mockAudit.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'WORKFLOW_PUBLISHED',
+          entityType: 'WorkflowDefinition',
+          entityId: 'wf-dag-1',
+        }),
+        expect.anything(),
+      );
+      expect(published.status).toBe('ACTIVE');
+    });
+
+    it('should fail to publish if DAG is structurally invalid', async () => {
+      mockPrisma.workflowDefinition.findUnique.mockResolvedValue({
+        id: 'wf-invalid',
+        tenantId: 'tenant-1',
+        name: 'Invalid DAG',
+        version: 1,
+        status: 'DRAFT',
+        configuration: {
+          nodes: [
+            { id: 'node-trigger', type: 'TRIGGER', name: 'Start' },
+            // Missing END node!
+          ],
+          edges: [],
+        },
+      });
+
+      await expect(service.publishWorkflow('tenant-1', 'wf-invalid', 'actor-1')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+  });
+
+  describe('cloneDraftVersion', () => {
+    it('should clone existing active workflow to vN+1 in DRAFT status', async () => {
+      mockPrisma.workflowDefinition.findUnique.mockResolvedValue({
+        id: 'wf-v1',
+        tenantId: 'tenant-1',
+        name: 'PO Approval',
+        description: 'Purchase Orders',
+        version: 1,
+        status: 'ACTIVE',
+        configuration: {
+          nodes: [
+            { id: 't1', type: 'TRIGGER', name: 'Start' },
+            { id: 'e1', type: 'END', name: 'Finish' },
+          ],
+          edges: [{ id: 'ed1', sourceNodeId: 't1', targetNodeId: 'e1' }],
+        },
+      });
+
+      mockPrisma.workflowDefinition.findMany.mockResolvedValue([{ version: 1 }]);
+
+      const cloned = await service.cloneDraftVersion('tenant-1', 'wf-v1', 'actor-1');
+
+      expect(mockPrisma.workflowDefinition.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            tenantId: 'tenant-1',
+            name: 'PO Approval',
+            version: 2,
+            status: 'DRAFT',
+          }),
+        }),
+      );
+      expect(mockAudit.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'WORKFLOW_DRAFT_CLONED',
+          entityType: 'WorkflowDefinition',
+          metadata: expect.objectContaining({
+            sourceWorkflowId: 'wf-v1',
+            sourceVersion: 1,
+            newVersion: 2,
+            status: 'DRAFT',
+          }),
+        }),
+        expect.anything(),
+      );
+      expect(cloned.version).toBe(2);
+      expect(cloned.status).toBe('DRAFT');
+    });
+  });
+
+  describe('getExecutionGraph', () => {
+    it('should delegate execution graph retrieval to graph engine', async () => {
+      const graph = await service.getExecutionGraph('tenant-1', 'req-1');
+      expect(mockGraphEngine.getExecutionGraph).toHaveBeenCalledWith('tenant-1', 'req-1');
+      expect(graph.requestId).toBe('req-1');
     });
   });
 });

@@ -14,4 +14,10 @@ export class CreateApprovalRequestDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  @IsOptional()
+  requestData?: Record<string, unknown>;
+
+  @IsOptional()
+  payload?: Record<string, unknown>;
 }
