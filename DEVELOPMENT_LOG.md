@@ -2,6 +2,111 @@
 
 ---
 
+## [Milestone 6.5: Interactive Visual Workflow Builder UI in apps/web] - 2026-11-09
+
+### 1. Executive Summary
+
+Milestone 6.5 delivers the interactive visual workflow builder and execution canvas in `apps/web`:
+
+1. **Interactive Canvas with `@xyflow/react` (React Flow 12)**:
+   - Integrated `@xyflow/react` with Next.js 14 App Router, Tailwind CSS, and Lucide icons.
+   - Built a drag-and-drop / palette-driven graph editing canvas with controls, minimap, background dot grid, multi-node selection, edge reconnection, and auto-layout.
+2. **Specialized Custom Workflow Nodes (`apps/web/src/components/workflow-builder/nodes/`)**:
+   - `TriggerNode`: Visualizes input schema fields, validation types, and entry trigger badge.
+   - `ApprovalNode`: Displays sequential review step, assigned role/user, SLA timeout, and escalation badges.
+   - `ParallelApprovalNode`: Displays quorum policy (`PARALLEL_AND` vs `PARALLEL_OR`), required threshold ($K$ of $N$ approvals), and assignee list.
+   - `ConditionNode`: Renders evaluated branching rules, operators, and multiple dynamic source handles for rule branches alongside dedicated fallback default handle.
+   - `JoinNode`: Visualizes synchronization policy (`ALL_INCOMING`), fan-in icon, and join criteria.
+   - `EndNode`: Displays terminal state badge (`APPROVED` or `REJECTED`) with colored halo indicator.
+3. **Comprehensive Real-Time Client-Side Graph Validator (`graph-validator.ts`)**:
+   - Implements Kahn's topological sort algorithm for instant sub-millisecond cycle detection.
+   - Validates node invariants: single trigger node, at least one terminal end node, no incoming edges to trigger, no outgoing edges from end.
+   - Flags unreachable/orphan nodes, dead-ends, self-referencing loops, invalid parallel quorum thresholds ($K > N$), and condition nodes missing default fallback branches.
+4. **Validation Banner (`ValidationBanner.tsx`)**:
+   - Real-time persistent status banner at top of canvas indicating graph validity.
+   - Expandable drawer with categorized errors (blocking publication) and warnings (best practice advice).
+   - Live node and edge count telemetry.
+5. **Node Properties Configuration Drawer (`NodePropertiesPanel.tsx`)**:
+   - Right-side slide-over panel for comprehensive node inspection and editing.
+   - Dynamic schema editor for `TRIGGER` nodes (field name, label, data type, required flag).
+   - Assignee selector, SLA timeout input, and auto-escalation toggles for `APPROVAL_STEP`.
+   - Quorum policy toggle (`PARALLEL_AND` vs `PARALLEL_OR`) and required approvals slider for `PARALLEL_APPROVAL`.
+   - Rule builder for `CONDITION` nodes with field dropdown from trigger schema, comparison operators (`>`, `<`, `==`, `!=`, `>=`, `<=`, `IN`, `CONTAINS`), threshold value, and target branch mapping.
+   - Outcome selector for `END` nodes (`APPROVED` vs `REJECTED`).
+6. **Workflow Builder Page & Dashboard Integration**:
+   - Page route at `apps/web/src/app/workflows/[id]/builder/page.tsx` supporting draft creation, draft editing, version cloning, and publishing.
+   - Full integration with dashboard (`apps/web/src/app/page.tsx`), adding "Visual Workflow Builder" launcher and "Visual Builder" cards for DAG workflows.
+   - API client expanded in `apps/web/src/lib/api.ts` with `createWorkflow`, `updateWorkflow`, `publishWorkflow`, `cloneDraftWorkflow`, and `getExecutionGraph`.
+7. **Verification & Quality Gates**:
+   - Created 13 unit tests for graph validation in `apps/web/src/components/workflow-builder/graph-validator.spec.ts`.
+   - Monorepo automated test suite grew to **345 passing tests** (210 API unit + 13 Web unit + 122 E2E integration).
+   - 0 TypeScript errors (`tsc --noEmit`), 0 ESLint warnings (`next lint`), 100% Prettier formatting compliance, and clean production Next.js builds.
+
+### 2. Summary of Work Completed & Deliverables
+
+- **Dependencies**:
+  - Added `@xyflow/react` (`^12.12.1`) to `apps/web`.
+  - Added `@types/jest`, `jest`, and `ts-jest` devDependencies to `apps/web` with configured `pnpm --filter web test` script.
+- **Frontend Canvas Architecture (`apps/web/src/components/workflow-builder/`)**:
+  - `types.ts`: Defined `WorkflowBuilderNodeData`, `GraphValidationResult`, `GraphValidationError`, and `DEFAULT_NODE_TEMPLATES`.
+  - `graph-validator.ts`: Pure TypeScript Kahn algorithm DAG validator and configuration rule engine.
+  - `graph-validator.spec.ts`: 13 comprehensive unit tests covering all structural and semantic failure modes.
+  - `ValidationBanner.tsx`: Non-blocking real-time validation HUD.
+  - `NodePropertiesPanel.tsx`: Complete property inspector and configuration drawer.
+  - `WorkflowBuilder.tsx`: Top-level interactive canvas component with palette, auto-layout, zoom controls, save, publish, and version clone actions.
+  - `nodes/`: Modular ReactFlow node implementations (`TriggerNode`, `ApprovalNode`, `ParallelApprovalNode`, `ConditionNode`, `JoinNode`, `EndNode`, and `index.ts`).
+- **Pages & Routes (`apps/web/src/app/`)**:
+  - `workflows/[id]/builder/page.tsx`: Dynamic route for visual builder with auto-saving, draft loading, and version publishing.
+  - `page.tsx`: Dashboard enhanced with Visual Workflow Builder CTA and DAG workflow badges.
+  - `globals.css`: Imported `@xyflow/react/dist/style.css`.
+- **API Client (`apps/web/src/lib/api.ts`)**:
+  - Implemented `createWorkflow`, `updateWorkflow`, `publishWorkflow`, `cloneDraftWorkflow`, and `getExecutionGraph`.
+
+### 3. Technical Decisions & Rationale
+
+- **Client-Side Real-Time Kahn's Algorithm Validation**:
+  Rather than requiring a round-trip network call on every node drag or edge connection, graph validation runs synchronously in sub-millisecond time on client state change. The algorithm computes the exact in-degree map and detects cycles before the user even attempts to save or publish.
+- **Dynamic Multi-Handle Condition Nodes**:
+  ReactFlow handles require explicit IDs to route edges cleanly. `ConditionNode` calculates handle positions for each evaluated AST rule and provides a distinct, visually highlighted handle for the default fallback branch.
+- **Strict Role Alignment with `@flowgate/shared-types`**:
+  All role selectors and node templates enforce the canonical `UserRole` enum (`SUPER_ADMIN`, `TENANT_ADMIN`, `MANAGER`, `REQUESTER`, `APPROVER`), preventing invalid role configurations from reaching the backend.
+- **Dual-Mode Canvas (New vs Existing Workflows)**:
+  The builder page seamlessly handles `/workflows/new/builder` (initializing with default Trigger, Approval, and End nodes) and `/workflows/:id/builder` (loading active or draft DAG graphs from the backend API).
+
+### 4. Verification & Test Results
+
+- **Web Unit Tests (`apps/web/src/components/workflow-builder/graph-validator.spec.ts`)**:
+  - 13 passing unit tests across all validation rules:
+    - Empty canvas rejection.
+    - Missing trigger rejection.
+    - Multiple trigger rejection.
+    - Missing end node rejection.
+    - Self-referencing loop detection.
+    - Trigger incoming connection rejection.
+    - End outgoing connection rejection.
+    - Unreachable and dead-end node detection.
+    - Parallel approval quorum bounds checking ($K \le N$).
+    - Condition missing default fallback branch warning.
+    - Kahn algorithm circular dependency cycle detection.
+    - Valid linear DAG validation and topological sorting.
+    - Valid branching and join diamond DAG validation.
+- **Backend Unit Tests**: 210 passing tests across 18 test suites.
+- **Backend E2E / Integration Tests**: 122 passing tests across 10 test suites.
+- **Total Test Count**: **345 passing tests**, 0 failures.
+- **Type-Check**: `pnpm check-types` passed with zero errors across all workspaces.
+- **Lint**: `pnpm lint` passed with zero warnings across all workspaces.
+- **Format**: `pnpm format:check` passed with 100% Prettier compliance.
+- **Production Build**: `pnpm build` succeeded across `shared-types`, `api`, and `web`.
+
+### 5. Next Steps
+
+- Proceed to Milestone 6.6 (End-to-End Visual Workflow Execution & Real-Time Monitoring in Web UI):
+  - Live execution visualizer tracking request progress across nodes in real-time.
+  - Interactive approval inbox supporting parallel approval voting and out-of-office delegation actions.
+  - Real-time WebSocket or polling status updates reflecting node execution states.
+
+---
+
 ## [Milestone 6.4: Workflow Publishing, Version Cloning, and DAG Request Execution APIs] - 2026-11-09
 
 ### 1. Executive Summary

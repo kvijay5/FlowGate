@@ -12,7 +12,7 @@
     "dev:web": "pnpm --filter web dev",
     "lint": "pnpm --filter \"*\" lint",
     "check-types": "pnpm --filter \"*\" check-types",
-    "test": "pnpm --filter api test",
+    "test": "pnpm --filter api test && pnpm --filter web test",
     "test:e2e": "pnpm --filter api test:e2e",
     "db:generate": "pnpm --filter api prisma:generate",
     "db:migrate": "pnpm --filter api prisma:migrate",

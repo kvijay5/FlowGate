@@ -842,13 +842,22 @@ export default function FlowGateApp() {
 
             {activeTab === 'workflows' &&
               (auth.user.role === 'TENANT_ADMIN' || auth.user.role === 'MANAGER') && (
-                <button
-                  onClick={() => setShowCreateWorkflowModal(true)}
-                  className="px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center space-x-1.5 shadow-md shadow-indigo-600/20 transition-colors"
-                >
-                  <Plus className="h-4 w-4" />
-                  <span>Create Workflow</span>
-                </button>
+                <div className="flex items-center space-x-2">
+                  <a
+                    href="/workflows/new/builder"
+                    className="px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center space-x-1.5 shadow-md shadow-emerald-600/20 transition-colors"
+                  >
+                    <GitBranch className="h-4 w-4" />
+                    <span>Visual Workflow Builder</span>
+                  </a>
+                  <button
+                    onClick={() => setShowCreateWorkflowModal(true)}
+                    className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold flex items-center space-x-1.5 border border-slate-700 transition-colors"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>Quick Workflow</span>
+                  </button>
+                </div>
               )}
 
             {activeTab === 'webhooks' &&
@@ -993,7 +1002,10 @@ export default function FlowGateApp() {
         {activeTab === 'workflows' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {workflows.map((wf) => {
+              const nodes = (wf.configuration as any)?.nodes || [];
+              const edges = (wf.configuration as any)?.edges || [];
               const steps = (wf.configuration as any)?.steps || [];
+              const hasDAG = nodes.length > 0;
               const isActive = wf.status === 'ACTIVE';
 
               return (
@@ -1014,50 +1026,90 @@ export default function FlowGateApp() {
                           {wf.status}
                         </span>
                         <span className="text-[11px] text-slate-400">v{wf.version}</span>
+                        {hasDAG && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-indigo-950/80 text-indigo-300 border border-indigo-800 flex items-center space-x-1">
+                            <GitBranch className="h-2.5 w-2.5" />
+                            <span>Visual DAG</span>
+                          </span>
+                        )}
                       </div>
                       <h4 className="font-bold text-white text-base">{wf.name}</h4>
                     </div>
 
-                    {(auth.user.role === 'TENANT_ADMIN' || auth.user.role === 'MANAGER') && (
-                      <button
-                        onClick={() => handleToggleWorkflow(wf.id, wf.status)}
-                        className={`text-xs px-2.5 py-1 rounded-md border font-medium transition-colors ${
-                          isActive
-                            ? 'border-red-900 bg-red-950/50 text-red-300 hover:bg-red-900/60'
-                            : 'border-emerald-900 bg-emerald-950/50 text-emerald-300 hover:bg-emerald-900/60'
-                        }`}
+                    <div className="flex items-center space-x-2">
+                      <a
+                        href={`/workflows/${wf.id}/builder`}
+                        className="text-xs px-2.5 py-1 rounded-md border border-indigo-700 bg-indigo-950/60 text-indigo-300 hover:bg-indigo-900/60 font-medium transition-colors flex items-center space-x-1"
                       >
-                        {isActive ? 'Deactivate' : 'Activate'}
-                      </button>
-                    )}
+                        <GitBranch className="h-3 w-3" />
+                        <span>Visual Builder</span>
+                      </a>
+
+                      {(auth.user.role === 'TENANT_ADMIN' || auth.user.role === 'MANAGER') && (
+                        <button
+                          onClick={() => handleToggleWorkflow(wf.id, wf.status)}
+                          className={`text-xs px-2.5 py-1 rounded-md border font-medium transition-colors ${
+                            isActive
+                              ? 'border-red-900 bg-red-950/50 text-red-300 hover:bg-red-900/60'
+                              : 'border-emerald-900 bg-emerald-950/50 text-emerald-300 hover:bg-emerald-900/60'
+                          }`}
+                        >
+                          {isActive ? 'Deactivate' : 'Activate'}
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {wf.description && <p className="text-xs text-slate-400">{wf.description}</p>}
 
-                  {/* Steps Chain */}
-                  <div className="space-y-1.5 pt-2 border-t border-slate-800">
-                    <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
-                      Approval Chain ({steps.length} Steps)
-                    </span>
-                    <div className="space-y-1.5">
-                      {steps.map((st: any) => (
-                        <div
-                          key={st.stepOrder}
-                          className="flex items-center justify-between p-2 rounded bg-slate-950 text-xs border border-slate-800"
-                        >
-                          <div className="flex items-center space-x-2">
-                            <span className="h-5 w-5 rounded-full bg-slate-800 flex items-center justify-center font-bold text-[10px] text-slate-300">
-                              {st.stepOrder}
+                  {/* DAG Topology or Steps Chain */}
+                  {hasDAG ? (
+                    <div className="space-y-2 pt-2 border-t border-slate-800">
+                      <div className="flex items-center justify-between text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                        <span>Graph Topology</span>
+                        <span className="font-mono text-slate-300">
+                          {nodes.length} Nodes · {edges.length} Transitions
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {nodes.map((node: any) => (
+                          <span
+                            key={node.id}
+                            className="inline-flex items-center rounded bg-slate-950 px-2 py-1 text-[11px] font-medium text-slate-300 border border-slate-800"
+                          >
+                            <span className="font-bold text-[9px] uppercase text-indigo-400 mr-1.5">
+                              {node.type}
                             </span>
-                            <span className="font-medium text-slate-200">{st.name}</span>
-                          </div>
-                          <span className="text-[10px] text-indigo-400 font-semibold px-2 py-0.5 rounded bg-indigo-950 border border-indigo-900">
-                            {st.role || st.userEmail || 'Assigned'}
+                            {node.name}
                           </span>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="space-y-1.5 pt-2 border-t border-slate-800">
+                      <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
+                        Approval Chain ({steps.length} Steps)
+                      </span>
+                      <div className="space-y-1.5">
+                        {steps.map((st: any) => (
+                          <div
+                            key={st.stepOrder}
+                            className="flex items-center justify-between p-2 rounded bg-slate-950 text-xs border border-slate-800"
+                          >
+                            <div className="flex items-center space-x-2">
+                              <span className="h-5 w-5 rounded-full bg-slate-800 flex items-center justify-center font-bold text-[10px] text-slate-300">
+                                {st.stepOrder}
+                              </span>
+                              <span className="font-medium text-slate-200">{st.name}</span>
+                            </div>
+                            <span className="text-[10px] text-indigo-400 font-semibold px-2 py-0.5 rounded bg-indigo-950 border border-indigo-900">
+                              {st.role || st.userEmail || 'Assigned'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}

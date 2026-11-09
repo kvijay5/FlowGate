@@ -13,6 +13,10 @@ import {
   QueueHealthStatus,
   TenantQueueHealthStatus,
   NotificationLogSummary,
+  WorkflowNode,
+  WorkflowEdge,
+  InputSchema,
+  RequestExecutionGraph,
 } from '@flowgate/shared-types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
@@ -142,7 +146,10 @@ export const api = {
   async createWorkflow(payload: {
     name: string;
     description?: string;
-    steps: Array<{
+    nodes?: WorkflowNode[];
+    edges?: WorkflowEdge[];
+    inputSchema?: InputSchema;
+    steps?: Array<{
       stepOrder: number;
       name: string;
       assigneeType: 'ROLE' | 'USER';
@@ -150,11 +157,53 @@ export const api = {
       description?: string;
     }>;
     approvalThresholdUsd?: number;
+    status?: string;
   }): Promise<WorkflowDefinitionSummary> {
     return request<WorkflowDefinitionSummary>('/api/v1/workflows', {
       method: 'POST',
       body: JSON.stringify(payload),
     });
+  },
+
+  async updateWorkflow(
+    id: string,
+    payload: {
+      name?: string;
+      description?: string;
+      nodes?: WorkflowNode[];
+      edges?: WorkflowEdge[];
+      inputSchema?: InputSchema;
+      steps?: Array<{
+        stepOrder: number;
+        name: string;
+        assigneeType: 'ROLE' | 'USER';
+        role?: UserRole;
+        description?: string;
+      }>;
+      approvalThresholdUsd?: number;
+      status?: string;
+    },
+  ): Promise<WorkflowDefinitionSummary> {
+    return request<WorkflowDefinitionSummary>(`/api/v1/workflows/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async publishWorkflow(id: string): Promise<WorkflowDefinitionSummary> {
+    return request<WorkflowDefinitionSummary>(`/api/v1/workflows/${id}/publish`, {
+      method: 'POST',
+    });
+  },
+
+  async cloneDraftWorkflow(id: string): Promise<WorkflowDefinitionSummary> {
+    return request<WorkflowDefinitionSummary>(`/api/v1/workflows/${id}/clone-draft`, {
+      method: 'POST',
+    });
+  },
+
+  async getExecutionGraph(requestId: string): Promise<RequestExecutionGraph> {
+    return request<RequestExecutionGraph>(`/api/v1/requests/${requestId}/execution-tree`);
   },
 
   async activateWorkflow(id: string): Promise<WorkflowDefinitionSummary> {
