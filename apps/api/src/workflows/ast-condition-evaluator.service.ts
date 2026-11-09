@@ -586,6 +586,9 @@ export class AstConditionEvaluatorService {
   }
 
   public assertPayloadSize(requestData: Record<string, unknown>): void {
+    if (requestData && typeof requestData === 'object') {
+      this.checkObjectKeysForPrototypePollution(requestData);
+    }
     try {
       const payloadStr = JSON.stringify(requestData ?? {});
       const payloadBytes = Buffer.byteLength(payloadStr, 'utf8');
@@ -599,6 +602,33 @@ export class AstConditionEvaluatorService {
         throw err;
       }
       throw new BadRequestException('Unable to serialize requestData to verify payload size limit');
+    }
+  }
+
+  private checkObjectKeysForPrototypePollution(obj: unknown): void {
+    if (!obj || typeof obj !== 'object') return;
+    const proto = Object.getPrototypeOf(obj);
+    if (proto && proto !== Object.prototype && proto !== Array.prototype && proto !== null) {
+      throw new BadRequestException(
+        "Forbidden property key '__proto__': prototype pollution attempt detected",
+      );
+    }
+    const dangerousKeys = ['__proto__', 'constructor', 'prototype'];
+    for (const key of Object.getOwnPropertyNames(obj)) {
+      if (
+        dangerousKeys.includes(key) ||
+        key.includes('__proto__') ||
+        key.includes('constructor') ||
+        key.includes('prototype')
+      ) {
+        throw new BadRequestException(
+          `Forbidden property key '${key}': prototype pollution attempt detected`,
+        );
+      }
+      const val = (obj as Record<string, unknown>)[key];
+      if (val && typeof val === 'object') {
+        this.checkObjectKeysForPrototypePollution(val);
+      }
     }
   }
 

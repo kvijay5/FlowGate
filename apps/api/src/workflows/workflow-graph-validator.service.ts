@@ -479,12 +479,11 @@ export class WorkflowGraphValidatorService {
           // Check if there is any parallel fork between condId and join
           const hasParallelFork = this.hasParallelForkBetween(condId, join.id, outgoing, nodeMap);
 
-          // If it branches exclusively from the condition with no parallel fork, it is a deadlock risk
+          // If it branches exclusively from the condition with no parallel fork, it is a static deadlock
           if (feedsMultipleBranchesOfCond && !hasParallelFork) {
-            // Note: If our runtime engine prunes alternative branches to PRUNED_SKIPPED,
-            // an ALL_INCOMING join can still complete if PRUNED_SKIPPED branches are treated as satisfied.
-            // But if all incoming branches are directly mutually exclusive, the user should be warned or validated.
-            // We check if all incoming sources descend directly from the same condition
+            throw new BadRequestException(
+              `Static Join Deadlock: Join node '${join.name || join.id}' with ALL_INCOMING policy cannot be fed exclusively by mutually exclusive branches of condition '${nodeMap.get(condId)?.name || condId}' without a parallel fork`,
+            );
           }
         }
       }

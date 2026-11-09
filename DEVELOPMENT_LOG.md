@@ -2,6 +2,114 @@
 
 ---
 
+## [Milestone 6.7: Comprehensive End-to-End Integration, Concurrency, Multi-Tenant Isolation, and Security Hardening Test Suite] - 2026-11-09
+
+### 1. Executive Summary
+
+Milestone 6.7 establishes end-to-end security verification, concurrency stress testing, cryptographic ledger tamper-detection, and strict multi-tenant boundary enforcement across the entire FlowGate DAG execution architecture.
+
+The test suite in `apps/api/test/milestone6-security-and-concurrency.integration-spec.ts` exercises all critical paths against real PostgreSQL and Redis instances:
+
+1. **Multi-Tenant DAG & Delegation Isolation**: Verifies that tenants cannot access, mutate, publish, clone, or vote across tenant boundaries, that cross-tenant delegations are rejected with HTTP 400, and that cryptographic hash verification is strictly scoped per tenant.
+2. **High-Concurrency Race Condition & Row Serialization**: Executes 5 simultaneous parallel voters on a 3-of-5 `PARALLEL_OR` step using `Promise.all`. Verifies that PostgreSQL row-level locks (`SELECT ... FOR UPDATE`) serialize decisions, exactly 3 voters achieve quorum (HTTP 200), excess votes are rejected (HTTP 400), remaining assignees are updated to `SKIPPED` with `"Resolved by peer approval"`, downstream nodes are triggered exactly once without duplicate step creation, and the SHA-256 audit ledger remains continuous. Also verifies concurrent duplicate double-voting from the same user is rejected.
+3. **Cryptographic SHA-256 Audit Chain Tamper-Detection**: Simulates rogue database admin or SQL injection tampering using raw `prisma.$executeRaw` on historical audit metadata. Confirms `GET /api/v1/audit/verify` immediately flags the compromised record with `valid: false` and the exact broken entry ID, and returns to `valid: true` upon restoration.
+4. **Adversarial AST Evaluator & Edge Cases**:
+   - Rejects AST depth > 5 with HTTP 400 (`tree depth (6) exceeds maximum allowed limit of 5`).
+   - Blocks prototype pollution attempts in AST condition expressions (`__proto__`, `constructor`, `prototype`) with HTTP 400.
+   - Blocks prototype pollution in request payload (`prototype`, `user.__proto__`) with HTTP 400.
+   - Enforces the 32 KB maximum payload size limit with HTTP 400.
+   - Rejects static join deadlocks at validation time when an `ALL_INCOMING` join is fed exclusively by mutually exclusive condition branches without an upstream parallel fork.
+   - Verifies multi-round resubmission (`SELECTIVE_FAST_FORWARD` and `REOPEN_ALL`) retains immutable Round 1 node executions, branch executions, and step assignees in the database while initializing Round 2.
+5. **Quality Gates & Monorepo Verification**:
+   - Test suite grew to **367 passing tests** (212 API unit, 20 Web unit, 135 E2E integration, 0 failures).
+   - 0 TypeScript errors (`tsc --noEmit`), 0 ESLint warnings (`pnpm lint`), 100% Prettier formatting compliance, and clean production builds across all workspaces.
+
+---
+
+### 2. Summary of Work Completed & Deliverables
+
+- **Core Security Hardening**:
+  - `apps/api/src/workflows/ast-condition-evaluator.service.ts`:
+    - Hardened `assertPayloadSize` with recursive `checkObjectKeysForPrototypePollution` inspecting `Object.getOwnPropertyNames` and `Object.getPrototypeOf` against `__proto__`, `constructor`, `prototype`.
+  - `apps/api/src/workflows/workflow-graph-validator.service.ts`:
+    - Enforced static join deadlock validation: detects and throws `BadRequestException` if an `ALL_INCOMING` join is fed exclusively by mutually exclusive branches of an upstream condition without a parallel fork.
+- **Integration Test Suite (`apps/api/test/milestone6-security-and-concurrency.integration-spec.ts`)**:
+  - **Section 1: Multi-Tenant DAG & Delegation Isolation**:
+    - Tenant B blocked from `GET`, `PATCH`, `POST /publish`, `POST /clone-draft` on Tenant A's workflow (HTTP 404).
+    - Tenant B blocked from `GET /requests/:id`, `GET /execution-tree`, `GET /execution-graph`, and `POST /actions` on Tenant A's request (HTTP 404).
+    - Cross-tenant delegation creation targeting another tenant's user blocked (HTTP 400).
+    - Tenant-isolated cryptographic audit verification (`GET /api/v1/audit/verify`).
+  - **Section 2: High-Concurrency Race Condition & Row Serialization**:
+    - 5 concurrent parallel voters racing on a 3-of-5 `PARALLEL_OR` step via `Promise.all`: exactly 3 succeed (HTTP 200), 2 rejected (HTTP 400), 3 assignees `APPROVED`, 2 assignees `SKIPPED` (`Resolved by peer approval`), 0 pending, downstream node executed once.
+    - Duplicate double-vote race from same user: 1 succeeds (HTTP 200), duplicate rejected with HTTP 400 (`User has already submitted a decision`), `approvedCount` = 1.
+  - **Section 3: Cryptographic SHA-256 Audit Chain Tamper-Detection**:
+    - Direct raw SQL update simulating external tampering; `verifyChain` identifies corrupted entry and invalidates chain; correction returns chain to valid state.
+  - **Section 4: Adversarial AST Evaluator & Edge Cases**:
+    - Excessive AST condition depth > 5 rejected.
+    - Prototype pollution in AST fields and request payload blocked.
+    - Oversized payloads (> 32 KB) rejected.
+    - Static join deadlock validated and rejected before workflow creation.
+    - Multi-round resubmission retains Round 1 execution history alongside Round 2 progression.
+
+---
+
+### 3. Technical Decisions & Rationale
+
+1. **Transactional Row-Level Locking (`SELECT ... FOR UPDATE`)**:
+   - _Rationale_: In distributed environments, concurrent voters could create race conditions causing counter over-incrementation (e.g. 4 approvals recorded in a 3-of-5 threshold) or duplicate downstream node activations. Explicit `FOR UPDATE` row locks on `approval_requests` and `approval_steps` force PostgreSQL to serialize concurrent transactions within the transaction boundary.
+2. **Defensive Prototype Pollution Prevention**:
+   - _Rationale_: Modern JavaScript runtimes and libraries like `class-transformer` or `JSON.parse` have complex interactions with special property keys like `__proto__`, `constructor`, and `prototype`. FlowGate employs multi-layered defenses: pre-validation string inspection, own-property checks, prototype chain verification, and recursive scanning of nested payloads.
+3. **Static Join Deadlock Detection**:
+   - _Rationale_: If a condition node branches into mutually exclusive paths (e.g. `amount > 1000` vs default fallback) that subsequently converge on an `ALL_INCOMING` join without a parallel fork, the join can never activate at runtime because one branch will always be inactive. FlowGate rejects these configurations at design/validation time with descriptive error messages.
+4. **Immutable Multi-Round Review History**:
+   - _Rationale_: Resubmissions must never overwrite or delete historical review rounds. By indexing `reviewRound` in `ApprovalStep`, `WorkflowNodeExecution`, and `WorkflowBranchExecution`, auditors can inspect exactly what occurred in Round 1 even after Round 2 has completed.
+
+---
+
+### 4. Verification & Test Results
+
+- **Automated Test Results**:
+  - `apps/api` Unit Tests: **212 passed**, 0 failed (19 suites).
+  - `apps/web` Unit Tests: **20 passed**, 0 failed (2 suites).
+  - Monorepo E2E / Integration Tests: **135 passed**, 0 failed (11 suites).
+  - **Total Passing Tests across monorepo**: **367 passed**, 0 failed.
+- **Type-Check (`pnpm check-types`)**:
+  - `packages/shared-types`: 0 errors (`tsc --noEmit`).
+  - `apps/api`: 0 errors (`tsc --noEmit`).
+  - `apps/web`: 0 errors (`tsc --noEmit`).
+- **Linting (`pnpm lint`)**:
+  - All 3 workspaces: 0 errors, 0 warnings.
+- **Code Style (`pnpm format:check`)**:
+  - All matched files use Prettier code style (100% compliant).
+- **Production Builds (`pnpm build`)**:
+  - `@flowgate/shared-types`: Compiled successfully.
+  - `apps/api`: NestJS production build generated in `apps/api/dist/`.
+  - `apps/web`: Next.js production build generated successfully with static page generation.
+
+---
+
+### 5. Known Limitations or Environmental Blockers
+
+- None. All Docker services (PostgreSQL 16 on `:5432` and Redis 7 on `:6379`) are running and healthy. All test suites pass with zero flakiness.
+
+---
+
+### 6. Next Steps & Milestone 6 Completion
+
+With Milestone 6.7 complete, the entire Milestone 6 milestone lifecycle (Phases 6.1 through 6.7) is fully realized:
+
+- Core Data Layer & Safe AST Condition Evaluator (6.1)
+- Workflow Graph Validator & Transactional DAG Execution Engine (6.2)
+- Out-of-Office Approval Delegation Engine (6.3)
+- Version Cloning, Publishing & DAG Request APIs (6.4)
+- Interactive Visual Workflow Builder UI (6.5)
+- Cryptographic Audit Inspector & Live DAG Execution Viewer (6.6)
+- Comprehensive Concurrency, Security Hardening & Multi-Tenant Test Suite (6.7)
+
+All deliverables are verified and ready for production packaging.
+
+---
+
 ## [Milestone 6.6: Cryptographic Audit Inspector, Review-Round Timeline, and Live DAG Execution Graph Viewer in apps/web] - 2026-11-09
 
 ### 1. Executive Summary
