@@ -983,8 +983,19 @@ export default function FlowGateApp() {
                       </div>
 
                       <div className="flex items-center space-x-2 self-end sm:self-center">
-                        <button className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs font-medium text-slate-200 border border-slate-700 flex items-center space-x-1">
-                          <span>View Detail</span>
+                        <a
+                          href={`/requests/${req.id}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="px-3 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-700/60 rounded-lg text-xs font-medium flex items-center space-x-1 transition-colors"
+                        >
+                          <Activity className="h-3 w-3" />
+                          <span>Live DAG</span>
+                        </a>
+                        <button
+                          onClick={() => setSelectedRequestId(req.id)}
+                          className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs font-medium text-slate-200 border border-slate-700 flex items-center space-x-1"
+                        >
+                          <span>Quick View</span>
                           <ArrowRight className="h-3 w-3" />
                         </button>
                       </div>
@@ -1438,12 +1449,21 @@ export default function FlowGateApp() {
                     </div>
                     <h3 className="text-lg font-bold text-white">{selectedRequestDetail.title}</h3>
                   </div>
-                  <button
-                    onClick={() => setSelectedRequestId(null)}
-                    className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
-                  >
-                    <X className="h-5 w-5" />
-                  </button>
+                  <div className="flex items-center space-x-2">
+                    <a
+                      href={`/requests/${selectedRequestDetail.id}`}
+                      className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center space-x-1.5 shadow-md shadow-indigo-600/20 transition-colors"
+                    >
+                      <Activity className="h-3.5 w-3.5" />
+                      <span>Full DAG & Audit</span>
+                    </a>
+                    <button
+                      onClick={() => setSelectedRequestId(null)}
+                      className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
                 </div>
 
                 {/* Request Description */}

@@ -2,6 +2,102 @@
 
 ---
 
+## [Milestone 6.6: Cryptographic Audit Inspector, Review-Round Timeline, and Live DAG Execution Graph Viewer in apps/web] - 2026-11-09
+
+### 1. Executive Summary
+
+Milestone 6.6 delivers the end-to-end visual execution visualizer, review-round timeline navigator, and cryptographic SHA-256 audit chain inspector in `apps/web`:
+
+1. **Live DAG Execution Graph Viewer (`apps/web/src/components/workflow-execution/`)**:
+   - `RequestExecutionGraphViewer`: Read-only interactive graph canvas powered by `@xyflow/react` reflecting real-time database execution statuses fetched from `/api/v1/requests/:id/execution-tree`.
+   - `ExecutionNode`: Custom node renderer with real-time status color coding:
+     - `COMPLETED`: Vibrant emerald border/badge with check icon and completion timestamp.
+     - `IN_REVIEW` / `ACTIVE`: Pulsing blue/indigo border with active spinner badge.
+     - `PRUNED_SKIPPED` / `SKIPPED`: Opacity-50 grey with dashed borders/edges indicating pruned conditional routes.
+     - `PENDING` / `WAITING`: Muted dashed slate border for downstream nodes waiting for join conditions.
+     - `REJECTED` / `FAILED`: Crimson border/badge.
+   - For `PARALLEL_APPROVAL` nodes: renders mini voter chip badges showing individual assignee decisions (`APPROVED`, `REJECTED`, `PENDING`), quorum progress ($K$ of $N$ approvals), and real-time quorum-loss warnings when mathematically unable to reach threshold.
+   - `ExecutionNodeDetailsModal`: Node inspection modal displaying execution duration, start/completion timestamps, AST condition evaluation traces, and approver comments.
+2. **Review-Round Timeline & Snapshot Navigator (`ReviewRoundTimeline.tsx`)**:
+   - Multi-round tab bar (`Round 1`, `Round 2`, ..., `Current Round N`) allowing users to travel back to previous review rounds.
+   - Selecting an earlier review round updates both the step decision list and the DAG execution graph to reflect the immutable frozen snapshot of that round.
+   - Displays policy indicators (`SELECTIVE_FAST_FORWARD` vs `REOPEN_ALL`) and round-specific submission context.
+3. **Cryptographic SHA-256 Audit Inspector (`AuditChainInspector.tsx`)**:
+   - Chronological audit ledger displaying sequence numbers, actions (`WORKFLOW_PUBLISHED`, `REQUEST_CREATED`, `STEP_APPROVED`, `STEP_APPROVED_DELEGATED`, `REQUEST_RESUBMITTED`), actor identity, and truncated cryptographic hash pairs (`previousHash` -> `currentHash`).
+   - Dual-actor attribution badge for delegated actions: _"Approved by [Delegatee Name] on behalf of [Delegator Name] (Delegation ID: ...)"_.
+   - Prominent **"Verify Hash Chain"** action calling the backend audit verification endpoint (`GET /api/v1/audit/verify`):
+     - Valid chain: Certified green shield badge verifying all blocks continuous and uncompromised.
+     - Broken chain: Alert banner displaying exact corrupted sequence number and broken hash mismatch.
+4. **Request Detail Page (`apps/web/src/app/requests/[id]/page.tsx`)**:
+   - Comprehensive request detail page featuring:
+     - Header: Title, status badge, submitter identity, current review round, and created timestamp.
+     - Tab 1: **Live Execution Graph** (`RequestExecutionGraphViewer` with `ReviewRoundTimeline`).
+     - Tab 2: **Approval Steps & Voting** (Direct sign-off action box, parallel voter cards, comment threads, resubmit modal for changes requested).
+     - Tab 3: **Cryptographic Audit Chain** (`AuditChainInspector` with live verification).
+   - Dashboard integration in `apps/web/src/app/page.tsx` with direct "Live DAG" button and quick modal deep links.
+5. **Backend Verification Endpoint & Detail Enrichment (`apps/api/src/audit/` & `apps/api/src/requests/`)**:
+   - Created `AuditController` exposing `GET /api/v1/audit/verify` to execute `AuditService.verifyChain` per tenant.
+   - Enriched `RequestsService.findOne` to return `nodeExecutions`, `branchExecutions`, `currentReviewRound`, step assignees, and audit hash chain fields (`previousHash`, `hash`, `sequenceNumber`).
+6. **Verification & Quality Gates**:
+   - Monorepo automated test suite grew to **354 passing tests** (212 API unit across 19 suites + 20 Web unit across 2 suites + 122 E2E integration across 10 suites).
+   - 0 TypeScript errors (`tsc --noEmit`), 0 ESLint warnings (`next lint`), 100% Prettier formatting compliance, and clean production Next.js builds.
+
+### 2. Summary of Work Completed & Deliverables
+
+- **Frontend Execution Components (`apps/web/src/components/workflow-execution/`)**:
+  - `ExecutionNode.tsx`: Custom React Flow execution node renderer with status styling, voter chips, and quorum progress.
+  - `ExecutionNodeDetailsModal.tsx`: Node inspection drawer displaying execution metadata, AST evaluation trace, and approver comments.
+  - `RequestExecutionGraphViewer.tsx`: Read-only DAG visualizer with dynamic edge styles, auto-layout, and review round mapping.
+  - `ReviewRoundTimeline.tsx`: Review round snapshot switcher with policy indicators.
+  - `AuditChainInspector.tsx`: SHA-256 cryptographic merkle chain inspector with live verification and dual-actor delegation badges.
+  - `workflow-execution.spec.ts`: 7 unit tests covering quorum math, hash truncation, delegation detection, and sequential fallback generation.
+- **Pages & Routes (`apps/web/src/app/`)**:
+  - `requests/[id]/page.tsx`: Dynamic route for request details, live execution visualization, interactive voting, and audit inspection.
+  - `page.tsx`: Dashboard enhanced with direct "Live DAG" buttons and modal deep links.
+- **Frontend API Client (`apps/web/src/lib/api.ts`)**:
+  - Added `verifyAuditChain` calling `GET /api/v1/audit/verify`.
+  - Updated `submitAction` and `resubmitRequest` to support step IDs, delegation IDs, and resubmission policies.
+- **Backend API & Audit Controller (`apps/api/src/`)**:
+  - `audit/audit.controller.ts`: Controller endpoint exposing `GET /api/v1/audit/verify`.
+  - `audit/audit.controller.spec.ts`: Unit test for audit verification endpoint (2 passing).
+  - `audit/audit.module.ts`: Registered `AuditController`.
+  - `requests/requests.service.ts`: Enriched `findOne` with `nodeExecutions`, `branchExecutions`, step assignees, and audit hash chain fields.
+
+### 3. Technical Decisions & Rationale
+
+- **Read-Only React Flow Canvas with Custom Execution Nodes**:
+  `RequestExecutionGraphViewer` utilizes `@xyflow/react` with `nodesDraggable={false}`, `nodesConnectable={false}`, and `elementsSelectable={true}` to provide a rock-solid, fluid pan-and-zoom inspection canvas while ensuring diagram topology remains completely immutable during inspection.
+- **Synthetic Graph Generation for Legacy Requests**:
+  For approval requests created under Milestone 1-5 prior to DAG definitions, `RequestExecutionGraphViewer` automatically synthesizes an equivalent linear graph (`Trigger -> Step 1 -> ... -> Step N -> End`), ensuring zero breakage or empty states for historical requests.
+- **Client-Side Merkle Hash Chain Transparency**:
+  Audit logs display both `previousHash` and block `hash`, allowing auditors to visually inspect continuous SHA-256 block linkages before triggering the cryptographic backend verification engine.
+
+### 4. Verification & Test Results
+
+- **Web Unit Tests (`apps/web/src/components/workflow-execution/workflow-execution.spec.ts`)**:
+  - 7 passing unit tests:
+    - SHA-256 hash truncation and formatting.
+    - Dual-actor delegation metadata attribution.
+    - Continuous sequence gap detection.
+    - Quorum loss and progress calculation.
+    - Synthetic DAG generation for legacy workflows.
+    - Node execution filtering by review round.
+    - Branch transition edge stroke mapping.
+- **Web Graph Validator Tests**: 13 passing unit tests in `graph-validator.spec.ts`.
+- **Backend Unit Tests**: 212 passing unit tests across 19 suites in `apps/api`.
+- **Backend E2E / Integration Tests**: 122 passing integration tests across 10 suites in `apps/api/test`.
+- **Total Test Count**: **354 passing tests**, 0 failures.
+- **Type-Check**: `pnpm check-types` passed with zero errors across all workspaces.
+- **Lint**: `pnpm lint` passed with zero warnings across all workspaces.
+- **Format**: `pnpm format:check` passed with 100% Prettier compliance.
+- **Production Build**: `pnpm build` succeeded across `shared-types`, `api`, and `web`.
+
+### 5. Next Steps
+
+- Proceed to Milestone 6.7 (Final Milestone 6 Verification, End-to-End Walkthrough, and Production Hardening).
+
+---
+
 ## [Milestone 6.5: Interactive Visual Workflow Builder UI in apps/web] - 2026-11-09
 
 ### 1. Executive Summary

@@ -17,6 +17,7 @@ import {
   WorkflowEdge,
   InputSchema,
   RequestExecutionGraph,
+  AuditChainVerificationResult,
 } from '@flowgate/shared-types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
@@ -254,21 +255,33 @@ export const api = {
     id: string,
     action: ApprovalActionType,
     comments?: string,
+    stepId?: string,
+    delegationId?: string,
   ): Promise<ApprovalRequestDetail> {
     return request<ApprovalRequestDetail>(`/api/v1/requests/${id}/actions`, {
       method: 'POST',
-      body: JSON.stringify({ action, comments }),
+      body: JSON.stringify({ action, comments, stepId, delegationId }),
     });
   },
 
   async resubmitRequest(
     id: string,
-    payload: { title?: string; description?: string; comments?: string },
+    payload: {
+      title?: string;
+      description?: string;
+      comments?: string;
+      updatedData?: Record<string, unknown>;
+      resubmissionPolicy?: 'REOPEN_ALL' | 'SELECTIVE_FAST_FORWARD';
+    },
   ): Promise<ApprovalRequestDetail> {
     return request<ApprovalRequestDetail>(`/api/v1/requests/${id}/resubmit`, {
       method: 'POST',
       body: JSON.stringify(payload),
     });
+  },
+
+  async verifyAuditChain(): Promise<AuditChainVerificationResult> {
+    return request<AuditChainVerificationResult>('/api/v1/audit/verify');
   },
 
   async cancelRequest(id: string): Promise<ApprovalRequestDetail> {
