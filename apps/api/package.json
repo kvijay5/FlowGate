@@ -4,7 +4,7 @@
   "private": true,
   "description": "FlowGate NestJS Backend API",
   "scripts": {
-    "build": "nest build",
+    "build": "rm -f tsconfig.build.tsbuildinfo && nest build",
     "dev": "nest start --watch",
     "start": "nest start",
     "start:prod": "node dist/main",
