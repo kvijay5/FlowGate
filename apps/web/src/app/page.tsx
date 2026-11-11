@@ -30,6 +30,9 @@ import {
   Bell,
   Send,
   Terminal,
+  UserCheck,
+  Plane,
+  Calendar,
 } from 'lucide-react';
 import { api, ApiError, getStoredAuth, setStoredAuth } from '../lib/api';
 import {
@@ -43,6 +46,9 @@ import {
   QueueHealthStatus,
   TenantQueueHealthStatus,
   NotificationLogSummary,
+  UserDelegationSummary,
+  CreateDelegationDto,
+  InputSchema,
 } from '@flowgate/shared-types';
 
 export default function FlowGateApp() {
@@ -60,7 +66,9 @@ export default function FlowGateApp() {
   const [isSubmittingLogin, setIsSubmittingLogin] = useState(false);
 
   // App navigation
-  const [activeTab, setActiveTab] = useState<'requests' | 'workflows' | 'webhooks'>('requests');
+  const [activeTab, setActiveTab] = useState<'requests' | 'workflows' | 'delegations' | 'webhooks'>(
+    'requests',
+  );
   const [requestFilter, setRequestFilter] = useState<'pending_approval' | 'mine' | 'all'>(
     'pending_approval',
   );
@@ -68,6 +76,10 @@ export default function FlowGateApp() {
   // Data state
   const [requests, setRequests] = useState<ApprovalRequestSummary[]>([]);
   const [workflows, setWorkflows] = useState<WorkflowDefinitionSummary[]>([]);
+  const [delegations, setDelegations] = useState<UserDelegationSummary[]>([]);
+  const [colleagues, setColleagues] = useState<
+    Array<{ id: string; name: string; email: string; role: UserRole }>
+  >([]);
   const [dataLoading, setDataLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
@@ -80,11 +92,22 @@ export default function FlowGateApp() {
   const [actionComments, setActionComments] = useState('');
   const [isExecutingAction, setIsExecutingAction] = useState(false);
 
-  // Create Request Modal
+  // Create Request Modal & Dynamic DAG Parameters
   const [showCreateRequestModal, setShowCreateRequestModal] = useState(false);
   const [newRequestWorkflowId, setNewRequestWorkflowId] = useState('');
   const [newRequestTitle, setNewRequestTitle] = useState('');
   const [newRequestDesc, setNewRequestDesc] = useState('');
+  const [newRequestData, setNewRequestData] = useState<Record<string, any>>({});
+
+  // Delegations Modal & State
+  const [showCreateDelegationModal, setShowCreateDelegationModal] = useState(false);
+  const [newDelegateeId, setNewDelegateeId] = useState('');
+  const [newDelegationWorkflowId, setNewDelegationWorkflowId] = useState('');
+  const [newDelegationStartDate, setNewDelegationStartDate] = useState('');
+  const [newDelegationEndDate, setNewDelegationEndDate] = useState('');
+  const [newDelegationReason, setNewDelegationReason] = useState('');
+  const [isSubmittingDelegation, setIsSubmittingDelegation] = useState(false);
+  const [revokingDelegationId, setRevokingDelegationId] = useState<string | null>(null);
 
   // Create Workflow Modal
   const [showCreateWorkflowModal, setShowCreateWorkflowModal] = useState(false);
@@ -157,6 +180,7 @@ export default function FlowGateApp() {
       const promises: Promise<any>[] = [
         api.getRequests({ filter: requestFilter, limit: 50 }),
         api.getWorkflows(),
+        api.getDelegations().catch(() => []),
       ];
       if (isAdmin) {
         if (auth.user.role === 'SUPER_ADMIN') {
@@ -167,9 +191,10 @@ export default function FlowGateApp() {
         promises.push(api.getWebhooks().catch(() => []));
         promises.push(api.getNotificationStats().catch(() => null));
       }
-      const [reqRes, wfRes, qHealth, whList, nStats] = await Promise.all(promises);
+      const [reqRes, wfRes, delegRes, qHealth, whList, nStats] = await Promise.all(promises);
       setRequests(reqRes.data);
       setWorkflows(wfRes);
+      if (delegRes) setDelegations(delegRes);
       if (isAdmin) {
         if (qHealth) {
           if (auth.user.role === 'SUPER_ADMIN') {
@@ -196,6 +221,106 @@ export default function FlowGateApp() {
       fetchData();
     }
   }, [auth, fetchData]);
+
+  const fetchColleagues = useCallback(async () => {
+    try {
+      const list = await api.getEligibleColleagues();
+      setColleagues(list);
+      if (list.length > 0 && !newDelegateeId) {
+        setNewDelegateeId(list[0].id);
+      }
+    } catch {
+      // ignore
+    }
+  }, [newDelegateeId]);
+
+  useEffect(() => {
+    if (auth && (activeTab === 'delegations' || showCreateDelegationModal)) {
+      fetchColleagues();
+    }
+  }, [auth, activeTab, showCreateDelegationModal, fetchColleagues]);
+
+  // Selected workflow & dynamic input schema
+  const selectedWorkflow = workflows.find((w) => w.id === newRequestWorkflowId);
+  const inputSchema: InputSchema | undefined =
+    selectedWorkflow?.configuration?.inputSchema ||
+    (selectedWorkflow?.configuration?.nodes?.find((n) => n.type === 'TRIGGER')?.config as any)
+      ?.inputSchema;
+
+  // Initialize or reset dynamic input fields when workflow changes
+  useEffect(() => {
+    if (inputSchema?.fields && inputSchema.fields.length > 0) {
+      const defaults: Record<string, any> = {};
+      for (const field of inputSchema.fields) {
+        if (field.defaultValue !== undefined) {
+          defaults[field.name] = field.defaultValue;
+        } else if (field.type === 'NUMBER') {
+          defaults[field.name] = field.minimum ?? 0;
+        } else if (field.type === 'BOOLEAN') {
+          defaults[field.name] = false;
+        } else if (field.type === 'STRING') {
+          defaults[field.name] =
+            field.allowedValues && field.allowedValues.length > 0 ? field.allowedValues[0] : '';
+        }
+      }
+      setNewRequestData(defaults);
+    } else {
+      setNewRequestData({});
+    }
+  }, [newRequestWorkflowId, workflows, inputSchema]);
+
+  const openCreateDelegation = () => {
+    const now = new Date();
+    const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const formatDt = (d: Date) => d.toISOString().slice(0, 16);
+    setNewDelegationStartDate(formatDt(now));
+    setNewDelegationEndDate(formatDt(nextWeek));
+    setNewDelegationReason('');
+    setNewDelegationWorkflowId('');
+    setShowCreateDelegationModal(true);
+    fetchColleagues();
+  };
+
+  const handleCreateDelegation = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newDelegateeId || !newDelegationStartDate || !newDelegationEndDate) {
+      setActionError('Please select a colleague and specify start/end dates.');
+      return;
+    }
+    setIsSubmittingDelegation(true);
+    setActionError(null);
+    try {
+      await api.createDelegation({
+        delegateeId: newDelegateeId,
+        workflowDefinitionId: newDelegationWorkflowId || undefined,
+        delegateRoles: true,
+        startDate: new Date(newDelegationStartDate).toISOString(),
+        endDate: new Date(newDelegationEndDate).toISOString(),
+        reason: newDelegationReason.trim() || undefined,
+      });
+      setShowCreateDelegationModal(false);
+      setActionSuccess('Out-of-office delegation created successfully');
+      fetchData();
+    } catch (err: any) {
+      setActionError(err.message || 'Failed to create delegation');
+    } finally {
+      setIsSubmittingDelegation(false);
+    }
+  };
+
+  const handleRevokeDelegation = async (id: string) => {
+    setRevokingDelegationId(id);
+    setActionError(null);
+    try {
+      await api.revokeDelegation(id);
+      setActionSuccess('Delegation revoked successfully');
+      fetchData();
+    } catch (err: any) {
+      setActionError(err.message || 'Failed to revoke delegation');
+    } finally {
+      setRevokingDelegationId(null);
+    }
+  };
 
   // Load request details when selected
   useEffect(() => {
@@ -289,10 +414,12 @@ export default function FlowGateApp() {
         workflowDefinitionId: newRequestWorkflowId,
         title: newRequestTitle.trim(),
         description: newRequestDesc.trim() || undefined,
+        requestData: Object.keys(newRequestData).length > 0 ? newRequestData : undefined,
       });
       setShowCreateRequestModal(false);
       setNewRequestTitle('');
       setNewRequestDesc('');
+      setNewRequestData({});
       setActionSuccess('Approval request created and submitted successfully');
       fetchData();
     } catch (err: any) {
@@ -478,7 +605,9 @@ export default function FlowGateApp() {
             <div className="lg:col-span-7 space-y-6">
               <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-indigo-900/40 border border-indigo-700/50 text-indigo-300 text-xs font-medium">
                 <ShieldCheck className="h-4 w-4 text-indigo-400" />
-                <span>Milestone 4: Core Workflow Engine Active</span>
+                <span>
+                  Milestone 7: Enterprise DAG Workflow Platform & Delegation Engine Active
+                </span>
               </div>
               <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-white leading-tight">
                 Multi-Tenant Approval Workflows,{' '}
@@ -592,7 +721,7 @@ export default function FlowGateApp() {
                   <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
                     1-Click Seed Account Login (Development Mode)
                   </span>
-                  <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
                     <button
                       onClick={() => handleQuickLogin('acme-corp', 'admin@acme.com')}
                       className="p-2 rounded bg-slate-950 hover:bg-slate-800 border border-slate-800 text-left transition-colors"
@@ -608,6 +737,13 @@ export default function FlowGateApp() {
                       <div className="text-[10px] text-slate-400">APPROVER</div>
                     </button>
                     <button
+                      onClick={() => handleQuickLogin('acme-corp', 'legal@acme.com')}
+                      className="p-2 rounded bg-slate-950 hover:bg-slate-800 border border-slate-800 text-left transition-colors"
+                    >
+                      <div className="font-semibold text-cyan-400">Acme Legal</div>
+                      <div className="text-[10px] text-slate-400">DELEGATEE</div>
+                    </button>
+                    <button
                       onClick={() => handleQuickLogin('acme-corp', 'engineer@acme.com')}
                       className="p-2 rounded bg-slate-950 hover:bg-slate-800 border border-slate-800 text-left transition-colors"
                     >
@@ -616,7 +752,7 @@ export default function FlowGateApp() {
                     </button>
                     <button
                       onClick={() => handleQuickLogin('globex-ind', 'admin@globex.com')}
-                      className="p-2 rounded bg-slate-950 hover:bg-slate-800 border border-slate-800 text-left transition-colors"
+                      className="p-2 rounded bg-slate-950 hover:bg-slate-800 border border-slate-800 text-left transition-colors sm:col-span-2"
                     >
                       <div className="font-semibold text-amber-400">Globex Admin</div>
                       <div className="text-[10px] text-slate-400">Tenant 2 Realm</div>
@@ -716,6 +852,13 @@ export default function FlowGateApp() {
                   Approver
                 </button>
                 <button
+                  onClick={() => handleQuickLogin('acme-corp', 'legal@acme.com')}
+                  title="Switch to Acme Legal (Active Delegatee)"
+                  className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-cyan-400 border border-slate-700"
+                >
+                  Delegatee
+                </button>
+                <button
                   onClick={() => handleQuickLogin('acme-corp', 'engineer@acme.com')}
                   title="Switch to Acme Requester"
                   className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-purple-400 border border-slate-700"
@@ -773,6 +916,74 @@ export default function FlowGateApp() {
           </div>
         )}
 
+        {/* Active Out-of-Office Delegation Banners */}
+        {(() => {
+          const nowMs = Date.now();
+          const outgoing = auth
+            ? delegations.find(
+                (d) =>
+                  d.delegatorId === auth.user.id &&
+                  d.status === 'ACTIVE' &&
+                  new Date(d.startDate).getTime() <= nowMs &&
+                  new Date(d.endDate).getTime() >= nowMs,
+              )
+            : null;
+          const incoming = auth
+            ? delegations.find(
+                (d) =>
+                  d.delegateeId === auth.user.id &&
+                  d.status === 'ACTIVE' &&
+                  new Date(d.startDate).getTime() <= nowMs &&
+                  new Date(d.endDate).getTime() >= nowMs,
+              )
+            : null;
+
+          return (
+            <div className="space-y-2">
+              {outgoing && (
+                <div className="p-3 bg-amber-950/70 border border-amber-800 text-amber-200 text-xs rounded-xl flex items-center justify-between shadow-lg">
+                  <div className="flex items-center space-x-2">
+                    <Plane className="h-4 w-4 text-amber-400 flex-shrink-0" />
+                    <span>
+                      <strong>Out-of-Office Active:</strong> Your review and approval authority is
+                      currently delegated to{' '}
+                      <strong>{outgoing.delegatee?.name || outgoing.delegateeId}</strong> until{' '}
+                      {new Date(outgoing.endDate).toLocaleDateString()}.
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setActiveTab('delegations')}
+                    className="px-2.5 py-1 rounded bg-amber-900/60 hover:bg-amber-800/80 text-amber-200 border border-amber-700/80 text-[11px] font-semibold transition-colors"
+                  >
+                    Manage
+                  </button>
+                </div>
+              )}
+
+              {incoming && (
+                <div className="p-3 bg-indigo-950/70 border border-indigo-800 text-indigo-200 text-xs rounded-xl flex items-center justify-between shadow-lg">
+                  <div className="flex items-center space-x-2">
+                    <ShieldCheck className="h-4 w-4 text-indigo-400 flex-shrink-0" />
+                    <span>
+                      <strong>Acting as Delegatee:</strong> You have active delegated approval
+                      authority for{' '}
+                      <strong>{incoming.delegator?.name || incoming.delegatorId}</strong> until{' '}
+                      {new Date(incoming.endDate).toLocaleDateString()}. You can cast sign-offs on
+                      their behalf.
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setActiveTab('delegations')}
+                    className="px-2.5 py-1 rounded bg-indigo-900/60 hover:bg-indigo-800/80 text-indigo-200 border border-indigo-700/80 text-[11px] font-semibold transition-colors"
+                  >
+                    View Authority
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
         {/* Tab Controls & Primary Action Buttons */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-800">
           <div className="flex items-center space-x-2">
@@ -795,6 +1006,17 @@ export default function FlowGateApp() {
               }`}
             >
               Workflows ({workflows.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('delegations')}
+              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center space-x-1.5 ${
+                activeTab === 'delegations'
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-900'
+              }`}
+            >
+              <UserCheck className="h-4 w-4" />
+              <span>Delegations ({delegations.length})</span>
             </button>
             {(auth.user.role === 'TENANT_ADMIN' || auth.user.role === 'SUPER_ADMIN') && (
               <button
@@ -859,6 +1081,16 @@ export default function FlowGateApp() {
                   </button>
                 </div>
               )}
+
+            {activeTab === 'delegations' && (
+              <button
+                onClick={openCreateDelegation}
+                className="px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center space-x-1.5 shadow-md shadow-indigo-600/20 transition-colors"
+              >
+                <Plus className="h-4 w-4" />
+                <span>New Delegation</span>
+              </button>
+            )}
 
             {activeTab === 'webhooks' &&
               (auth.user.role === 'TENANT_ADMIN' || auth.user.role === 'SUPER_ADMIN') && (
@@ -1421,6 +1653,164 @@ export default function FlowGateApp() {
             </div>
           </div>
         )}
+
+        {/* =================================================================== */}
+        {/* TAB 4: OUT-OF-OFFICE DELEGATIONS */}
+        {/* =================================================================== */}
+        {activeTab === 'delegations' && (
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl bg-slate-900/60 border border-slate-800">
+              <div className="space-y-1">
+                <div className="flex items-center space-x-2">
+                  <UserCheck className="h-5 w-5 text-indigo-400" />
+                  <h3 className="font-bold text-white text-base">
+                    Out-of-Office Approver Delegations
+                  </h3>
+                </div>
+                <p className="text-xs text-slate-400 max-w-2xl">
+                  Temporarily assign your review and sign-off authority to an eligible colleague
+                  when traveling or on leave. All delegated votes are cryptographically attested and
+                  chained in the immutable audit log.
+                </p>
+              </div>
+              <button
+                onClick={openCreateDelegation}
+                className="px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center space-x-1.5 shadow-md shadow-indigo-600/20 transition-colors self-start sm:self-center"
+              >
+                <Plus className="h-4 w-4" />
+                <span>New Delegation</span>
+              </button>
+            </div>
+
+            {dataLoading ? (
+              <div className="py-16 text-center text-slate-400 space-y-2">
+                <RefreshCw className="h-6 w-6 animate-spin mx-auto text-indigo-400" />
+                <p className="text-xs">Loading delegations...</p>
+              </div>
+            ) : delegations.length === 0 ? (
+              <div className="p-12 text-center bg-slate-900/40 border border-slate-800/80 rounded-2xl space-y-3">
+                <UserCheck className="h-10 w-10 mx-auto text-slate-600" />
+                <h3 className="font-semibold text-slate-200">No delegations configured</h3>
+                <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                  There are no active or historical out-of-office delegations configured in your
+                  tenant.
+                </p>
+                <button
+                  onClick={openCreateDelegation}
+                  className="px-4 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-500 transition-colors"
+                >
+                  Create Out-of-Office Delegation
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {delegations.map((del) => {
+                  const now = new Date();
+                  const start = new Date(del.startDate);
+                  const end = new Date(del.endDate);
+                  const isCurrentActive = del.status === 'ACTIVE' && now >= start && now <= end;
+                  const isPendingStart = del.status === 'ACTIVE' && now < start;
+                  const isRevoked = del.status === 'REVOKED';
+
+                  const statusBadgeClass = isCurrentActive
+                    ? 'bg-emerald-950/80 text-emerald-300 border-emerald-800'
+                    : isPendingStart
+                      ? 'bg-blue-950/80 text-blue-300 border-blue-800'
+                      : isRevoked
+                        ? 'bg-rose-950/80 text-rose-300 border-rose-800'
+                        : 'bg-slate-800 text-slate-400 border-slate-700';
+
+                  const statusLabel = isCurrentActive
+                    ? 'ACTIVE NOW'
+                    : isPendingStart
+                      ? 'SCHEDULED'
+                      : isRevoked
+                        ? 'REVOKED'
+                        : 'EXPIRED';
+
+                  const isRevoking = revokingDelegationId === del.id;
+
+                  return (
+                    <div
+                      key={del.id}
+                      className="p-5 rounded-2xl bg-slate-900/70 border border-slate-800 space-y-4 shadow-sm"
+                    >
+                      <div className="flex items-start justify-between">
+                        <span
+                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${statusBadgeClass}`}
+                        >
+                          {statusLabel}
+                        </span>
+
+                        {del.status === 'ACTIVE' && (
+                          <button
+                            onClick={() => handleRevokeDelegation(del.id)}
+                            disabled={isRevoking}
+                            className="px-2.5 py-1 rounded bg-rose-950/60 hover:bg-rose-900/60 text-rose-300 border border-rose-800/80 text-xs font-medium transition-colors flex items-center space-x-1"
+                          >
+                            <X className={`h-3 w-3 ${isRevoking ? 'animate-spin' : ''}`} />
+                            <span>{isRevoking ? 'Revoking...' : 'Revoke Early'}</span>
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Delegator -> Delegatee */}
+                      <div className="p-3 bg-slate-950 rounded-xl border border-slate-800/80 flex items-center justify-between">
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-slate-500 block">
+                            Delegator (Principal)
+                          </span>
+                          <span className="font-semibold text-white text-xs">
+                            {del.delegator?.name || del.delegatorId}
+                          </span>
+                          <span className="text-[10px] text-slate-400 block font-mono">
+                            {del.delegator?.email}
+                          </span>
+                        </div>
+                        <ArrowRight className="h-4 w-4 text-indigo-400 mx-2 flex-shrink-0" />
+                        <div className="text-right">
+                          <span className="text-[10px] uppercase font-bold text-slate-500 block">
+                            Delegatee (Stand-in)
+                          </span>
+                          <span className="font-semibold text-white text-xs">
+                            {del.delegatee?.name || del.delegateeId}
+                          </span>
+                          <span className="text-[10px] text-slate-400 block font-mono">
+                            {del.delegatee?.email}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Details: Scope, Window, Reason */}
+                      <div className="space-y-1.5 text-xs">
+                        <div className="flex items-center justify-between text-slate-400">
+                          <span className="text-[11px]">Workflow Scope:</span>
+                          <span className="text-slate-200 font-medium">
+                            {del.workflowDefinitionName ||
+                              (del.workflowDefinitionId
+                                ? 'Specific Workflow'
+                                : 'All Organization Workflows')}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-slate-400">
+                          <span className="text-[11px]">Effective Window:</span>
+                          <span className="text-slate-200 font-mono text-[11px]">
+                            {start.toLocaleDateString()} – {end.toLocaleDateString()}
+                          </span>
+                        </div>
+                        {del.reason && (
+                          <div className="pt-1 text-[11px] text-slate-400 italic">
+                            &ldquo;{del.reason}&rdquo;
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </main>
 
       {/* =================================================================== */}
@@ -1475,6 +1865,39 @@ export default function FlowGateApp() {
                     {selectedRequestDetail.description}
                   </div>
                 )}
+
+                {/* Structured DAG Routing Parameters */}
+                {selectedRequestDetail.requestData &&
+                  Object.keys(selectedRequestDetail.requestData).length > 0 && (
+                    <div className="p-3 bg-slate-950 rounded-lg text-xs text-slate-300 border border-slate-800 space-y-1.5">
+                      <span className="text-[10px] uppercase font-bold text-indigo-400 tracking-wider block">
+                        DAG Routing Parameters (Execution Payload)
+                      </span>
+                      <div className="flex flex-wrap gap-2">
+                        {Object.entries(selectedRequestDetail.requestData).map(([k, v]) => (
+                          <div
+                            key={k}
+                            className="px-2 py-0.5 rounded bg-slate-900 border border-slate-700/80 font-mono text-[11px] text-slate-300"
+                          >
+                            <span className="text-slate-400">{k}:</span>{' '}
+                            <span className="text-emerald-400 font-semibold">
+                              {typeof v === 'boolean'
+                                ? v
+                                  ? 'true'
+                                  : 'false'
+                                : typeof v === 'number'
+                                  ? k.toLowerCase().includes('amount') ||
+                                    k.toLowerCase().includes('cost') ||
+                                    k.toLowerCase().includes('budget')
+                                    ? `$${v.toLocaleString()}`
+                                    : v.toString()
+                                  : String(v)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                 {/* Stepper Timeline */}
                 <div className="space-y-3">
@@ -1647,7 +2070,7 @@ export default function FlowGateApp() {
       {/* =================================================================== */}
       {showCreateRequestModal && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md shadow-2xl p-6 space-y-5">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl p-6 space-y-5">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <h3 className="font-bold text-base text-white">Create Approval Request</h3>
               <button
@@ -1700,9 +2123,108 @@ export default function FlowGateApp() {
                   value={newRequestDesc}
                   onChange={(e) => setNewRequestDesc(e.target.value)}
                   placeholder="Detailed business justification and context..."
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 h-24"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 h-20"
                 />
               </div>
+
+              {/* Dynamic DAG Input Schema Parameters */}
+              {inputSchema?.fields && inputSchema.fields.length > 0 && (
+                <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                  <div className="flex items-center space-x-2">
+                    <GitBranch className="h-4 w-4 text-indigo-400" />
+                    <span className="text-xs font-bold text-white uppercase tracking-wider">
+                      Workflow Input Parameters
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400">
+                    This workflow evaluates runtime condition expressions. Values provided below
+                    drive DAG branch selection.
+                  </p>
+                  <div className="space-y-3 pt-1">
+                    {inputSchema.fields.map((field) => (
+                      <div key={field.name}>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-xs font-medium text-slate-300">
+                            {field.label}{' '}
+                            {field.required && <span className="text-rose-400">*</span>}
+                          </label>
+                          <span className="text-[10px] text-slate-500 font-mono">
+                            {field.name} ({field.type})
+                          </span>
+                        </div>
+
+                        {field.type === 'NUMBER' ? (
+                          <input
+                            type="number"
+                            min={field.minimum}
+                            max={field.maximum}
+                            value={newRequestData[field.name] ?? ''}
+                            onChange={(e) =>
+                              setNewRequestData((prev) => ({
+                                ...prev,
+                                [field.name]: e.target.value === '' ? '' : Number(e.target.value),
+                              }))
+                            }
+                            required={field.required}
+                            placeholder={field.description || `Enter ${field.label}`}
+                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono"
+                          />
+                        ) : field.type === 'STRING' &&
+                          field.allowedValues &&
+                          field.allowedValues.length > 0 ? (
+                          <select
+                            value={newRequestData[field.name] ?? field.allowedValues[0]}
+                            onChange={(e) =>
+                              setNewRequestData((prev) => ({
+                                ...prev,
+                                [field.name]: e.target.value,
+                              }))
+                            }
+                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                          >
+                            {field.allowedValues.map((opt) => (
+                              <option key={opt} value={opt}>
+                                {opt}
+                              </option>
+                            ))}
+                          </select>
+                        ) : field.type === 'BOOLEAN' ? (
+                          <label className="flex items-center space-x-2 cursor-pointer mt-1 bg-slate-900 border border-slate-800 p-2 rounded-lg">
+                            <input
+                              type="checkbox"
+                              checked={!!newRequestData[field.name]}
+                              onChange={(e) =>
+                                setNewRequestData((prev) => ({
+                                  ...prev,
+                                  [field.name]: e.target.checked,
+                                }))
+                              }
+                              className="rounded bg-slate-950 border-slate-700 text-indigo-600 focus:ring-0"
+                            />
+                            <span className="text-xs text-slate-300">
+                              {newRequestData[field.name] ? 'Enabled / Yes' : 'Disabled / No'}
+                            </span>
+                          </label>
+                        ) : (
+                          <input
+                            type="text"
+                            value={newRequestData[field.name] ?? ''}
+                            onChange={(e) =>
+                              setNewRequestData((prev) => ({
+                                ...prev,
+                                [field.name]: e.target.value,
+                              }))
+                            }
+                            required={field.required}
+                            placeholder={field.description || `Enter ${field.label}`}
+                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                          />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="flex items-center justify-end space-x-2 pt-2">
                 <button
@@ -1717,6 +2239,128 @@ export default function FlowGateApp() {
                   className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold shadow-md shadow-indigo-600/20"
                 >
                   Submit for Approval
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* =================================================================== */}
+      {/* MODAL: CREATE OUT-OF-OFFICE DELEGATION */}
+      {/* =================================================================== */}
+      {showCreateDelegationModal && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md shadow-2xl p-6 space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center space-x-2">
+                <UserCheck className="h-5 w-5 text-indigo-400" />
+                <h3 className="font-bold text-base text-white">New Out-of-Office Delegation</h3>
+              </div>
+              <button
+                onClick={() => setShowCreateDelegationModal(false)}
+                className="p-1 rounded text-slate-400 hover:text-white"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateDelegation} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Designated Colleague (Delegatee) *
+                </label>
+                <select
+                  value={newDelegateeId}
+                  onChange={(e) => setNewDelegateeId(e.target.value)}
+                  required
+                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                >
+                  {colleagues.length === 0 ? (
+                    <option value="">Loading eligible colleagues...</option>
+                  ) : (
+                    colleagues.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} ({c.email}) — {c.role}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Workflow Scope
+                </label>
+                <select
+                  value={newDelegationWorkflowId}
+                  onChange={(e) => setNewDelegationWorkflowId(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                >
+                  <option value="">All Organization Workflows (Universal)</option>
+                  {workflows
+                    .filter((w) => w.status === 'ACTIVE')
+                    .map((w) => (
+                      <option key={w.id} value={w.id}>
+                        {w.name} (v{w.version})
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    Start Date & Time *
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={newDelegationStartDate}
+                    onChange={(e) => setNewDelegationStartDate(e.target.value)}
+                    required
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    End Date & Time *
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={newDelegationEndDate}
+                    onChange={(e) => setNewDelegationEndDate(e.target.value)}
+                    required
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Delegation Reason / Notes
+                </label>
+                <textarea
+                  value={newDelegationReason}
+                  onChange={(e) => setNewDelegationReason(e.target.value)}
+                  placeholder="e.g. Annual leave, attending offsite summit..."
+                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 h-20"
+                />
+              </div>
+
+              <div className="flex items-center justify-end space-x-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateDelegationModal(false)}
+                  className="px-3 py-2 rounded-lg text-xs font-semibold text-slate-400 hover:text-white"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingDelegation}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold shadow-md shadow-indigo-600/20 disabled:opacity-50"
+                >
+                  {isSubmittingDelegation ? 'Saving...' : 'Authorize Delegation'}
                 </button>
               </div>
             </form>

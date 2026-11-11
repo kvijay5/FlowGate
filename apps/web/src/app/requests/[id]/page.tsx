@@ -276,6 +276,38 @@ export default function RequestDetailPage() {
               <span>•</span>
               <span className="font-mono text-slate-400">ID: {requestDetail.id}</span>
             </div>
+
+            {/* Structured DAG Routing Parameters */}
+            {requestDetail.requestData && Object.keys(requestDetail.requestData).length > 0 && (
+              <div className="pt-2 border-t border-slate-800/80 mt-2 space-y-1.5">
+                <span className="text-[10px] uppercase font-bold text-indigo-400 tracking-wider block">
+                  Workflow Execution Parameters (Condition Routing Payload)
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(requestDetail.requestData).map(([key, value]) => (
+                    <div
+                      key={key}
+                      className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 flex items-center space-x-1.5 text-xs font-mono"
+                    >
+                      <span className="text-slate-400">{key}:</span>
+                      <span className="text-emerald-400 font-semibold">
+                        {typeof value === 'boolean'
+                          ? value
+                            ? 'true'
+                            : 'false'
+                          : typeof value === 'number'
+                            ? key.toLowerCase().includes('amount') ||
+                              key.toLowerCase().includes('cost') ||
+                              key.toLowerCase().includes('budget')
+                              ? `$${value.toLocaleString()}`
+                              : value.toString()
+                            : String(value)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

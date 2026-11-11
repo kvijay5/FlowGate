@@ -18,6 +18,8 @@ import {
   InputSchema,
   RequestExecutionGraph,
   AuditChainVerificationResult,
+  UserDelegationSummary,
+  CreateDelegationDto,
 } from '@flowgate/shared-types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
@@ -244,6 +246,7 @@ export const api = {
     workflowDefinitionId: string;
     title: string;
     description?: string;
+    requestData?: Record<string, unknown>;
   }): Promise<ApprovalRequestDetail> {
     return request<ApprovalRequestDetail>('/api/v1/requests', {
       method: 'POST',
@@ -288,6 +291,41 @@ export const api = {
     return request<ApprovalRequestDetail>(`/api/v1/requests/${id}/cancel`, {
       method: 'POST',
     });
+  },
+
+  // Out-of-Office Delegations
+  async getDelegations(params?: {
+    status?: string;
+    delegatorId?: string;
+    delegateeId?: string;
+  }): Promise<UserDelegationSummary[]> {
+    const query = new URLSearchParams();
+    if (params?.status) query.set('status', params.status);
+    if (params?.delegatorId) query.set('delegatorId', params.delegatorId);
+    if (params?.delegateeId) query.set('delegateeId', params.delegateeId);
+    const qs = query.toString() ? `?${query.toString()}` : '';
+    return request<UserDelegationSummary[]>(`/api/v1/delegations${qs}`);
+  },
+
+  async createDelegation(payload: CreateDelegationDto): Promise<UserDelegationSummary> {
+    return request<UserDelegationSummary>('/api/v1/delegations', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async revokeDelegation(id: string): Promise<UserDelegationSummary> {
+    return request<UserDelegationSummary>(`/api/v1/delegations/${id}/revoke`, {
+      method: 'POST',
+    });
+  },
+
+  async getEligibleColleagues(): Promise<
+    Array<{ id: string; name: string; email: string; role: UserRole }>
+  > {
+    return request<Array<{ id: string; name: string; email: string; role: UserRole }>>(
+      '/api/v1/delegations/colleagues',
+    );
   },
 
   // Queue Health (Admin)

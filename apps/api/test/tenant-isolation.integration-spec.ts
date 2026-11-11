@@ -242,7 +242,7 @@ describe('Multi-Tenant Data Isolation & Database Constraints (Integration)', () 
   describe('Step Sequence Unique Constraints', () => {
     it('should enforce unique stepOrder within an approval request', async () => {
       const acmeRequest = await prisma.approvalRequest.findFirst({
-        where: { title: { contains: 'GPU Server' } },
+        where: { tenant: { slug: 'acme-corp' } },
       });
       expect(acmeRequest).toBeDefined();
 

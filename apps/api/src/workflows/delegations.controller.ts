@@ -44,6 +44,14 @@ export class DelegationsController {
   }
 
   /**
+   * List eligible active colleagues in the tenant to designate as a delegatee.
+   */
+  @Get('colleagues')
+  async getColleagues(@CurrentTenant() tenantId: string, @CurrentUser('id') currentUserId: string) {
+    return this.delegationService.getEligibleColleagues(tenantId, currentUserId);
+  }
+
+  /**
    * Revoke an active or scheduled delegation.
    */
   @Post(':id/revoke')

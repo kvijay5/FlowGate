@@ -295,6 +295,7 @@ describe('Background Processing & Escalation Engine (Integration)', () => {
           workflowDefinitionId: activeWf.id,
           title: 'Automated CI Hardware Purchase',
           description: 'Background processing test request',
+          requestData: { amount: 25000, department: 'Engineering' },
         });
 
       expect(createRes.status).toBe(201);

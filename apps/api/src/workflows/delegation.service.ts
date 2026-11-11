@@ -377,6 +377,31 @@ export class DelegationService {
   }
 
   /**
+   * Retrieves active colleagues within the same tenant (excluding the requesting user).
+   */
+  public async getEligibleColleagues(
+    tenantId: string,
+    currentUserId: string,
+    tx?: Prisma.TransactionClient,
+  ) {
+    const db = tx || this.prisma;
+    return db.user.findMany({
+      where: {
+        tenantId,
+        status: 'ACTIVE',
+        id: { not: currentUserId },
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+      },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  /**
    * Resolves whether an active delegation exists for a target user (delegator)
    * covering the specified workflow and required role.
    *
