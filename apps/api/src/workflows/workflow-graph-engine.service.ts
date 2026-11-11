@@ -185,6 +185,32 @@ export class WorkflowGraphEngineService {
         },
       });
 
+      const requesterUser = tx.user?.findUnique
+        ? await tx.user.findUnique({
+            where: { id: userId },
+            select: { email: true },
+          })
+        : null;
+      const requesterEmail = requesterUser?.email || 'requester@flowgate.local';
+
+      await this.outboxService.createEvent(tx, {
+        tenantId,
+        eventType: OUTBOX_EVENT_NOTIFICATION,
+        entityType: 'ApprovalRequest',
+        entityId: request.id,
+        idempotencyKey: `notif_graph_req_sub_${request.id}`,
+        payload: {
+          tenantId,
+          recipientEmail: requesterEmail,
+          recipientUserId: userId,
+          eventType: 'REQUEST_SUBMITTED',
+          subject: `Approval Request Submitted: "${request.title}"`,
+          content: `Your approval request "${request.title}" has been submitted and is currently in review.`,
+          idempotencyKey: `req-submitted:${request.id}`,
+          metadata: { requestId: request.id },
+        },
+      });
+
       // Advance execution from TRIGGER's active outgoing edges
       await this.advanceExecution(tenantId, request.id, 1, validatedGraph, tx);
 

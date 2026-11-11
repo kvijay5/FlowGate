@@ -59,26 +59,26 @@ export const ExecutionNodeDetailsModal: React.FC<ExecutionNodeDetailsModalProps>
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto shadow-2xl p-5 space-y-5">
+    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
+      <div className="bg-[#0B0D19]/95 border border-white/10 rounded-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto shadow-2xl p-5 space-y-5">
         {/* Header */}
-        <div className="flex items-start justify-between border-b border-slate-800 pb-3">
+        <div className="flex items-start justify-between border-b border-white/[0.06] pb-3">
           <div className="space-y-1">
             <div className="flex items-center space-x-2">
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-slate-800 text-slate-300 border border-slate-700">
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-white/[0.05] text-slate-300 border border-white/10">
                 {nodeType}
               </span>
               <span
                 className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
                   isCompleted
-                    ? 'bg-emerald-950 text-emerald-300 border-emerald-800'
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
                     : isActive
-                      ? 'bg-indigo-950 text-indigo-300 border-indigo-800'
+                      ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
                       : isRejected
-                        ? 'bg-red-950 text-red-300 border-red-800'
+                        ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
                         : isPruned
-                          ? 'bg-slate-800 text-slate-400 border-slate-700'
-                          : 'bg-slate-800 text-slate-300 border-slate-700'
+                          ? 'bg-white/[0.02] text-slate-400 border-white/5'
+                          : 'bg-white/[0.05] text-slate-300 border-white/10'
                 }`}
               >
                 {status}
@@ -88,7 +88,7 @@ export const ExecutionNodeDetailsModal: React.FC<ExecutionNodeDetailsModalProps>
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
           >
             <X className="h-5 w-5" />
           </button>

@@ -25,6 +25,7 @@ describe('Milestone 6.3: Out-of-Office Approval Delegation Engine (Integration)'
   let testWorkflowId: string;
   const createdRequestIds: string[] = [];
   const createdDelegationIds: string[] = [];
+  const createdUserIds: string[] = [];
 
   const simpleSchema: InputSchema = {
     fields: [
@@ -55,14 +56,42 @@ describe('Milestone 6.3: Out-of-Office Approval Delegation Engine (Integration)'
     expect(acme).toBeDefined();
     acmeTenantId = acme!.id;
 
-    // Retrieve Acme users
-    const acmeUsers = await prisma.user.findMany({
-      where: { tenantId: acmeTenantId, status: 'ACTIVE' },
+    // Create isolated Acme test users for delegation testing
+    const ts = Date.now();
+    const testUserA = await prisma.user.create({
+      data: {
+        tenantId: acmeTenantId,
+        email: `del-test-a-${ts}@acme.com`,
+        name: 'Delegation Test User A',
+        passwordHash: 'seeded_hash',
+        role: 'APPROVER',
+        status: 'ACTIVE',
+      },
     });
-    expect(acmeUsers.length).toBeGreaterThanOrEqual(3);
-    userAId = acmeUsers[0].id;
-    userBId = acmeUsers[1].id;
-    userCId = acmeUsers[2].id;
+    const testUserB = await prisma.user.create({
+      data: {
+        tenantId: acmeTenantId,
+        email: `del-test-b-${ts}@acme.com`,
+        name: 'Delegation Test User B',
+        passwordHash: 'seeded_hash',
+        role: 'APPROVER',
+        status: 'ACTIVE',
+      },
+    });
+    const testUserC = await prisma.user.create({
+      data: {
+        tenantId: acmeTenantId,
+        email: `del-test-c-${ts}@acme.com`,
+        name: 'Delegation Test User C',
+        passwordHash: 'seeded_hash',
+        role: 'APPROVER',
+        status: 'ACTIVE',
+      },
+    });
+    userAId = testUserA.id;
+    userBId = testUserB.id;
+    userCId = testUserC.id;
+    createdUserIds.push(userAId, userBId, userCId);
 
     // Build Linear DAG Workflow: TRIGGER -> APPROVAL (User A) -> END
     const nodes: WorkflowNode[] = [
@@ -155,6 +184,13 @@ describe('Milestone 6.3: Out-of-Office Approval Delegation Engine (Integration)'
     if (testWorkflowId) {
       await prisma.workflowDefinition.delete({
         where: { id: testWorkflowId },
+      });
+    }
+
+    if (createdUserIds.length > 0) {
+      await prisma.user.updateMany({
+        where: { tenantId: acmeTenantId, id: { in: createdUserIds } },
+        data: { status: 'INACTIVE' },
       });
     }
 

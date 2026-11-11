@@ -208,7 +208,7 @@ export const RequestExecutionGraphViewer: React.FC<RequestExecutionGraphViewerPr
       const isCompleted = branchExec?.status === 'COMPLETED';
       const isActive = branchExec?.status === 'ACTIVE';
 
-      let strokeColor = '#334155'; // default slate-700
+      let strokeColor = '#1e293b'; // default subtle slate
       let strokeDasharray = undefined;
       let strokeWidth = 2;
       let animated = false;
@@ -217,11 +217,11 @@ export const RequestExecutionGraphViewer: React.FC<RequestExecutionGraphViewerPr
         strokeColor = '#10b981'; // emerald-500
         strokeWidth = 2.5;
       } else if (isActive) {
-        strokeColor = '#6366f1'; // indigo-500
-        strokeWidth = 2.5;
+        strokeColor = '#06b6d4'; // electric cyan
+        strokeWidth = 3;
         animated = true;
       } else if (isPruned) {
-        strokeColor = '#475569'; // slate-600
+        strokeColor = '#334155'; // muted slate
         strokeDasharray = '5 5';
         strokeWidth = 1.5;
       }
@@ -262,19 +262,19 @@ export const RequestExecutionGraphViewer: React.FC<RequestExecutionGraphViewerPr
   }, []);
 
   return (
-    <div className="relative w-full h-[620px] rounded-2xl border border-slate-800 bg-slate-950 overflow-hidden shadow-2xl flex flex-col">
+    <div className="relative w-full h-[620px] rounded-2xl border border-white/10 bg-[#05050A] overflow-hidden shadow-2xl flex flex-col">
       {/* HUD Header */}
-      <div className="p-3 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between text-xs backdrop-blur-sm z-10">
+      <div className="p-3 bg-[#0B0D19]/80 border-b border-white/[0.06] flex items-center justify-between text-xs backdrop-blur-md z-10">
         <div className="flex items-center space-x-3">
           <div className="flex items-center space-x-1.5 font-bold text-white">
-            <Activity className="h-4 w-4 text-indigo-400" />
+            <Activity className="h-4 w-4 text-cyan-400" />
             <span>Live DAG Execution Visualizer</span>
           </div>
-          <span className="text-slate-500">•</span>
+          <span className="text-slate-600">•</span>
           <span className="text-slate-400 text-[11px]">
-            Review Round <span className="font-bold text-indigo-300">#{activeRound}</span>
+            Review Round <span className="font-bold text-cyan-300">#{activeRound}</span>
           </span>
-          <span className="text-slate-500">•</span>
+          <span className="text-slate-600">•</span>
           <span className="text-slate-400 text-[11px]">
             {nodes.length} Nodes, {edges.length} Transitions
           </span>
@@ -284,16 +284,16 @@ export const RequestExecutionGraphViewer: React.FC<RequestExecutionGraphViewerPr
         <div className="flex items-center space-x-4">
           <div className="hidden sm:flex items-center space-x-3 text-[10px] font-semibold uppercase tracking-wider">
             <span className="flex items-center space-x-1 text-emerald-400">
-              <span className="h-2 w-2 rounded-full bg-emerald-500" />
+              <span className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
               <span>Completed</span>
             </span>
-            <span className="flex items-center space-x-1 text-indigo-400">
-              <span className="h-2 w-2 rounded-full bg-indigo-500 animate-ping" />
+            <span className="flex items-center space-x-1 text-cyan-400">
+              <span className="h-2 w-2 rounded-full bg-cyan-400 animate-ping shadow-[0_0_8px_rgba(6,182,212,0.8)]" />
               <span>Active</span>
             </span>
             <span className="flex items-center space-x-1 text-slate-500">
               <span className="h-2 w-2 rounded-full bg-slate-600" />
-              <span>Pruned / Skipped</span>
+              <span>Pruned</span>
             </span>
             <span className="flex items-center space-x-1 text-slate-400">
               <span className="h-2 w-2 rounded-full bg-slate-700" />
@@ -305,7 +305,7 @@ export const RequestExecutionGraphViewer: React.FC<RequestExecutionGraphViewerPr
             <button
               onClick={onRefresh}
               disabled={isRefreshing}
-              className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-medium flex items-center space-x-1 transition-colors disabled:opacity-50"
+              className="px-2.5 py-1.5 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] text-slate-200 border border-white/10 text-xs font-medium flex items-center space-x-1 transition-colors disabled:opacity-50"
             >
               <RefreshCw className={`h-3 w-3 ${isRefreshing ? 'animate-spin' : ''}`} />
               <span>Refresh</span>

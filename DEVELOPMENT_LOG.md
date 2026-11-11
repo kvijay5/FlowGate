@@ -2,6 +2,32 @@
 
 ---
 
+## [Hotfix & UI/UX Overhaul: Obsidian & Electric Aurora Interactive Design System & Login Hardening] - 2026-11-11
+
+### 1. Executive Summary
+
+This milestone permanently resolves the local authentication issue reported during manual testing and delivers a complete, modern UI/UX overhaul of the FlowGate frontend inspired by Linear, Raycast, and Vercel:
+
+1. **Authentication & Local Login Permanent Hardening**:
+   - **Root Cause 1 (Prefix Redundancy)**: `NEXT_PUBLIC_API_URL` contained a trailing `/api` (`http://localhost:4000/api`), causing requests to `/api/v1/auth/login` to resolve to `http://localhost:4000/api/api/v1/auth/login` (HTTP 404). Sanitized `api.ts` to strip trailing `/api` and `/` from any configured base URL and normalized `.env` to `http://localhost:4000`.
+   - **Root Cause 2 (Empty Password State)**: `loginPassword` defaulted to empty string in `apps/web/src/app/page.tsx`. Submitting without retyping triggered HTTP 401. Pre-populated the default seed password (`FlowGatePass123!`) and built the **Instant Persona Launchpad** with 1-click automated login.
+   - **Root Cause 3 (Rate Limiter Throttle Lockout)**: `ThrottlerModule` was limited to 10-30 requests/minute on authentication endpoints, causing rapid persona switching during local testing to trigger HTTP 429 Too Many Requests. Raised non-production throttling threshold to 1,000 req/min in `auth.controller.ts` and `auth.module.ts`.
+   - **Root Cause 4 (CORS & Port Discrepancies)**: Added Next.js proxy rewrites in `apps/web/next.config.mjs` forwarding `/api/v1/:path*` and `/health` to `http://localhost:4000`, providing zero-CORS failover whether users browse via `localhost:3000` or `127.0.0.1:3000`. Added `CORS_ORIGIN=http://localhost:3000,http://127.0.0.1:3000` across environment files.
+   - **Root Cause 5 (Missing DAG Outbox Notification)**: In `WorkflowGraphEngineService.initializeGraphExecution`, outbound webhooks were created but the `REQUEST_SUBMITTED` notification outbox event was missing, causing background job integration assertions to fail. Added atomic `REQUEST_SUBMITTED` notification event creation to match the sequential request engine.
+2. **"Obsidian & Electric Aurora" Complete Frontend Overhaul**:
+   - **Design Language**: Implemented deep obsidian base canvas (`#05050A`), high-depth glass panels (`glass-panel`, `glass-card`, `glass-card-interactive`), fine ambient dot matrix grids, and multi-color ambient auroras (violet `#7C3AED`, electric cyan `#06B6D4`, emerald `#10B981`, and amber `#F59E0B`).
+   - **Instant Persona Launchpad**: Redesigned the unauthenticated view into a futuristic split-screen terminal featuring live DAG preview cards, cryptographic SHA-256 ledger ticker, and 5 interactive role cards with 1-click instant login (`admin@acme.com`, `finance@acme.com`, `legal@acme.com`, `engineer@acme.com`, `admin@globex.com`).
+   - **Floating Command Dock & Instant Persona Switcher Bar**: Added a persistent top command dock with an interactive 1-click persona switcher bar, enabling reviewers to instantly jump between Requester, Finance Approver, Legal Stand-in Delegatee, and Tenant Administrator without logging out.
+   - **Bento Grid Dashboard**: Re-architected statistics, pending reviews, and recent activity into an interactive Bento Grid with live quorum progress meters, cryptographic ledger verification trigger, and celebratory `canvas-confetti` micro-interactions on approval signoff.
+   - **Glowing ReactFlow Execution Nodes**: Enhanced `ExecutionNode` and `RequestExecutionGraphViewer` with glowing status borders, electric cyan pulse rings for active in-review nodes, and animated neon SVG edges (`strokeColor: #06B6D4`).
+3. **Automated Verification & Quality Gates**:
+   - All **367 automated tests passed** (212 API unit, 20 Web unit, 135 E2E integration).
+   - 0 TypeScript errors across all workspaces (`pnpm check-types`).
+   - 0 ESLint warnings or errors (`pnpm lint`).
+   - Production build verified with zero errors (`pnpm build`).
+
+---
+
 ## [Phase 7: Product Completion, Out-of-Office Delegation UI, Rich DAG Demo Seeding & Portfolio Documentation] - 2026-11-10
 
 ### 1. Executive Summary

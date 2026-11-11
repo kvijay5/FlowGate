@@ -28,7 +28,7 @@ import { RolesGuard } from './guards/roles.guard';
     ThrottlerModule.forRoot([
       {
         ttl: 60000,
-        limit: 30,
+        limit: process.env.NODE_ENV === 'production' ? 60 : 1000,
       },
     ]),
   ],

@@ -64,31 +64,34 @@ export const ExecutionNode: React.FC<NodeProps> = ({ data, selected }) => {
   const isPending = status === 'PENDING';
 
   // Determine container styling based on execution status
-  let containerStyle = 'bg-slate-900 border-slate-700 text-slate-300';
-  let badgeStyle = 'bg-slate-800 text-slate-400 border-slate-700';
+  let containerStyle =
+    'bg-[#0B0D19]/90 border-white/10 text-slate-300 shadow-lg backdrop-blur-md hover:border-white/20';
+  let badgeStyle = 'bg-white/[0.04] text-slate-400 border-white/10';
   let statusText = 'Pending';
   let StatusIcon = Clock;
 
   if (isCompleted) {
     containerStyle =
-      'bg-emerald-950/40 border-emerald-500 shadow-md shadow-emerald-900/20 text-emerald-100';
-    badgeStyle = 'bg-emerald-900/80 text-emerald-200 border-emerald-600';
+      'bg-gradient-to-b from-emerald-950/40 to-[#0B0D19]/90 border-emerald-500/80 shadow-lg shadow-emerald-500/10 text-emerald-100 ring-1 ring-emerald-500/30';
+    badgeStyle = 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-[0_0_10px_rgba(16,185,129,0.2)]';
     statusText = 'Completed';
     StatusIcon = CheckCircle2;
   } else if (isActive) {
     containerStyle =
-      'bg-indigo-950/60 border-indigo-500 shadow-lg shadow-indigo-900/30 text-indigo-100 ring-2 ring-indigo-500/30 animate-pulse';
-    badgeStyle = 'bg-indigo-600 text-white border-indigo-400';
+      'bg-gradient-to-b from-cyan-950/50 to-[#0B0D19]/90 border-cyan-400 shadow-xl shadow-cyan-500/25 text-cyan-100 ring-2 ring-cyan-500/40 animate-pulse';
+    badgeStyle = 'bg-cyan-500/20 text-cyan-300 border-cyan-400 shadow-[0_0_12px_rgba(6,182,212,0.4)]';
     statusText = 'Active / In Review';
     StatusIcon = Clock;
   } else if (isRejected) {
-    containerStyle = 'bg-red-950/50 border-red-500 shadow-md shadow-red-900/20 text-red-100';
-    badgeStyle = 'bg-red-900/80 text-red-200 border-red-600';
+    containerStyle =
+      'bg-gradient-to-b from-rose-950/50 to-[#0B0D19]/90 border-rose-500/80 shadow-lg shadow-rose-500/20 text-rose-100 ring-1 ring-rose-500/30';
+    badgeStyle = 'bg-rose-500/20 text-rose-300 border-rose-500/40 shadow-[0_0_10px_rgba(244,63,94,0.3)]';
     statusText = 'Rejected';
     StatusIcon = XCircle;
   } else if (isPruned) {
-    containerStyle = 'bg-slate-900/30 border-slate-700/60 border-dashed opacity-50 text-slate-500';
-    badgeStyle = 'bg-slate-800/60 text-slate-500 border-slate-700';
+    containerStyle =
+      'bg-[#07080F]/60 border-slate-800/80 border-dashed opacity-40 text-slate-500';
+    badgeStyle = 'bg-white/[0.02] text-slate-500 border-white/5';
     statusText = 'Pruned / Skipped';
     StatusIcon = AlertTriangle;
   }
@@ -129,8 +132,8 @@ export const ExecutionNode: React.FC<NodeProps> = ({ data, selected }) => {
 
   return (
     <div
-      className={`relative min-w-[220px] max-w-[280px] rounded-xl border-2 p-3.5 transition-all cursor-pointer ${containerStyle} ${
-        selected ? 'ring-2 ring-offset-2 ring-offset-slate-950 ring-indigo-400' : ''
+      className={`relative min-w-[220px] max-w-[280px] rounded-2xl border-2 p-3.5 transition-all cursor-pointer backdrop-blur-md ${containerStyle} ${
+        selected ? 'ring-2 ring-offset-2 ring-offset-[#05050A] ring-cyan-400' : ''
       }`}
     >
       {/* Handles */}
@@ -138,21 +141,21 @@ export const ExecutionNode: React.FC<NodeProps> = ({ data, selected }) => {
         <Handle
           type="target"
           position={Position.Top}
-          className="!w-3 !h-3 !bg-slate-500 !border-2 !border-slate-900 -top-1.5"
+          className="!w-3 !h-3 !bg-cyan-400 !border-2 !border-[#05050A] !shadow-[0_0_8px_rgba(6,182,212,0.8)] -top-1.5"
         />
       )}
       {nodeType !== 'END' && (
         <Handle
           type="source"
           position={Position.Bottom}
-          className="!w-3 !h-3 !bg-slate-500 !border-2 !border-slate-900 -bottom-1.5"
+          className="!w-3 !h-3 !bg-cyan-400 !border-2 !border-[#05050A] !shadow-[0_0_8px_rgba(6,182,212,0.8)] -bottom-1.5"
         />
       )}
 
       {/* Header */}
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="flex items-center space-x-2">
-          <div className="p-1.5 rounded-lg bg-slate-800/80 border border-slate-700">
+          <div className="p-1.5 rounded-lg bg-white/[0.05] border border-white/10 text-cyan-300">
             <TypeIcon className="h-4 w-4" />
           </div>
           <div>

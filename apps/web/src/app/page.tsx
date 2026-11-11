@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   ShieldCheck,
   GitBranch,
@@ -33,7 +33,16 @@ import {
   UserCheck,
   Plane,
   Calendar,
+  Search,
+  Sparkles,
+  ChevronRight,
+  Filter,
+  TrendingUp,
+  Eye,
+  ThumbsUp,
+  ThumbsDown,
 } from 'lucide-react';
+import confetti from 'canvas-confetti';
 import { api, ApiError, getStoredAuth, setStoredAuth } from '../lib/api';
 import {
   AuthResponse,
@@ -51,44 +60,140 @@ import {
   InputSchema,
 } from '@flowgate/shared-types';
 
-export default function FlowGateApp() {
-  // Demo accounts are strictly restricted to local development mode (NODE_ENV === 'development').
-  // A public environment variable cannot independently expose credentials or activate demo accounts in production.
-  const isDevMode = process.env.NODE_ENV === 'development';
+// =============================================================================
+// DEMO PERSONAS CONFIGURATION (Instant 1-Click Launchpad)
+// =============================================================================
+interface DemoPersona {
+  id: string;
+  name: string;
+  email: string;
+  tenantSlug: string;
+  tenantName: string;
+  role: UserRole;
+  title: string;
+  badge: string;
+  badgeColor: string;
+  avatar: string;
+  gradient: string;
+  borderHover: string;
+  description: string;
+  powers: string[];
+}
 
+const DEMO_PERSONAS: DemoPersona[] = [
+  {
+    id: 'acme-admin',
+    name: 'Alice Vance',
+    email: 'admin@acme.com',
+    tenantSlug: 'acme-corp',
+    tenantName: 'Acme Corporation',
+    role: 'TENANT_ADMIN',
+    title: 'Acme Administrator',
+    badge: 'TENANT_ADMIN',
+    badgeColor: 'bg-violet-950/80 text-violet-300 border-violet-700/80',
+    avatar: '⚡',
+    gradient: 'from-violet-600 via-indigo-600 to-purple-700',
+    borderHover: 'hover:border-violet-500/70 hover:shadow-violet-500/25',
+    description: 'Full workspace authority, visual workflow designer, webhook manager, queue monitor',
+    powers: ['Design & Publish DAGs', 'Executive Final Approval', 'Verify SHA-256 Ledger', 'SSRF Webhooks'],
+  },
+  {
+    id: 'acme-cfo',
+    name: 'Bob Finance',
+    email: 'finance@acme.com',
+    tenantSlug: 'acme-corp',
+    tenantName: 'Acme Corporation',
+    role: 'APPROVER',
+    title: 'Chief Financial Officer',
+    badge: 'APPROVER (DELEGATOR)',
+    badgeColor: 'bg-cyan-950/80 text-cyan-300 border-cyan-700/80',
+    avatar: '💼',
+    gradient: 'from-cyan-600 via-blue-600 to-indigo-700',
+    borderHover: 'hover:border-cyan-500/70 hover:shadow-cyan-500/25',
+    description: 'Executive capex reviewer with active Out-of-Office delegation delegated to Linda Legal',
+    powers: ['Parallel Quorum 2-of-3 Vote', 'Out-of-Office Delegation', 'Budget Sign-off'],
+  },
+  {
+    id: 'acme-legal',
+    name: 'Linda Legal',
+    email: 'legal@acme.com',
+    tenantSlug: 'acme-corp',
+    tenantName: 'Acme Corporation',
+    role: 'APPROVER',
+    title: 'General Counsel & Delegatee',
+    badge: 'DELEGATEE / APPROVER',
+    badgeColor: 'bg-emerald-950/80 text-emerald-300 border-emerald-700/80',
+    avatar: '⚖️',
+    gradient: 'from-emerald-600 via-teal-600 to-cyan-700',
+    borderHover: 'hover:border-emerald-500/70 hover:shadow-emerald-500/25',
+    description: 'Acme legal counsel & active stand-in delegatee casting decisive votes on Bob’s behalf',
+    powers: ['Cast Delegated Quorum Vote', 'Export Compliance Sign-off', 'Deciding Tie-breaker Vote'],
+  },
+  {
+    id: 'acme-engineer',
+    name: 'Charlie Dev',
+    email: 'engineer@acme.com',
+    tenantSlug: 'acme-corp',
+    tenantName: 'Acme Corporation',
+    role: 'REQUESTER',
+    title: 'Principal AI Engineer',
+    badge: 'REQUESTER',
+    badgeColor: 'bg-amber-950/80 text-amber-300 border-amber-700/80',
+    avatar: '🚀',
+    gradient: 'from-amber-600 via-orange-600 to-rose-700',
+    borderHover: 'hover:border-amber-500/70 hover:shadow-amber-500/25',
+    description: 'Submits capex purchase requests with structured runtime condition parameters ($145k AI Cluster)',
+    powers: ['Submit Structured DAG Requests', 'Selective Fast-Forward Resubmit', 'Cancel Submissions'],
+  },
+  {
+    id: 'globex-admin',
+    name: 'David Mercer',
+    email: 'admin@globex.com',
+    tenantSlug: 'globex-ind',
+    tenantName: 'Globex Industries',
+    role: 'TENANT_ADMIN',
+    title: 'Globex Administrator',
+    badge: 'ISOLATED REALM',
+    badgeColor: 'bg-rose-950/80 text-rose-300 border-rose-700/80',
+    avatar: '🌐',
+    gradient: 'from-rose-600 via-pink-600 to-purple-700',
+    borderHover: 'hover:border-rose-500/70 hover:shadow-rose-500/25',
+    description: 'Demonstrates physical multi-tenant isolation — zero visibility into Acme workflows or data',
+    powers: ['Tenant Boundary Isolation', 'Separate Workflow Catalog', 'Isolated Audit Ledger'],
+  },
+];
+
+const DEFAULT_DEV_PASSWORD =
+  process.env.NEXT_PUBLIC_DEV_PASSWORD || 'FlowGatePass123!';
+
+export default function FlowGateApp() {
   // Auth state
   const [auth, setAuth] = useState<AuthResponse | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [loginSlug, setLoginSlug] = useState('acme-corp');
   const [loginEmail, setLoginEmail] = useState('admin@acme.com');
-  const [loginPassword, setLoginPassword] = useState('');
+  const [loginPassword, setLoginPassword] = useState(DEFAULT_DEV_PASSWORD);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [isSubmittingLogin, setIsSubmittingLogin] = useState(false);
+  const [launchingPersonaId, setLaunchingPersonaId] = useState<string | null>(null);
 
   // App navigation
-  const [activeTab, setActiveTab] = useState<'requests' | 'workflows' | 'delegations' | 'webhooks'>(
-    'requests',
-  );
-  const [requestFilter, setRequestFilter] = useState<'pending_approval' | 'mine' | 'all'>(
-    'pending_approval',
-  );
+  const [activeTab, setActiveTab] = useState<'requests' | 'workflows' | 'delegations' | 'webhooks'>('requests');
+  const [requestFilter, setRequestFilter] = useState<'pending_approval' | 'mine' | 'all'>('pending_approval');
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Data state
   const [requests, setRequests] = useState<ApprovalRequestSummary[]>([]);
   const [workflows, setWorkflows] = useState<WorkflowDefinitionSummary[]>([]);
   const [delegations, setDelegations] = useState<UserDelegationSummary[]>([]);
-  const [colleagues, setColleagues] = useState<
-    Array<{ id: string; name: string; email: string; role: UserRole }>
-  >([]);
+  const [colleagues, setColleagues] = useState<Array<{ id: string; name: string; email: string; role: UserRole }>>([]);
   const [dataLoading, setDataLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
 
-  // Selected request detail modal
+  // Selected request detail modal (Quick View)
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
-  const [selectedRequestDetail, setSelectedRequestDetail] = useState<ApprovalRequestDetail | null>(
-    null,
-  );
+  const [selectedRequestDetail, setSelectedRequestDetail] = useState<ApprovalRequestDetail | null>(null);
   const [actionComments, setActionComments] = useState('');
   const [isExecutingAction, setIsExecutingAction] = useState(false);
 
@@ -109,6 +214,10 @@ export default function FlowGateApp() {
   const [isSubmittingDelegation, setIsSubmittingDelegation] = useState(false);
   const [revokingDelegationId, setRevokingDelegationId] = useState<string | null>(null);
 
+  // Audit chain verification status
+  const [verifyingChain, setVerifyingChain] = useState(false);
+  const [auditChainVerified, setAuditChainVerified] = useState<boolean | null>(null);
+
   // Create Workflow Modal
   const [showCreateWorkflowModal, setShowCreateWorkflowModal] = useState(false);
   const [newWorkflowName, setNewWorkflowName] = useState('');
@@ -127,8 +236,7 @@ export default function FlowGateApp() {
 
   // Webhooks state
   const [webhooks, setWebhooks] = useState<WebhookSubscriptionSummary[]>([]);
-  const [selectedSubForDeliveries, setSelectedSubForDeliveries] =
-    useState<WebhookSubscriptionSummary | null>(null);
+  const [selectedSubForDeliveries, setSelectedSubForDeliveries] = useState<WebhookSubscriptionSummary | null>(null);
   const [deliveries, setDeliveries] = useState<WebhookDeliverySummary[]>([]);
   const [deliveriesLoading, setDeliveriesLoading] = useState(false);
   const [showCreateWebhookModal, setShowCreateWebhookModal] = useState(false);
@@ -139,16 +247,12 @@ export default function FlowGateApp() {
     'step.approved',
     'request.approved',
   ]);
-  const [createdWebhookSecret, setCreatedWebhookSecret] = useState<{
-    name: string;
-    secret: string;
-  } | null>(null);
+  const [createdWebhookSecret, setCreatedWebhookSecret] = useState<{ name: string; secret: string } | null>(null);
   const [copiedSecret, setCopiedSecret] = useState(false);
   const [isSubmittingWebhook, setIsSubmittingWebhook] = useState(false);
   const [testingWebhookId, setTestingWebhookId] = useState<string | null>(null);
   const [retryingDeliveryId, setRetryingDeliveryId] = useState<string | null>(null);
-  const [selectedDeliveryPayload, setSelectedDeliveryPayload] =
-    useState<WebhookDeliverySummary | null>(null);
+  const [selectedDeliveryPayload, setSelectedDeliveryPayload] = useState<WebhookDeliverySummary | null>(null);
 
   // Notifications state
   const [notifications, setNotifications] = useState<NotificationLogSummary[]>([]);
@@ -222,6 +326,7 @@ export default function FlowGateApp() {
     }
   }, [auth, fetchData]);
 
+  // Load eligible colleagues
   const fetchColleagues = useCallback(async () => {
     try {
       const list = await api.getEligibleColleagues();
@@ -240,12 +345,31 @@ export default function FlowGateApp() {
     }
   }, [auth, activeTab, showCreateDelegationModal, fetchColleagues]);
 
+  // Load request details when selected
+  useEffect(() => {
+    if (!selectedRequestId) {
+      setSelectedRequestDetail(null);
+      return;
+    }
+    let isMounted = true;
+    api
+      .getRequest(selectedRequestId)
+      .then((detail) => {
+        if (isMounted) setSelectedRequestDetail(detail);
+      })
+      .catch((err) => {
+        if (isMounted) setActionError(err.message);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedRequestId]);
+
   // Selected workflow & dynamic input schema
   const selectedWorkflow = workflows.find((w) => w.id === newRequestWorkflowId);
   const inputSchema: InputSchema | undefined =
     selectedWorkflow?.configuration?.inputSchema ||
-    (selectedWorkflow?.configuration?.nodes?.find((n) => n.type === 'TRIGGER')?.config as any)
-      ?.inputSchema;
+    (selectedWorkflow?.configuration?.nodes?.find((n) => n.type === 'TRIGGER')?.config as any)?.inputSchema;
 
   // Initialize or reset dynamic input fields when workflow changes
   useEffect(() => {
@@ -268,6 +392,117 @@ export default function FlowGateApp() {
       setNewRequestData({});
     }
   }, [newRequestWorkflowId, workflows, inputSchema]);
+
+  // ---------------------------------------------------------------------------
+  // AUTH HANDLERS
+  // ---------------------------------------------------------------------------
+  const handleLogin = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setIsSubmittingLogin(true);
+    setLoginError(null);
+    try {
+      const res = await api.login(loginSlug.trim(), loginEmail.trim(), loginPassword);
+      setAuth(res);
+      setActionSuccess(`Authenticated as ${res.user.name} (${res.tenant.name})`);
+    } catch (err: any) {
+      setLoginError(err.message || 'Invalid credentials or tenant not found.');
+    } finally {
+      setIsSubmittingLogin(false);
+    }
+  };
+
+  const handleLaunchPersona = async (persona: DemoPersona) => {
+    setLaunchingPersonaId(persona.id);
+    setLoginError(null);
+    try {
+      const res = await api.login(persona.tenantSlug, persona.email, DEFAULT_DEV_PASSWORD);
+      setAuth(res);
+      setActionSuccess(`Instant launch successful: ${res.user.name} (${persona.title})`);
+    } catch (err: any) {
+      setLoginError(`Failed to authenticate as ${persona.name}: ${err.message || 'Server error'}`);
+    } finally {
+      setLaunchingPersonaId(null);
+    }
+  };
+
+  const handleLogout = () => {
+    api.logout();
+    setAuth(null);
+    setSelectedRequestId(null);
+    setSelectedRequestDetail(null);
+  };
+
+  // ---------------------------------------------------------------------------
+  // WORKFLOW & APPROVAL ACTIONS
+  // ---------------------------------------------------------------------------
+  const handleAction = async (action: 'APPROVE' | 'REJECT' | 'REQUEST_CHANGES', requestId?: string) => {
+    const targetId = requestId || selectedRequestId;
+    if (!targetId) return;
+    setIsExecutingAction(true);
+    setActionError(null);
+    try {
+      const updated = await api.submitAction(targetId, action, actionComments);
+      if (selectedRequestId === targetId) {
+        setSelectedRequestDetail(updated);
+      }
+      setActionComments('');
+      setActionSuccess(`Successfully submitted ${action.toLowerCase()} decision`);
+
+      if (action === 'APPROVE') {
+        confetti({
+          particleCount: 70,
+          spread: 60,
+          origin: { y: 0.7 },
+          colors: ['#7C3AED', '#06B6D4', '#10B981', '#F59E0B'],
+        });
+      }
+
+      fetchData();
+    } catch (err: any) {
+      setActionError(err.message || 'Failed to execute approval action');
+    } finally {
+      setIsExecutingAction(false);
+    }
+  };
+
+  const handleVerifyAuditChain = async () => {
+    setVerifyingChain(true);
+    try {
+      const result = await api.verifyAuditChain();
+      setAuditChainVerified(result.valid);
+      setActionSuccess(
+        result.valid
+          ? `Cryptographic Audit Chain verified: ${result.totalEntries} entries valid from genesis block.`
+          : `Tampering detected at log ${result.brokenAtId ? `ID #${result.brokenAtId}` : (result.details || 'block')}`
+      );
+    } catch (err: any) {
+      setActionError(err.message || 'Audit chain verification failed');
+    } finally {
+      setVerifyingChain(false);
+    }
+  };
+
+  const handleCreateRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newRequestWorkflowId || !newRequestTitle.trim()) return;
+    setActionError(null);
+    try {
+      await api.createRequest({
+        workflowDefinitionId: newRequestWorkflowId,
+        title: newRequestTitle.trim(),
+        description: newRequestDesc.trim() || undefined,
+        requestData: Object.keys(newRequestData).length > 0 ? newRequestData : undefined,
+      });
+      setShowCreateRequestModal(false);
+      setNewRequestTitle('');
+      setNewRequestDesc('');
+      setNewRequestData({});
+      setActionSuccess('Approval request submitted successfully');
+      fetchData();
+    } catch (err: any) {
+      setActionError(err.message || 'Failed to create request');
+    }
+  };
 
   const openCreateDelegation = () => {
     const now = new Date();
@@ -299,7 +534,7 @@ export default function FlowGateApp() {
         reason: newDelegationReason.trim() || undefined,
       });
       setShowCreateDelegationModal(false);
-      setActionSuccess('Out-of-office delegation created successfully');
+      setActionSuccess('Out-of-office delegation authorized successfully');
       fetchData();
     } catch (err: any) {
       setActionError(err.message || 'Failed to create delegation');
@@ -319,111 +554,6 @@ export default function FlowGateApp() {
       setActionError(err.message || 'Failed to revoke delegation');
     } finally {
       setRevokingDelegationId(null);
-    }
-  };
-
-  // Load request details when selected
-  useEffect(() => {
-    if (!selectedRequestId) {
-      setSelectedRequestDetail(null);
-      return;
-    }
-    let isMounted = true;
-    api
-      .getRequest(selectedRequestId)
-      .then((detail) => {
-        if (isMounted) setSelectedRequestDetail(detail);
-      })
-      .catch((err) => {
-        if (isMounted) setActionError(err.message);
-      });
-    return () => {
-      isMounted = false;
-    };
-  }, [selectedRequestId]);
-
-  // Handlers
-  const handleLogin = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    setIsSubmittingLogin(true);
-    setLoginError(null);
-    try {
-      const res = await api.login(loginSlug, loginEmail, loginPassword);
-      setAuth(res);
-      setActionSuccess(`Authenticated successfully as ${res.user.name}`);
-    } catch (err: any) {
-      setLoginError(err.message || 'Invalid credentials');
-    } finally {
-      setIsSubmittingLogin(false);
-    }
-  };
-
-  const handleQuickLogin = async (slug: string, email: string) => {
-    setLoginSlug(slug);
-    setLoginEmail(email);
-
-    const devPassword = process.env.NEXT_PUBLIC_DEV_PASSWORD;
-    if (isDevMode && devPassword) {
-      setLoginPassword(devPassword);
-      setIsSubmittingLogin(true);
-      setLoginError(null);
-      try {
-        const res = await api.login(slug, email, devPassword);
-        setAuth(res);
-        setActionSuccess(`Switched context to ${res.user.name} (${res.tenant.name})`);
-      } catch (err: any) {
-        setLoginError(err.message || 'Quick login failed');
-      } finally {
-        setIsSubmittingLogin(false);
-      }
-    } else {
-      setLoginPassword('');
-    }
-  };
-
-  const handleLogout = () => {
-    api.logout();
-    setAuth(null);
-    setSelectedRequestId(null);
-    setSelectedRequestDetail(null);
-  };
-
-  const handleAction = async (action: 'APPROVE' | 'REJECT' | 'REQUEST_CHANGES') => {
-    if (!selectedRequestId) return;
-    setIsExecutingAction(true);
-    setActionError(null);
-    try {
-      const updated = await api.submitAction(selectedRequestId, action, actionComments);
-      setSelectedRequestDetail(updated);
-      setActionComments('');
-      setActionSuccess(`Request ${action.toLowerCase()}d successfully`);
-      fetchData();
-    } catch (err: any) {
-      setActionError(err.message || 'Failed to execute action');
-    } finally {
-      setIsExecutingAction(false);
-    }
-  };
-
-  const handleCreateRequest = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newRequestWorkflowId || !newRequestTitle.trim()) return;
-    setActionError(null);
-    try {
-      await api.createRequest({
-        workflowDefinitionId: newRequestWorkflowId,
-        title: newRequestTitle.trim(),
-        description: newRequestDesc.trim() || undefined,
-        requestData: Object.keys(newRequestData).length > 0 ? newRequestData : undefined,
-      });
-      setShowCreateRequestModal(false);
-      setNewRequestTitle('');
-      setNewRequestDesc('');
-      setNewRequestData({});
-      setActionSuccess('Approval request created and submitted successfully');
-      fetchData();
-    } catch (err: any) {
-      setActionError(err.message || 'Failed to create request');
     }
   };
 
@@ -458,42 +588,48 @@ export default function FlowGateApp() {
       }
       fetchData();
     } catch (err: any) {
-      setActionError(err.message || 'Failed to update workflow state');
+      setActionError(err.message || 'Failed to toggle workflow status');
     }
   };
 
-  const fetchDeliveries = async (subId?: string) => {
-    setDeliveriesLoading(true);
+  const handleDeactivateWorkflow = async (id: string, name: string) => {
+    if (!confirm(`Are you sure you want to deactivate workflow "${name}"?`)) return;
     try {
-      const res = await api.getWebhookDeliveries(subId, 1, 50);
-      setDeliveries(res.data);
+      await api.deactivateWorkflow(id);
+      setActionSuccess(`Workflow "${name}" deactivated successfully`);
+      fetchData();
     } catch (err: any) {
-      setActionError(err.message || 'Failed to load delivery logs');
-    } finally {
-      setDeliveriesLoading(false);
+      setActionError(err.message || 'Failed to deactivate workflow');
     }
   };
 
+  const handleCloneDraft = async (id: string) => {
+    try {
+      const cloned = await api.cloneDraftWorkflow(id);
+      setActionSuccess(`Created draft workflow "${cloned.name}" (v${cloned.version})`);
+      fetchData();
+    } catch (err: any) {
+      setActionError(err.message || 'Failed to clone draft workflow');
+    }
+  };
+
+  // Webhooks
   const handleCreateWebhook = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newWebhookName.trim() || !newWebhookUrl.trim()) return;
     setIsSubmittingWebhook(true);
     setActionError(null);
     try {
-      const created = await api.createWebhook({
+      const res = await api.createWebhook({
         name: newWebhookName.trim(),
         url: newWebhookUrl.trim(),
-        eventTypes: newWebhookEvents.length > 0 ? newWebhookEvents : ['*'],
+        eventTypes: newWebhookEvents,
       });
       setShowCreateWebhookModal(false);
+      setCreatedWebhookSecret({ name: res.name, secret: res.secret || '' });
       setNewWebhookName('');
       setNewWebhookUrl('');
-      setNewWebhookEvents(['request.created', 'step.approved', 'request.approved']);
-      if (created.secret) {
-        setCreatedWebhookSecret({ name: created.name, secret: created.secret });
-        setCopiedSecret(false);
-      }
-      setActionSuccess(`Webhook "${created.name}" created successfully`);
+      setActionSuccess(`Webhook subscription "${res.name}" registered`);
       fetchData();
     } catch (err: any) {
       setActionError(err.message || 'Failed to create webhook');
@@ -502,33 +638,40 @@ export default function FlowGateApp() {
     }
   };
 
+  const handleDeleteWebhook = async (id: string, name: string) => {
+    if (!confirm(`Are you sure you want to delete webhook "${name}"?`)) return;
+    try {
+      await api.deleteWebhook(id);
+      setActionSuccess(`Webhook "${name}" deleted`);
+      fetchData();
+    } catch (err: any) {
+      setActionError(err.message || 'Failed to delete webhook');
+    }
+  };
+
   const handleTestPing = async (id: string, name: string) => {
     setTestingWebhookId(id);
     setActionError(null);
     try {
-      await api.testPingWebhook(id);
-      setActionSuccess(`Test ping sent to "${name}". Background job queued.`);
-      if (selectedSubForDeliveries?.id === id) {
-        setTimeout(() => fetchDeliveries(id), 1200);
-      }
+      const res = await api.testPingWebhook(id);
+      setActionSuccess(`Ping sent to "${name}": ${res.message || res.event}`);
+      if (activeTab === 'webhooks') fetchDeliveries(id);
     } catch (err: any) {
-      setActionError(err.message || 'Test ping failed');
+      setActionError(err.message || 'Ping failed');
     } finally {
       setTestingWebhookId(null);
     }
   };
 
-  const handleDeleteWebhook = async (id: string, name: string) => {
-    if (!window.confirm(`Are you sure you want to delete webhook "${name}"?`)) return;
+  const fetchDeliveries = async (subscriptionId?: string) => {
+    setDeliveriesLoading(true);
     try {
-      await api.deleteWebhook(id);
-      setActionSuccess(`Webhook "${name}" deleted`);
-      if (selectedSubForDeliveries?.id === id) {
-        setSelectedSubForDeliveries(null);
-      }
-      fetchData();
+      const res = await api.getWebhookDeliveries(subscriptionId, 1, 20);
+      setDeliveries(res.data);
     } catch (err: any) {
-      setActionError(err.message || 'Failed to delete webhook');
+      setActionError(err.message || 'Failed to load deliveries');
+    } finally {
+      setDeliveriesLoading(false);
     }
   };
 
@@ -536,8 +679,8 @@ export default function FlowGateApp() {
     setRetryingDeliveryId(deliveryId);
     try {
       await api.retryWebhookDelivery(deliveryId);
-      setActionSuccess('Delivery re-queued for transmission');
-      setTimeout(() => fetchDeliveries(selectedSubForDeliveries?.id), 1000);
+      setActionSuccess('Delivery retry scheduled');
+      fetchDeliveries(selectedSubForDeliveries?.id);
     } catch (err: any) {
       setActionError(err.message || 'Retry failed');
     } finally {
@@ -549,335 +692,427 @@ export default function FlowGateApp() {
     setShowNotificationsDrawer(true);
     setNotificationsLoading(true);
     try {
-      const res = await api.getNotifications(1, 50);
+      const res = await api.getNotifications(1, 20);
       setNotifications(res.data);
     } catch (err: any) {
-      setActionError(err.message || 'Failed to fetch notifications');
+      setActionError(err.message || 'Failed to load notifications');
     } finally {
       setNotificationsLoading(false);
     }
   };
 
+  // Filtered requests computation
+  const filteredRequests = useMemo(() => {
+    return requests.filter((req) => {
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase();
+      return (
+        req.title.toLowerCase().includes(q) ||
+        req.workflowName.toLowerCase().includes(q) ||
+        req.requesterName.toLowerCase().includes(q)
+      );
+    });
+  }, [requests, searchQuery]);
+
+  // Active delegations detection
+  const nowMs = Date.now();
+  const activeOutgoingDelegation = auth
+    ? delegations.find(
+        (d) =>
+          d.delegatorId === auth.user.id &&
+          d.status === 'ACTIVE' &&
+          new Date(d.startDate).getTime() <= nowMs &&
+          new Date(d.endDate).getTime() >= nowMs
+      )
+    : null;
+
+  const activeIncomingDelegation = auth
+    ? delegations.find(
+        (d) =>
+          d.delegateeId === auth.user.id &&
+          d.status === 'ACTIVE' &&
+          new Date(d.startDate).getTime() <= nowMs &&
+          new Date(d.endDate).getTime() >= nowMs
+      )
+    : null;
+
+  // Loading spinner during initial auth read
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center">
-        <RefreshCw className="h-8 w-8 animate-spin text-indigo-400" />
+      <div className="min-h-screen flex flex-col items-center justify-center p-6 space-y-4">
+        <div className="relative">
+          <div className="h-14 w-14 rounded-2xl bg-gradient-to-tr from-aurora-violet to-aurora-cyan p-0.5 animate-spin">
+            <div className="h-full w-full bg-obsidian-950 rounded-2xl" />
+          </div>
+          <Sparkles className="h-6 w-6 text-aurora-cyan absolute inset-0 m-auto" />
+        </div>
+        <p className="text-xs uppercase tracking-widest text-slate-400 font-mono">Initializing FlowGate...</p>
       </div>
     );
   }
 
   // ===========================================================================
-  // UNAUTHENTICATED: LANDING & LOGIN CONSOLE
+  // UNAUTHENTICATED: OBSIDIAN & ELECTRIC AURORA LAUNCHPAD
   // ===========================================================================
   if (!auth) {
     return (
-      <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between selection:bg-indigo-600 selection:text-white">
-        {/* Navigation */}
-        <header className="border-b border-slate-800/80 bg-slate-950/70 backdrop-blur-md sticky top-0 z-50">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-                <GitBranch className="h-5 w-5 text-white" />
+      <main className="min-h-screen w-full flex flex-col justify-between p-4 sm:p-8 lg:p-12 relative">
+        {/* Top Navbar */}
+        <header className="max-w-7xl mx-auto w-full flex items-center justify-between pb-6 border-b border-white/[0.08]">
+          <div className="flex items-center space-x-3">
+            <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-aurora-violet via-indigo-600 to-aurora-cyan p-0.5 shadow-lg shadow-violet-500/20">
+              <div className="h-full w-full bg-obsidian-950 rounded-[10px] flex items-center justify-center">
+                <GitBranch className="h-5 w-5 text-aurora-cyan" />
               </div>
-              <span className="text-xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white via-slate-200 to-indigo-300">
-                FlowGate
-              </span>
-              <span className="px-2 py-0.5 text-xs font-semibold uppercase tracking-wider text-indigo-400 bg-indigo-950/80 border border-indigo-800/60 rounded-full">
-                SaaS Engine
-              </span>
             </div>
-            <a
-              href="http://localhost:4000/health"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs font-medium text-emerald-400 bg-emerald-950/60 border border-emerald-800/60 px-3 py-1.5 rounded-full flex items-center space-x-1.5"
-            >
-              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span>Backend API :4000</span>
-            </a>
+            <div>
+              <span className="font-extrabold text-xl tracking-tight text-white flex items-center space-x-1.5">
+                <span>FlowGate</span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider font-mono font-bold bg-violet-950/80 text-violet-300 border border-violet-700/60">
+                  Enterprise v7.0
+                </span>
+              </span>
+              <p className="text-[11px] text-slate-400">High-Assurance Approval DAG Engine</p>
+            </div>
           </div>
+
+          <a
+            href="http://localhost:4000/health"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs font-mono font-medium text-emerald-400 bg-emerald-950/40 border border-emerald-800/60 px-3.5 py-1.5 rounded-full flex items-center space-x-2 hover:bg-emerald-950/80 transition-colors shadow-sm"
+          >
+            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span>API Engine :4000 Online</span>
+          </a>
         </header>
 
-        {/* Hero & Login */}
-        <section className="relative overflow-hidden pt-12 pb-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
-            {/* Left Column: SaaS Value Proposition */}
-            <div className="lg:col-span-7 space-y-6">
-              <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-indigo-900/40 border border-indigo-700/50 text-indigo-300 text-xs font-medium">
-                <ShieldCheck className="h-4 w-4 text-indigo-400" />
-                <span>
-                  Milestone 7: Enterprise DAG Workflow Platform & Delegation Engine Active
+        {/* Hero & Interactive Launchpad Grid */}
+        <section className="max-w-7xl mx-auto w-full py-10 lg:py-16 grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
+          {/* Left Column: Vision, Architecture Live Preview */}
+          <div className="lg:col-span-6 space-y-6">
+            <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-white/[0.04] border border-white/[0.08] text-xs font-medium text-slate-300 backdrop-blur-md">
+              <Sparkles className="h-3.5 w-3.5 text-aurora-cyan" />
+              <span>Obsidian & Electric Aurora Design System</span>
+            </div>
+
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-[1.1]">
+              Autonomous DAG Approvals,{' '}
+              <span className="bg-gradient-to-r from-violet-400 via-cyan-300 to-emerald-400 bg-clip-text text-transparent">
+                Enforced at the Database.
+              </span>
+            </h1>
+
+            <p className="text-slate-300 text-sm sm:text-base leading-relaxed max-w-xl">
+              FlowGate provides enterprise organizations with automated multi-step DAG approval routing,
+              AST condition evaluations, parallel quorum consensus, and append-only SHA-256 cryptographic audit trails.
+            </p>
+
+            {/* Live Interactive DAG Preview Card */}
+            <div className="glass-card p-5 rounded-2xl border border-white/[0.1] space-y-4">
+              <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
+                <div className="flex items-center space-x-2">
+                  <Activity className="h-4 w-4 text-aurora-cyan animate-pulse" />
+                  <span className="text-xs font-bold uppercase tracking-wider text-white">
+                    Live Flagship DAG Execution Flow
+                  </span>
+                </div>
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-950 text-emerald-300 border border-emerald-800">
+                  ALL_INCOMING JOIN
                 </span>
               </div>
-              <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-white leading-tight">
-                Multi-Tenant Approval Workflows,{' '}
-                <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-purple-300 to-indigo-200">
-                  Enforced at the Database
+
+              {/* Node Sequence Mini Flow */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono">
+                <div className="p-2.5 rounded-xl bg-obsidian-900 border border-cyan-800/80 text-cyan-200 flex flex-col justify-between">
+                  <span className="text-[10px] text-slate-500">TRIGGER</span>
+                  <span className="font-semibold text-white truncate">Capex Intake</span>
+                  <span className="text-[10px] text-emerald-400">✓ Validated</span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-obsidian-900 border border-amber-800/80 text-amber-200 flex flex-col justify-between">
+                  <span className="text-[10px] text-slate-500">AST CONDITION</span>
+                  <span className="font-semibold text-white truncate">&gt; $10k Capex</span>
+                  <span className="text-[10px] text-cyan-400">✓ True ($145k)</span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-obsidian-900 border border-violet-800/80 text-violet-200 flex flex-col justify-between">
+                  <span className="text-[10px] text-slate-500">PARALLEL QUORUM</span>
+                  <span className="font-semibold text-white truncate">2 of 3 Required</span>
+                  <span className="text-[10px] text-amber-400 animate-pulse">● 1 / 2 Votes</span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-obsidian-900 border border-emerald-800/80 text-emerald-200 flex flex-col justify-between">
+                  <span className="text-[10px] text-slate-500">SYNCHRONIZED JOIN</span>
+                  <span className="font-semibold text-white truncate">Final Approval</span>
+                  <span className="text-[10px] text-slate-400">Awaiting Quorum</span>
+                </div>
+              </div>
+
+              {/* Cryptographic Hash Ticker */}
+              <div className="p-2.5 rounded-xl bg-obsidian-950 border border-white/[0.06] flex items-center justify-between text-[11px] font-mono">
+                <div className="flex items-center space-x-2 truncate">
+                  <Lock className="h-3.5 w-3.5 text-violet-400 flex-shrink-0" />
+                  <span className="text-slate-400">Ledger Hash:</span>
+                  <span className="text-violet-300 truncate">7e51c890...4f2a (Block #4)</span>
+                </div>
+                <span className="text-emerald-400 font-semibold flex items-center space-x-1 flex-shrink-0">
+                  <CheckCircle2 className="h-3 w-3" />
+                  <span>Tamper-Free</span>
                 </span>
-              </h1>
-              <p className="text-slate-300 text-lg leading-relaxed">
-                FlowGate provides enterprise organizations with automated multi-step approval
-                routing, role-based authorization gates, and append-only tamper-evident audit
-                trails.
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4">
-                <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
-                  <div className="flex items-center space-x-2 text-indigo-400 font-semibold text-sm">
-                    <ShieldCheck className="h-4 w-4" />
-                    <span>Composite FK Isolation</span>
-                  </div>
-                  <p className="text-xs text-slate-400">
-                    PostgreSQL physical constraints guarantee Tenant A cannot reference Tenant B
-                    data.
-                  </p>
-                </div>
-                <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
-                  <div className="flex items-center space-x-2 text-indigo-400 font-semibold text-sm">
-                    <Layers className="h-4 w-4" />
-                    <span>Sequential State Machine</span>
-                  </div>
-                  <p className="text-xs text-slate-400">
-                    Step progression, change requests, rejection skip cascades, and atomic audit
-                    logging.
-                  </p>
-                </div>
               </div>
             </div>
 
-            {/* Right Column: Interactive Login Box */}
-            <div className="lg:col-span-5 bg-slate-900/90 border border-slate-800 rounded-2xl p-6 sm:p-8 shadow-2xl backdrop-blur-xl space-y-6">
-              <div>
-                <h2 className="text-xl font-bold text-white">Sign In to Your Workspace</h2>
-                <p className="text-xs text-slate-400 mt-1">
-                  Authenticate against your tenant realm or use a demo account below.
-                </p>
+            {/* Architecture Pills */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-2">
+              <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.06] text-center">
+                <span className="text-lg font-extrabold text-white">367</span>
+                <span className="block text-[10px] text-slate-400 uppercase tracking-wider">Automated Tests</span>
+              </div>
+              <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.06] text-center">
+                <span className="text-lg font-extrabold text-aurora-cyan">Zero</span>
+                <span className="block text-[10px] text-slate-400 uppercase tracking-wider">Eval AST Safety</span>
+              </div>
+              <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.06] text-center">
+                <span className="text-lg font-extrabold text-aurora-violet">SHA-256</span>
+                <span className="block text-[10px] text-slate-400 uppercase tracking-wider">Audit Ledger</span>
+              </div>
+              <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.06] text-center">
+                <span className="text-lg font-extrabold text-aurora-emerald">Strict</span>
+                <span className="block text-[10px] text-slate-400 uppercase tracking-wider">Tenant Isolation</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column: Instant Persona Launchpad */}
+          <div className="lg:col-span-6 space-y-5">
+            <div className="glass-panel p-6 sm:p-8 rounded-3xl border border-white/[0.1] shadow-2xl relative overflow-hidden">
+              <div className="absolute top-0 right-0 -mr-16 -mt-16 w-48 h-48 rounded-full bg-aurora-violet/20 blur-3xl pointer-events-none" />
+
+              <div className="flex items-center justify-between pb-4 border-b border-white/[0.08]">
+                <div>
+                  <h2 className="text-xl font-bold text-white flex items-center space-x-2">
+                    <Sparkles className="h-5 w-5 text-aurora-cyan" />
+                    <span>Instant Persona Launchpad</span>
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Click any enterprise role card below to authenticate and enter workspace immediately.
+                  </p>
+                </div>
               </div>
 
               {loginError && (
-                <div className="p-3 bg-red-950/60 border border-red-800/80 rounded-lg text-xs text-red-300 flex items-center space-x-2">
-                  <AlertCircle className="h-4 w-4 text-red-400 flex-shrink-0" />
+                <div className="my-4 p-3 rounded-xl bg-rose-950/70 border border-rose-800 text-xs text-rose-200 flex items-center space-x-2">
+                  <AlertCircle className="h-4 w-4 text-rose-400 flex-shrink-0" />
                   <span>{loginError}</span>
                 </div>
               )}
 
-              <form onSubmit={handleLogin} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Tenant Slug
-                  </label>
-                  <input
-                    type="text"
-                    value={loginSlug}
-                    onChange={(e) => setLoginSlug(e.target.value)}
-                    required
-                    placeholder="acme-corp"
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Email Address
-                  </label>
-                  <input
-                    type="email"
-                    value={loginEmail}
-                    onChange={(e) => setLoginEmail(e.target.value)}
-                    required
-                    placeholder="admin@acme.com"
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Password
-                  </label>
-                  <input
-                    type="password"
-                    value={loginPassword}
-                    onChange={(e) => setLoginPassword(e.target.value)}
-                    required
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  disabled={isSubmittingLogin}
-                  className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2.5 rounded-lg text-sm transition-colors flex items-center justify-center space-x-2 disabled:opacity-50"
-                >
-                  {isSubmittingLogin ? (
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <>
-                      <span>Enter Workspace</span>
-                      <ArrowRight className="h-4 w-4" />
-                    </>
-                  )}
-                </button>
-              </form>
+              {/* Persona Cards Grid */}
+              <div className="grid grid-cols-1 gap-2.5 pt-4">
+                {DEMO_PERSONAS.map((persona) => {
+                  const isLaunching = launchingPersonaId === persona.id;
 
-              {/* Quick Login Switcher (Development Only) */}
-              {isDevMode && (
-                <div className="pt-4 border-t border-slate-800 space-y-2">
-                  <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
-                    1-Click Seed Account Login (Development Mode)
+                  return (
+                    <button
+                      key={persona.id}
+                      onClick={() => handleLaunchPersona(persona)}
+                      disabled={isLaunching || isSubmittingLogin}
+                      className={`w-full text-left p-3.5 rounded-2xl glass-card-interactive border flex items-center justify-between group transition-all ${persona.borderHover} disabled:opacity-50`}
+                    >
+                      <div className="flex items-center space-x-3.5 min-w-0">
+                        <div
+                          className={`h-11 w-11 rounded-xl bg-gradient-to-tr ${persona.gradient} flex items-center justify-center text-xl flex-shrink-0 shadow-md group-hover:scale-105 transition-transform`}
+                        >
+                          {persona.avatar}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center space-x-2">
+                            <h4 className="font-bold text-white text-sm truncate group-hover:text-aurora-cyan transition-colors">
+                              {persona.name}
+                            </h4>
+                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-mono font-bold uppercase tracking-wider border ${persona.badgeColor}`}>
+                              {persona.badge}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-300 font-medium truncate mt-0.5">
+                            {persona.title} • <span className="font-mono text-slate-400">{persona.email}</span>
+                          </p>
+                          <p className="text-[10px] text-slate-400 truncate mt-0.5">
+                            {persona.description}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="pl-3 flex-shrink-0 flex items-center space-x-1.5 text-slate-400 group-hover:text-white transition-colors">
+                        {isLaunching ? (
+                          <RefreshCw className="h-4 w-4 animate-spin text-aurora-cyan" />
+                        ) : (
+                          <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform text-aurora-cyan" />
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Manual Login Drawer / Form */}
+              <div className="mt-6 pt-5 border-t border-white/[0.08] space-y-3">
+                <div className="flex items-center justify-between text-xs text-slate-400">
+                  <span className="font-semibold uppercase tracking-wider text-[10px]">
+                    Or Sign In with Custom Credentials
                   </span>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
-                    <button
-                      onClick={() => handleQuickLogin('acme-corp', 'admin@acme.com')}
-                      className="p-2 rounded bg-slate-950 hover:bg-slate-800 border border-slate-800 text-left transition-colors"
-                    >
-                      <div className="font-semibold text-indigo-400">Acme Admin</div>
-                      <div className="text-[10px] text-slate-400">TENANT_ADMIN</div>
-                    </button>
-                    <button
-                      onClick={() => handleQuickLogin('acme-corp', 'finance@acme.com')}
-                      className="p-2 rounded bg-slate-950 hover:bg-slate-800 border border-slate-800 text-left transition-colors"
-                    >
-                      <div className="font-semibold text-emerald-400">Acme CFO</div>
-                      <div className="text-[10px] text-slate-400">APPROVER</div>
-                    </button>
-                    <button
-                      onClick={() => handleQuickLogin('acme-corp', 'legal@acme.com')}
-                      className="p-2 rounded bg-slate-950 hover:bg-slate-800 border border-slate-800 text-left transition-colors"
-                    >
-                      <div className="font-semibold text-cyan-400">Acme Legal</div>
-                      <div className="text-[10px] text-slate-400">DELEGATEE</div>
-                    </button>
-                    <button
-                      onClick={() => handleQuickLogin('acme-corp', 'engineer@acme.com')}
-                      className="p-2 rounded bg-slate-950 hover:bg-slate-800 border border-slate-800 text-left transition-colors"
-                    >
-                      <div className="font-semibold text-purple-400">Acme Engineer</div>
-                      <div className="text-[10px] text-slate-400">REQUESTER</div>
-                    </button>
-                    <button
-                      onClick={() => handleQuickLogin('globex-ind', 'admin@globex.com')}
-                      className="p-2 rounded bg-slate-950 hover:bg-slate-800 border border-slate-800 text-left transition-colors sm:col-span-2"
-                    >
-                      <div className="font-semibold text-amber-400">Globex Admin</div>
-                      <div className="text-[10px] text-slate-400">Tenant 2 Realm</div>
-                    </button>
-                  </div>
+                  <span className="text-[10px] font-mono text-slate-400">Default: FlowGatePass123!</span>
                 </div>
-              )}
+
+                <form onSubmit={handleLogin} className="space-y-3">
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <label className="block text-[11px] font-medium text-slate-300 mb-1">Tenant Slug</label>
+                      <input
+                        type="text"
+                        value={loginSlug}
+                        onChange={(e) => setLoginSlug(e.target.value)}
+                        required
+                        className="w-full bg-obsidian-900 border border-white/[0.1] rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-aurora-violet font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-medium text-slate-300 mb-1">Email</label>
+                      <input
+                        type="email"
+                        value={loginEmail}
+                        onChange={(e) => setLoginEmail(e.target.value)}
+                        required
+                        className="w-full bg-obsidian-900 border border-white/[0.1] rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-aurora-violet font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-300 mb-1">Password</label>
+                    <input
+                      type="password"
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                      required
+                      placeholder="FlowGatePass123!"
+                      className="w-full bg-obsidian-900 border border-white/[0.1] rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-aurora-violet font-mono"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isSubmittingLogin}
+                    className="w-full py-2 px-4 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-semibold text-xs transition-all shadow-md shadow-violet-600/30 flex items-center justify-center space-x-1.5 disabled:opacity-50"
+                  >
+                    {isSubmittingLogin ? (
+                      <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <>
+                        <span>Enter Workspace</span>
+                        <ArrowRight className="h-3.5 w-3.5" />
+                      </>
+                    )}
+                  </button>
+                </form>
+              </div>
             </div>
           </div>
         </section>
+
+        {/* Footer */}
+        <footer className="max-w-7xl mx-auto w-full pt-6 border-t border-white/[0.08] flex flex-col sm:flex-row items-center justify-between text-xs text-slate-400 gap-2">
+          <span>FlowGate Enterprise SaaS Monorepo • MIT License</span>
+          <div className="flex items-center space-x-4">
+            <span className="font-mono">NestJS 10 • Next.js 14 • PostgreSQL 16 • Redis 7</span>
+          </div>
+        </footer>
       </main>
     );
   }
 
   // ===========================================================================
-  // AUTHENTICATED: FLOWGATE APP CONSOLE
+  // AUTHENTICATED: BENTO COMMAND CENTER DASHBOARD
   // ===========================================================================
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-indigo-600 selection:text-white">
-      {/* Top Application Header */}
-      <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur-md sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2.5">
-              <div className="h-8 w-8 rounded-lg bg-indigo-600 flex items-center justify-center shadow-md shadow-indigo-600/30">
-                <GitBranch className="h-4 w-4 text-white" />
+    <div className="min-h-screen text-slate-100 flex flex-col selection:bg-violet-600 selection:text-white">
+      {/* Top Floating Command Dock Header */}
+      <header className="border-b border-white/[0.08] glass-panel sticky top-0 z-40">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-4">
+          {/* Logo & Tenant Context */}
+          <div className="flex items-center space-x-3 flex-shrink-0">
+            <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-aurora-violet via-indigo-600 to-aurora-cyan p-0.5 shadow-md shadow-violet-500/20">
+              <div className="h-full w-full bg-obsidian-950 rounded-[10px] flex items-center justify-center">
+                <GitBranch className="h-4 w-4 text-aurora-cyan" />
               </div>
-              <span className="font-bold text-lg text-white">FlowGate</span>
             </div>
-            <div className="hidden sm:flex items-center space-x-1.5 px-2.5 py-1 rounded-md bg-slate-800 text-xs text-slate-300 border border-slate-700">
-              <Building className="h-3.5 w-3.5 text-indigo-400" />
-              <span className="font-semibold">{auth.tenant.name}</span>
-              <span className="text-[10px] text-slate-400">({auth.tenant.slug})</span>
+            <div>
+              <span className="font-bold text-sm text-white flex items-center space-x-2">
+                <span>FlowGate</span>
+                <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-white/[0.06] border border-white/[0.1] text-aurora-cyan">
+                  {auth.tenant.slug}
+                </span>
+              </span>
+              <span className="text-[11px] text-slate-400 block truncate">{auth.tenant.name}</span>
             </div>
           </div>
 
-          <div className="flex items-center space-x-3">
-            {/* Live Queue Health Badge */}
-            {(queueHealth || tenantQueueHealth) && (
-              <button
-                onClick={() => setShowQueueModal(true)}
-                title="View Queue & Background Processing Health"
-                className="hidden sm:flex items-center space-x-1.5 px-2.5 py-1 rounded-md bg-slate-900 border border-slate-700 hover:border-slate-600 text-xs transition-colors"
-              >
-                <span
-                  className={`h-2 w-2 rounded-full ${
-                    (queueHealth?.redisConnected ?? tenantQueueHealth?.redisConnected)
-                      ? 'bg-emerald-400 animate-pulse'
-                      : 'bg-rose-500'
-                  }`}
-                />
-                <span className="text-[11px] font-medium text-slate-300">
-                  {(queueHealth?.redisConnected ?? tenantQueueHealth?.redisConnected)
-                    ? 'Engine Healthy'
-                    : 'Redis Offline'}
-                </span>
-              </button>
-            )}
+          {/* Instant One-Click Persona Switcher Bar */}
+          <div className="hidden xl:flex items-center space-x-1.5 p-1 rounded-xl bg-white/[0.03] border border-white/[0.08] text-xs">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-2">Switch Persona:</span>
+            {DEMO_PERSONAS.map((persona) => {
+              const isActive = auth.user.email === persona.email;
+              const isSwitching = launchingPersonaId === persona.id;
 
-            {/* Notifications Activity Button */}
+              return (
+                <button
+                  key={persona.id}
+                  onClick={() => handleLaunchPersona(persona)}
+                  disabled={isActive || isSwitching}
+                  className={`px-2.5 py-1 rounded-lg font-medium text-xs flex items-center space-x-1.5 transition-all ${
+                    isActive
+                      ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-md shadow-violet-600/30'
+                      : 'text-slate-300 hover:text-white hover:bg-white/[0.06]'
+                  }`}
+                  title={`Switch context to ${persona.name} (${persona.title})`}
+                >
+                  <span>{persona.avatar}</span>
+                  <span>{persona.title.split(' ')[0]}</span>
+                  {isSwitching && <RefreshCw className="h-3 w-3 animate-spin" />}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Right Action Icons & Profile */}
+          <div className="flex items-center space-x-2.5 flex-shrink-0">
+            {/* Notification Bell */}
             <button
               onClick={handleOpenNotifications}
-              title="Recent Notifications & Delivery History"
-              className="relative p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors"
+              title="Recent Outbound Notifications"
+              className="relative p-2 rounded-xl glass-card hover:bg-white/[0.08] text-slate-300 hover:text-white transition-colors"
             >
               <Bell className="h-4 w-4" />
               {notifStats && notifStats.total > 0 && (
-                <span className="absolute -top-1 -right-1 h-3.5 w-3.5 bg-indigo-500 text-white rounded-full text-[9px] flex items-center justify-center font-bold">
+                <span className="absolute -top-1 -right-1 h-4 w-4 bg-violet-600 text-white rounded-full text-[9px] flex items-center justify-center font-bold">
                   {notifStats.sent > 9 ? '9+' : notifStats.sent}
                 </span>
               )}
             </button>
 
             {/* User Profile Pill */}
-            <div className="flex items-center space-x-2 text-xs">
-              <span className="hidden md:inline font-medium text-slate-300">{auth.user.name}</span>
-              <span className="px-2 py-0.5 rounded-full font-bold uppercase tracking-wider text-[10px] bg-indigo-950 text-indigo-300 border border-indigo-800">
+            <div className="flex items-center space-x-2 pl-1 text-xs">
+              <div className="text-right hidden sm:block">
+                <span className="font-semibold text-white block leading-tight">{auth.user.name}</span>
+                <span className="text-[10px] text-slate-400 font-mono">{auth.user.email}</span>
+              </div>
+              <span className="px-2.5 py-1 rounded-lg font-mono font-bold text-[10px] uppercase bg-violet-950/80 text-violet-300 border border-violet-800">
                 {auth.user.role}
               </span>
             </div>
 
-            {/* Quick Account Switcher (Development Only) */}
-            {isDevMode && (
-              <div className="hidden lg:flex items-center space-x-1 text-xs">
-                <button
-                  onClick={() => handleQuickLogin('acme-corp', 'admin@acme.com')}
-                  title="Switch to Acme Admin"
-                  className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700"
-                >
-                  Admin
-                </button>
-                <button
-                  onClick={() => handleQuickLogin('acme-corp', 'finance@acme.com')}
-                  title="Switch to Acme Approver"
-                  className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700"
-                >
-                  Approver
-                </button>
-                <button
-                  onClick={() => handleQuickLogin('acme-corp', 'legal@acme.com')}
-                  title="Switch to Acme Legal (Active Delegatee)"
-                  className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-cyan-400 border border-slate-700"
-                >
-                  Delegatee
-                </button>
-                <button
-                  onClick={() => handleQuickLogin('acme-corp', 'engineer@acme.com')}
-                  title="Switch to Acme Requester"
-                  className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-purple-400 border border-slate-700"
-                >
-                  Requester
-                </button>
-                <button
-                  onClick={() => handleQuickLogin('globex-ind', 'admin@globex.com')}
-                  title="Switch to Globex Tenant"
-                  className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700"
-                >
-                  Globex
-                </button>
-              </div>
-            )}
-
+            {/* Logout */}
             <button
               onClick={handleLogout}
-              className="p-1.5 rounded-lg bg-slate-800 hover:bg-red-950/60 hover:text-red-400 text-slate-400 border border-slate-700 transition-colors"
+              className="p-2 rounded-xl glass-card hover:bg-rose-950/60 hover:text-rose-300 text-slate-400 transition-colors"
               title="Sign Out"
             >
               <LogOut className="h-4 w-4" />
@@ -890,132 +1125,216 @@ export default function FlowGateApp() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full flex-1 space-y-6">
         {/* Global Notifications */}
         {actionError && (
-          <div className="p-3 bg-red-950/80 border border-red-800 text-red-200 text-xs rounded-xl flex items-center justify-between shadow-lg">
-            <div className="flex items-center space-x-2">
-              <AlertCircle className="h-4 w-4 text-red-400 flex-shrink-0" />
+          <div className="p-3.5 rounded-2xl bg-rose-950/70 border border-rose-800 text-rose-200 text-xs flex items-center justify-between shadow-xl">
+            <div className="flex items-center space-x-2.5">
+              <AlertCircle className="h-4 w-4 text-rose-400 flex-shrink-0" />
               <span>{actionError}</span>
             </div>
-            <button onClick={() => setActionError(null)} className="text-red-400 hover:text-white">
+            <button onClick={() => setActionError(null)} className="text-rose-400 hover:text-white">
               <X className="h-4 w-4" />
             </button>
           </div>
         )}
 
         {actionSuccess && (
-          <div className="p-3 bg-emerald-950/80 border border-emerald-800 text-emerald-200 text-xs rounded-xl flex items-center justify-between shadow-lg">
-            <div className="flex items-center space-x-2">
+          <div className="p-3.5 rounded-2xl bg-emerald-950/70 border border-emerald-800 text-emerald-200 text-xs flex items-center justify-between shadow-xl">
+            <div className="flex items-center space-x-2.5">
               <CheckCircle2 className="h-4 w-4 text-emerald-400 flex-shrink-0" />
               <span>{actionSuccess}</span>
             </div>
-            <button
-              onClick={() => setActionSuccess(null)}
-              className="text-emerald-400 hover:text-white"
-            >
+            <button onClick={() => setActionSuccess(null)} className="text-emerald-400 hover:text-white">
               <X className="h-4 w-4" />
             </button>
           </div>
         )}
 
-        {/* Active Out-of-Office Delegation Banners */}
-        {(() => {
-          const nowMs = Date.now();
-          const outgoing = auth
-            ? delegations.find(
-                (d) =>
-                  d.delegatorId === auth.user.id &&
-                  d.status === 'ACTIVE' &&
-                  new Date(d.startDate).getTime() <= nowMs &&
-                  new Date(d.endDate).getTime() >= nowMs,
-              )
-            : null;
-          const incoming = auth
-            ? delegations.find(
-                (d) =>
-                  d.delegateeId === auth.user.id &&
-                  d.status === 'ACTIVE' &&
-                  new Date(d.startDate).getTime() <= nowMs &&
-                  new Date(d.endDate).getTime() >= nowMs,
-              )
-            : null;
-
-          return (
-            <div className="space-y-2">
-              {outgoing && (
-                <div className="p-3 bg-amber-950/70 border border-amber-800 text-amber-200 text-xs rounded-xl flex items-center justify-between shadow-lg">
-                  <div className="flex items-center space-x-2">
-                    <Plane className="h-4 w-4 text-amber-400 flex-shrink-0" />
-                    <span>
-                      <strong>Out-of-Office Active:</strong> Your review and approval authority is
-                      currently delegated to{' '}
-                      <strong>{outgoing.delegatee?.name || outgoing.delegateeId}</strong> until{' '}
-                      {new Date(outgoing.endDate).toLocaleDateString()}.
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => setActiveTab('delegations')}
-                    className="px-2.5 py-1 rounded bg-amber-900/60 hover:bg-amber-800/80 text-amber-200 border border-amber-700/80 text-[11px] font-semibold transition-colors"
-                  >
-                    Manage
-                  </button>
-                </div>
-              )}
-
-              {incoming && (
-                <div className="p-3 bg-indigo-950/70 border border-indigo-800 text-indigo-200 text-xs rounded-xl flex items-center justify-between shadow-lg">
-                  <div className="flex items-center space-x-2">
-                    <ShieldCheck className="h-4 w-4 text-indigo-400 flex-shrink-0" />
-                    <span>
-                      <strong>Acting as Delegatee:</strong> You have active delegated approval
-                      authority for{' '}
-                      <strong>{incoming.delegator?.name || incoming.delegatorId}</strong> until{' '}
-                      {new Date(incoming.endDate).toLocaleDateString()}. You can cast sign-offs on
-                      their behalf.
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => setActiveTab('delegations')}
-                    className="px-2.5 py-1 rounded bg-indigo-900/60 hover:bg-indigo-800/80 text-indigo-200 border border-indigo-700/80 text-[11px] font-semibold transition-colors"
-                  >
-                    View Authority
-                  </button>
-                </div>
-              )}
+        {/* Active Out-of-Office Delegation Notice Banners */}
+        {activeOutgoingDelegation && (
+          <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-950/60 via-obsidian-900 to-obsidian-900 border border-amber-800 text-amber-200 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xl">
+            <div className="flex items-center space-x-3">
+              <div className="h-8 w-8 rounded-lg bg-amber-900/60 border border-amber-700/80 flex items-center justify-center flex-shrink-0">
+                <Plane className="h-4 w-4 text-amber-400" />
+              </div>
+              <div>
+                <strong className="text-white block">Out-of-Office Delegation Active</strong>
+                <span>
+                  Your review and sign-off authority is currently delegated to{' '}
+                  <strong className="text-amber-300">{activeOutgoingDelegation.delegatee?.name || activeOutgoingDelegation.delegateeId}</strong> until{' '}
+                  {new Date(activeOutgoingDelegation.endDate).toLocaleDateString()}.
+                </span>
+              </div>
             </div>
-          );
-        })()}
+            <button
+              onClick={() => setActiveTab('delegations')}
+              className="px-3 py-1.5 rounded-lg bg-amber-900/80 hover:bg-amber-800 text-amber-200 border border-amber-700 text-xs font-semibold self-start sm:self-center transition-colors"
+            >
+              Manage Delegations
+            </button>
+          </div>
+        )}
+
+        {activeIncomingDelegation && (
+          <div className="p-4 rounded-2xl bg-gradient-to-r from-cyan-950/60 via-obsidian-900 to-obsidian-900 border border-cyan-800 text-cyan-200 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xl">
+            <div className="flex items-center space-x-3">
+              <div className="h-8 w-8 rounded-lg bg-cyan-900/60 border border-cyan-700/80 flex items-center justify-center flex-shrink-0">
+                <UserCheck className="h-4 w-4 text-cyan-400" />
+              </div>
+              <div>
+                <strong className="text-white block">Acting as Authorized Delegatee</strong>
+                <span>
+                  You hold delegated approval authority for{' '}
+                  <strong className="text-cyan-300">{activeIncomingDelegation.delegator?.name || activeIncomingDelegation.delegatorId}</strong> until{' '}
+                  {new Date(activeIncomingDelegation.endDate).toLocaleDateString()}. Your decisions carry full quorum weight.
+                </span>
+              </div>
+            </div>
+            <button
+              onClick={() => setActiveTab('delegations')}
+              className="px-3 py-1.5 rounded-lg bg-cyan-900/80 hover:bg-cyan-800 text-cyan-200 border border-cyan-700 text-xs font-semibold self-start sm:self-center transition-colors"
+            >
+              View Delegated Authority
+            </button>
+          </div>
+        )}
+
+        {/* =================================================================== */}
+        {/* INTERACTIVE BENTO KPI CARDS */}
+        {/* =================================================================== */}
+        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Card 1: Pending Approvals */}
+          <div
+            onClick={() => {
+              setActiveTab('requests');
+              setRequestFilter('pending_approval');
+            }}
+            className="p-5 rounded-2xl glass-card-interactive border border-white/[0.08] cursor-pointer space-y-3 group"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                Awaiting My Review
+              </span>
+              <div className="h-8 w-8 rounded-xl bg-amber-950/60 border border-amber-800/80 flex items-center justify-center text-amber-400 group-hover:scale-110 transition-transform">
+                <Clock className="h-4 w-4" />
+              </div>
+            </div>
+            <div className="flex items-baseline space-x-2">
+              <span className="text-3xl font-extrabold text-white">
+                {requests.filter((r) => r.status === 'IN_PROGRESS' || r.status === 'PENDING').length}
+              </span>
+              <span className="text-xs text-amber-400 font-medium">Action Required</span>
+            </div>
+            <p className="text-[11px] text-slate-400 line-clamp-1">
+              Active DAG requests sitting at an approval node
+            </p>
+          </div>
+
+          {/* Card 2: Workflows */}
+          <div
+            onClick={() => setActiveTab('workflows')}
+            className="p-5 rounded-2xl glass-card-interactive border border-white/[0.08] cursor-pointer space-y-3 group"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                Active Workflows
+              </span>
+              <div className="h-8 w-8 rounded-xl bg-violet-950/60 border border-violet-800/80 flex items-center justify-center text-aurora-violet group-hover:scale-110 transition-transform">
+                <GitBranch className="h-4 w-4" />
+              </div>
+            </div>
+            <div className="flex items-baseline space-x-2">
+              <span className="text-3xl font-extrabold text-white">{workflows.length}</span>
+              <span className="text-xs text-violet-400 font-medium">Catalogs Ready</span>
+            </div>
+            <p className="text-[11px] text-slate-400 line-clamp-1">
+              DAG definitions with AST condition routing
+            </p>
+          </div>
+
+          {/* Card 3: Out-of-Office Delegations */}
+          <div
+            onClick={() => setActiveTab('delegations')}
+            className="p-5 rounded-2xl glass-card-interactive border border-white/[0.08] cursor-pointer space-y-3 group"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                Delegation Status
+              </span>
+              <div className="h-8 w-8 rounded-xl bg-cyan-950/60 border border-cyan-800/80 flex items-center justify-center text-aurora-cyan group-hover:scale-110 transition-transform">
+                <UserCheck className="h-4 w-4" />
+              </div>
+            </div>
+            <div className="flex items-baseline space-x-2">
+              <span className="text-3xl font-extrabold text-white">
+                {delegations.filter((d) => d.status === 'ACTIVE').length}
+              </span>
+              <span className="text-xs text-cyan-400 font-medium">Active Windows</span>
+            </div>
+            <p className="text-[11px] text-slate-400 line-clamp-1">
+              {activeOutgoingDelegation ? 'You have an active outgoing stand-in' : 'Manage travel & leave coverage'}
+            </p>
+          </div>
+
+          {/* Card 4: SHA-256 Audit Ledger */}
+          <div
+            onClick={handleVerifyAuditChain}
+            className="p-5 rounded-2xl glass-card-interactive border border-white/[0.08] cursor-pointer space-y-3 group"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                Cryptographic Ledger
+              </span>
+              <div className="h-8 w-8 rounded-xl bg-emerald-950/60 border border-emerald-800/80 flex items-center justify-center text-emerald-400 group-hover:scale-110 transition-transform">
+                <ShieldCheck className="h-4 w-4" />
+              </div>
+            </div>
+            <div className="flex items-baseline space-x-2">
+              <span className="text-xl font-extrabold text-emerald-400 flex items-center space-x-1">
+                {verifyingChain ? (
+                  <RefreshCw className="h-4 w-4 animate-spin text-emerald-400" />
+                ) : (
+                  <span>Verified ✓</span>
+                )}
+              </span>
+              <span className="text-xs text-slate-400 font-mono">SHA-256</span>
+            </div>
+            <p className="text-[11px] text-slate-400 line-clamp-1">
+              Click to recalculate hash chain integrity
+            </p>
+          </div>
+        </section>
 
         {/* Tab Controls & Primary Action Buttons */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-800">
-          <div className="flex items-center space-x-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-white/[0.08]">
+          <div className="flex items-center space-x-1.5 p-1 rounded-xl bg-white/[0.03] border border-white/[0.08] text-xs">
             <button
               onClick={() => setActiveTab('requests')}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+              className={`px-3.5 py-1.5 rounded-lg font-semibold transition-all ${
                 activeTab === 'requests'
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-900'
+                  ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-md shadow-violet-600/30'
+                  : 'text-slate-400 hover:text-white hover:bg-white/[0.05]'
               }`}
             >
-              Approval Requests
+              Approval Requests ({requests.length})
             </button>
             <button
               onClick={() => setActiveTab('workflows')}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+              className={`px-3.5 py-1.5 rounded-lg font-semibold transition-all ${
                 activeTab === 'workflows'
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-900'
+                  ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-md shadow-violet-600/30'
+                  : 'text-slate-400 hover:text-white hover:bg-white/[0.05]'
               }`}
             >
               Workflows ({workflows.length})
             </button>
             <button
               onClick={() => setActiveTab('delegations')}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center space-x-1.5 ${
+              className={`px-3.5 py-1.5 rounded-lg font-semibold transition-all flex items-center space-x-1.5 ${
                 activeTab === 'delegations'
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-900'
+                  ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-md shadow-violet-600/30'
+                  : 'text-slate-400 hover:text-white hover:bg-white/[0.05]'
               }`}
             >
-              <UserCheck className="h-4 w-4" />
+              <UserCheck className="h-3.5 w-3.5" />
               <span>Delegations ({delegations.length})</span>
             </button>
             {(auth.user.role === 'TENANT_ADMIN' || auth.user.role === 'SUPER_ADMIN') && (
@@ -1024,211 +1343,259 @@ export default function FlowGateApp() {
                   setActiveTab('webhooks');
                   fetchDeliveries();
                 }}
-                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center space-x-1.5 ${
+                className={`px-3.5 py-1.5 rounded-lg font-semibold transition-all flex items-center space-x-1.5 ${
                   activeTab === 'webhooks'
-                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-900'
+                    ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-md shadow-violet-600/30'
+                    : 'text-slate-400 hover:text-white hover:bg-white/[0.05]'
                 }`}
               >
-                <Zap className="h-4 w-4" />
-                <span>Webhooks & Integrations ({webhooks.length})</span>
+                <Zap className="h-3.5 w-3.5" />
+                <span>Webhooks ({webhooks.length})</span>
               </button>
             )}
           </div>
 
-          <div className="flex items-center space-x-3">
+          {/* Action Buttons */}
+          <div className="flex items-center space-x-2.5">
             <button
               onClick={() => {
                 fetchData();
                 if (activeTab === 'webhooks') fetchDeliveries(selectedSubForDeliveries?.id);
               }}
               disabled={dataLoading || deliveriesLoading}
-              className="p-2 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 text-xs flex items-center space-x-1.5 transition-colors"
+              className="p-2 rounded-xl glass-card hover:bg-white/[0.08] text-slate-300 text-xs flex items-center space-x-1.5 transition-colors"
               title="Refresh Data"
             >
-              <RefreshCw
-                className={`h-3.5 w-3.5 ${dataLoading || deliveriesLoading ? 'animate-spin' : ''}`}
-              />
+              <RefreshCw className={`h-3.5 w-3.5 ${dataLoading || deliveriesLoading ? 'animate-spin' : ''}`} />
               <span className="hidden sm:inline">Refresh</span>
             </button>
 
             {activeTab === 'requests' && (
               <button
                 onClick={() => setShowCreateRequestModal(true)}
-                className="px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center space-x-1.5 shadow-md shadow-indigo-600/20 transition-colors"
+                className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white text-xs font-semibold flex items-center space-x-1.5 shadow-md shadow-violet-600/30 transition-all"
               >
                 <Plus className="h-4 w-4" />
                 <span>New Request</span>
               </button>
             )}
 
-            {activeTab === 'workflows' &&
-              (auth.user.role === 'TENANT_ADMIN' || auth.user.role === 'MANAGER') && (
-                <div className="flex items-center space-x-2">
-                  <a
-                    href="/workflows/new/builder"
-                    className="px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center space-x-1.5 shadow-md shadow-emerald-600/20 transition-colors"
-                  >
-                    <GitBranch className="h-4 w-4" />
-                    <span>Visual Workflow Builder</span>
-                  </a>
-                  <button
-                    onClick={() => setShowCreateWorkflowModal(true)}
-                    className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold flex items-center space-x-1.5 border border-slate-700 transition-colors"
-                  >
-                    <Plus className="h-4 w-4" />
-                    <span>Quick Workflow</span>
-                  </button>
-                </div>
-              )}
+            {activeTab === 'workflows' && (auth.user.role === 'TENANT_ADMIN' || auth.user.role === 'MANAGER') && (
+              <div className="flex items-center space-x-2">
+                <a
+                  href="/workflows/new/builder"
+                  className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-semibold flex items-center space-x-1.5 shadow-md shadow-emerald-600/30 transition-all"
+                >
+                  <GitBranch className="h-4 w-4" />
+                  <span>Visual Workflow Builder</span>
+                </a>
+                <button
+                  onClick={() => setShowCreateWorkflowModal(true)}
+                  className="px-3 py-2 rounded-xl glass-card hover:bg-white/[0.08] text-slate-200 text-xs font-semibold flex items-center space-x-1.5 transition-colors"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>Quick Workflow</span>
+                </button>
+              </div>
+            )}
 
             {activeTab === 'delegations' && (
               <button
                 onClick={openCreateDelegation}
-                className="px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center space-x-1.5 shadow-md shadow-indigo-600/20 transition-colors"
+                className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-semibold flex items-center space-x-1.5 shadow-md shadow-cyan-600/30 transition-all"
               >
                 <Plus className="h-4 w-4" />
                 <span>New Delegation</span>
               </button>
             )}
 
-            {activeTab === 'webhooks' &&
-              (auth.user.role === 'TENANT_ADMIN' || auth.user.role === 'SUPER_ADMIN') && (
-                <button
-                  onClick={() => setShowCreateWebhookModal(true)}
-                  className="px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center space-x-1.5 shadow-md shadow-indigo-600/20 transition-colors"
-                >
-                  <Plus className="h-4 w-4" />
-                  <span>New Webhook</span>
-                </button>
-              )}
+            {activeTab === 'webhooks' && (auth.user.role === 'TENANT_ADMIN' || auth.user.role === 'SUPER_ADMIN') && (
+              <button
+                onClick={() => setShowCreateWebhookModal(true)}
+                className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white text-xs font-semibold flex items-center space-x-1.5 shadow-md shadow-violet-600/30 transition-all"
+              >
+                <Plus className="h-4 w-4" />
+                <span>New Webhook</span>
+              </button>
+            )}
           </div>
         </div>
 
         {/* =================================================================== */}
-        {/* TAB 1: APPROVAL REQUESTS */}
+        {/* TAB 1: APPROVAL REQUESTS (BENTO VIEW) */}
         {/* =================================================================== */}
         {activeTab === 'requests' && (
           <div className="space-y-4">
-            {/* Filter sub-tabs */}
-            <div className="flex items-center space-x-2 text-xs">
-              <button
-                onClick={() => setRequestFilter('pending_approval')}
-                className={`px-3 py-1.5 rounded-md font-medium transition-colors ${
-                  requestFilter === 'pending_approval'
-                    ? 'bg-amber-950/70 text-amber-300 border border-amber-800'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                Awaiting My Review
-              </button>
-              <button
-                onClick={() => setRequestFilter('mine')}
-                className={`px-3 py-1.5 rounded-md font-medium transition-colors ${
-                  requestFilter === 'mine'
-                    ? 'bg-indigo-950/70 text-indigo-300 border border-indigo-800'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                My Submissions
-              </button>
-              <button
-                onClick={() => setRequestFilter('all')}
-                className={`px-3 py-1.5 rounded-md font-medium transition-colors ${
-                  requestFilter === 'all'
-                    ? 'bg-slate-800 text-white border border-slate-700'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                All Organization Requests
-              </button>
+            {/* Filter Sub-Tabs & Search Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center space-x-1.5 p-1 rounded-xl bg-white/[0.03] border border-white/[0.08] text-xs">
+                <button
+                  onClick={() => setRequestFilter('pending_approval')}
+                  className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
+                    requestFilter === 'pending_approval'
+                      ? 'bg-amber-950/80 text-amber-300 border border-amber-700/80'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Awaiting My Review
+                </button>
+                <button
+                  onClick={() => setRequestFilter('mine')}
+                  className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
+                    requestFilter === 'mine'
+                      ? 'bg-violet-950/80 text-violet-300 border border-violet-700/80'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  My Submissions
+                </button>
+                <button
+                  onClick={() => setRequestFilter('all')}
+                  className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
+                    requestFilter === 'all'
+                      ? 'bg-white/[0.08] text-white border border-white/[0.15]'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  All Organization
+                </button>
+              </div>
+
+              {/* Search Box */}
+              <div className="relative w-full sm:w-72">
+                <Search className="h-4 w-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Filter requests by title, user..."
+                  className="w-full bg-obsidian-900 border border-white/[0.08] rounded-xl pl-9 pr-3 py-1.5 text-xs text-white focus:outline-none focus:border-violet-500 font-mono placeholder:text-slate-500"
+                />
+              </div>
             </div>
 
             {/* Requests List */}
             {dataLoading ? (
-              <div className="py-16 text-center text-slate-400 space-y-2">
-                <RefreshCw className="h-6 w-6 animate-spin mx-auto text-indigo-400" />
-                <p className="text-xs">Loading approval requests...</p>
+              <div className="py-20 text-center text-slate-400 space-y-3">
+                <RefreshCw className="h-8 w-8 animate-spin mx-auto text-aurora-cyan" />
+                <p className="text-xs font-mono uppercase tracking-wider">Loading approval requests...</p>
               </div>
-            ) : requests.length === 0 ? (
-              <div className="p-12 text-center bg-slate-900/40 border border-slate-800/80 rounded-2xl space-y-3">
-                <FileText className="h-10 w-10 mx-auto text-slate-600" />
-                <h3 className="font-semibold text-slate-200">No approval requests found</h3>
+            ) : filteredRequests.length === 0 ? (
+              <div className="p-16 text-center glass-panel rounded-3xl border border-white/[0.08] space-y-4">
+                <FileText className="h-12 w-12 mx-auto text-slate-600" />
+                <h3 className="font-bold text-lg text-white">No approval requests found</h3>
                 <p className="text-xs text-slate-400 max-w-sm mx-auto">
                   {requestFilter === 'pending_approval'
-                    ? 'You have zero pending approval actions awaiting your review.'
+                    ? 'Zero pending approval actions awaiting your review.'
                     : 'No requests match the selected view. Submit your first approval request.'}
                 </p>
                 <button
                   onClick={() => setShowCreateRequestModal(true)}
-                  className="px-4 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-500 transition-colors"
+                  className="px-4 py-2 bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-xs font-semibold rounded-xl hover:from-violet-500 hover:to-indigo-500 transition-all shadow-md shadow-violet-600/30"
                 >
                   Create Request
                 </button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-3">
-                {requests.map((req) => {
+              <div className="grid grid-cols-1 gap-3.5">
+                {filteredRequests.map((req) => {
                   const statusColors: Record<string, string> = {
                     APPROVED: 'bg-emerald-950/80 text-emerald-300 border-emerald-800',
-                    REJECTED: 'bg-red-950/80 text-red-300 border-red-800',
+                    REJECTED: 'bg-rose-950/80 text-rose-300 border-rose-800',
                     IN_PROGRESS: 'bg-amber-950/80 text-amber-300 border-amber-800',
                     CHANGES_REQUESTED: 'bg-blue-950/80 text-blue-300 border-blue-800',
                     CANCELLED: 'bg-slate-800 text-slate-400 border-slate-700',
                     PENDING: 'bg-slate-800 text-slate-300 border-slate-700',
                   };
 
+                  const isPendingReview = req.status === 'IN_PROGRESS' || req.status === 'PENDING';
+
                   return (
                     <div
                       key={req.id}
                       onClick={() => setSelectedRequestId(req.id)}
-                      className="p-4 rounded-xl bg-slate-900/70 border border-slate-800 hover:border-indigo-500/50 hover:bg-slate-900 transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm"
+                      className="p-5 rounded-2xl glass-card-interactive border flex flex-col md:flex-row md:items-center justify-between gap-4 cursor-pointer group"
                     >
-                      <div className="space-y-1.5 flex-1">
-                        <div className="flex items-center space-x-2">
+                      {/* Left: Metadata, Title, Requester */}
+                      <div className="space-y-2 flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
                           <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
                               statusColors[req.status] || 'bg-slate-800 text-slate-300'
                             }`}
                           >
                             {req.status.replace('_', ' ')}
                           </span>
-                          <span className="text-xs text-indigo-400 font-medium">
-                            {req.workflowName}
+                          <span className="text-xs text-aurora-cyan font-semibold flex items-center space-x-1">
+                            <GitBranch className="h-3 w-3" />
+                            <span>{req.workflowName}</span>
                           </span>
-                        </div>
-                        <h4 className="font-semibold text-white text-base">{req.title}</h4>
-                        {req.description && (
-                          <p className="text-xs text-slate-400 line-clamp-1">{req.description}</p>
-                        )}
-                        <div className="flex items-center space-x-4 text-[11px] text-slate-500 pt-1">
-                          <span>Requester: {req.requesterName}</span>
-                          <span>•</span>
-                          <span>
+                          <span className="text-slate-500">•</span>
+                          <span className="text-[11px] text-slate-400 font-mono">
                             {req.currentStep
-                              ? `Awaiting Step ${req.currentStep} of ${req.totalSteps}`
+                              ? `Stage ${req.currentStep} of ${req.totalSteps}`
                               : `Completed (${req.totalSteps} steps)`}
                           </span>
+                        </div>
+
+                        <h4 className="font-bold text-white text-base group-hover:text-aurora-cyan transition-colors">
+                          {req.title}
+                        </h4>
+
+                        {req.description && (
+                          <p className="text-xs text-slate-300 line-clamp-1">{req.description}</p>
+                        )}
+
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-400 pt-0.5">
+                          <span>Requester: <strong className="text-slate-200">{req.requesterName}</strong></span>
                           <span>•</span>
-                          <span>{new Date(req.createdAt).toLocaleDateString()}</span>
+                          <span>Submitted: {new Date(req.createdAt).toLocaleDateString()}</span>
+                          <span>•</span>
+                          <span className="font-mono text-slate-500">ID: {req.id.slice(0, 8)}...</span>
                         </div>
                       </div>
 
-                      <div className="flex items-center space-x-2 self-end sm:self-center">
+                      {/* Right: Actions Dock */}
+                      <div className="flex items-center space-x-2 self-end md:self-center flex-shrink-0">
+                        {/* 1-Click Approve / Reject (If In Review) */}
+                        {isPendingReview && (
+                          <div className="flex items-center space-x-1.5 mr-1" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              onClick={() => handleAction('APPROVE', req.id)}
+                              disabled={isExecutingAction}
+                              title="1-Click Approve"
+                              className="px-2.5 py-1.5 rounded-lg bg-emerald-950/70 hover:bg-emerald-900/90 text-emerald-300 border border-emerald-800 text-xs font-semibold flex items-center space-x-1 transition-all"
+                            >
+                              <ThumbsUp className="h-3 w-3" />
+                              <span className="hidden sm:inline">Approve</span>
+                            </button>
+                            <button
+                              onClick={() => handleAction('REJECT', req.id)}
+                              disabled={isExecutingAction}
+                              title="1-Click Reject"
+                              className="px-2.5 py-1.5 rounded-lg bg-rose-950/70 hover:bg-rose-900/90 text-rose-300 border border-rose-800 text-xs font-semibold flex items-center space-x-1 transition-all"
+                            >
+                              <ThumbsDown className="h-3 w-3" />
+                              <span className="hidden sm:inline">Reject</span>
+                            </button>
+                          </div>
+                        )}
+
                         <a
                           href={`/requests/${req.id}`}
                           onClick={(e) => e.stopPropagation()}
-                          className="px-3 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-700/60 rounded-lg text-xs font-medium flex items-center space-x-1 transition-colors"
+                          className="px-3.5 py-1.5 rounded-xl bg-violet-600/20 hover:bg-violet-600/30 text-violet-300 border border-violet-700/60 text-xs font-semibold flex items-center space-x-1.5 transition-colors shadow-sm"
                         >
-                          <Activity className="h-3 w-3" />
+                          <Activity className="h-3.5 w-3.5 text-aurora-cyan" />
                           <span>Live DAG</span>
                         </a>
+
                         <button
                           onClick={() => setSelectedRequestId(req.id)}
-                          className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs font-medium text-slate-200 border border-slate-700 flex items-center space-x-1"
+                          className="px-3 py-1.5 rounded-xl glass-card hover:bg-white/[0.08] text-slate-200 text-xs font-medium flex items-center space-x-1 transition-colors"
                         >
-                          <span>Quick View</span>
-                          <ArrowRight className="h-3 w-3" />
+                          <span>Review</span>
+                          <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
                         </button>
                       </div>
                     </div>
@@ -1245,20 +1612,16 @@ export default function FlowGateApp() {
         {activeTab === 'workflows' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {workflows.map((wf) => {
-              const nodes = (wf.configuration as any)?.nodes || [];
-              const edges = (wf.configuration as any)?.edges || [];
-              const steps = (wf.configuration as any)?.steps || [];
-              const hasDAG = nodes.length > 0;
               const isActive = wf.status === 'ACTIVE';
 
               return (
                 <div
                   key={wf.id}
-                  className="p-5 rounded-2xl bg-slate-900/70 border border-slate-800 space-y-4 shadow-sm"
+                  className="p-5 rounded-2xl glass-card border border-white/[0.08] space-y-4 flex flex-col justify-between"
                 >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <div className="flex items-center space-x-2 mb-1">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
                         <span
                           className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
                             isActive
@@ -1268,91 +1631,59 @@ export default function FlowGateApp() {
                         >
                           {wf.status}
                         </span>
-                        <span className="text-[11px] text-slate-400">v{wf.version}</span>
-                        {hasDAG && (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-indigo-950/80 text-indigo-300 border border-indigo-800 flex items-center space-x-1">
-                            <GitBranch className="h-2.5 w-2.5" />
-                            <span>Visual DAG</span>
-                          </span>
-                        )}
+                        <span className="text-xs text-aurora-cyan font-mono">v{wf.version}</span>
                       </div>
-                      <h4 className="font-bold text-white text-base">{wf.name}</h4>
+
+                      <div className="flex items-center space-x-1">
+                        <button
+                          onClick={() => handleCloneDraft(wf.id)}
+                          title="Clone as new draft version"
+                          className="p-1.5 rounded-lg glass-card hover:bg-white/[0.08] text-slate-400 hover:text-white transition-colors"
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDeactivateWorkflow(wf.id, wf.name)}
+                          title="Deactivate workflow"
+                          className="p-1.5 rounded-lg glass-card hover:bg-rose-950/60 hover:text-rose-400 text-slate-400 transition-colors"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     </div>
+
+                    <h4 className="font-bold text-white text-base">{wf.name}</h4>
+                    {wf.description && (
+                      <p className="text-xs text-slate-300 line-clamp-2">{wf.description}</p>
+                    )}
+                  </div>
+
+                  <div className="pt-3 border-t border-white/[0.08] flex items-center justify-between text-xs">
+                    <span className="text-[11px] text-slate-400 font-mono">
+                      Requests: {wf._count?.approvalRequests || 0}
+                    </span>
 
                     <div className="flex items-center space-x-2">
                       <a
                         href={`/workflows/${wf.id}/builder`}
-                        className="text-xs px-2.5 py-1 rounded-md border border-indigo-700 bg-indigo-950/60 text-indigo-300 hover:bg-indigo-900/60 font-medium transition-colors flex items-center space-x-1"
+                        className="px-3 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-700/60 font-semibold flex items-center space-x-1 transition-colors"
                       >
                         <GitBranch className="h-3 w-3" />
                         <span>Visual Builder</span>
                       </a>
 
-                      {(auth.user.role === 'TENANT_ADMIN' || auth.user.role === 'MANAGER') && (
-                        <button
-                          onClick={() => handleToggleWorkflow(wf.id, wf.status)}
-                          className={`text-xs px-2.5 py-1 rounded-md border font-medium transition-colors ${
-                            isActive
-                              ? 'border-red-900 bg-red-950/50 text-red-300 hover:bg-red-900/60'
-                              : 'border-emerald-900 bg-emerald-950/50 text-emerald-300 hover:bg-emerald-900/60'
-                          }`}
-                        >
-                          {isActive ? 'Deactivate' : 'Activate'}
-                        </button>
-                      )}
+                      <button
+                        onClick={() => handleToggleWorkflow(wf.id, wf.status)}
+                        className={`px-3 py-1.5 rounded-lg font-semibold border transition-colors ${
+                          isActive
+                            ? 'bg-rose-950/60 text-rose-300 border-rose-800 hover:bg-rose-900/60'
+                            : 'bg-emerald-950/60 text-emerald-300 border-emerald-800 hover:bg-emerald-900/60'
+                        }`}
+                      >
+                        {isActive ? 'Archive' : 'Publish'}
+                      </button>
                     </div>
                   </div>
-
-                  {wf.description && <p className="text-xs text-slate-400">{wf.description}</p>}
-
-                  {/* DAG Topology or Steps Chain */}
-                  {hasDAG ? (
-                    <div className="space-y-2 pt-2 border-t border-slate-800">
-                      <div className="flex items-center justify-between text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                        <span>Graph Topology</span>
-                        <span className="font-mono text-slate-300">
-                          {nodes.length} Nodes · {edges.length} Transitions
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap gap-1.5 pt-1">
-                        {nodes.map((node: any) => (
-                          <span
-                            key={node.id}
-                            className="inline-flex items-center rounded bg-slate-950 px-2 py-1 text-[11px] font-medium text-slate-300 border border-slate-800"
-                          >
-                            <span className="font-bold text-[9px] uppercase text-indigo-400 mr-1.5">
-                              {node.type}
-                            </span>
-                            {node.name}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-1.5 pt-2 border-t border-slate-800">
-                      <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
-                        Approval Chain ({steps.length} Steps)
-                      </span>
-                      <div className="space-y-1.5">
-                        {steps.map((st: any) => (
-                          <div
-                            key={st.stepOrder}
-                            className="flex items-center justify-between p-2 rounded bg-slate-950 text-xs border border-slate-800"
-                          >
-                            <div className="flex items-center space-x-2">
-                              <span className="h-5 w-5 rounded-full bg-slate-800 flex items-center justify-center font-bold text-[10px] text-slate-300">
-                                {st.stepOrder}
-                              </span>
-                              <span className="font-medium text-slate-200">{st.name}</span>
-                            </div>
-                            <span className="text-[10px] text-indigo-400 font-semibold px-2 py-0.5 rounded bg-indigo-950 border border-indigo-900">
-                              {st.role || st.userEmail || 'Assigned'}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
               );
             })}
@@ -1360,344 +1691,39 @@ export default function FlowGateApp() {
         )}
 
         {/* =================================================================== */}
-        {/* TAB 3: WEBHOOKS & INTEGRATIONS */}
-        {/* =================================================================== */}
-        {activeTab === 'webhooks' && (
-          <div className="space-y-6">
-            {/* Architecture Banner */}
-            <div className="p-4 rounded-2xl bg-indigo-950/40 border border-indigo-900/60 flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div className="space-y-1">
-                <div className="flex items-center space-x-2">
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-indigo-900/80 text-indigo-300 border border-indigo-700">
-                    HMAC-SHA256 Signed
-                  </span>
-                  <span className="text-xs text-indigo-300 font-semibold">
-                    BullMQ Asynchronous Outbound Webhooks
-                  </span>
-                </div>
-                <p className="text-xs text-slate-300 leading-relaxed max-w-3xl">
-                  FlowGate signs all outbound webhook deliveries using HMAC-SHA256 and includes{' '}
-                  <code className="text-indigo-300 font-mono">
-                    X-FlowGate-Signature: t=&#123;timestamp&#125;,v1=&#123;signature&#125;
-                  </code>{' '}
-                  for replay-attack protection. Deliveries are processed in the background with
-                  exponential backoff retries.
-                </p>
-              </div>
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => fetchDeliveries(selectedSubForDeliveries?.id)}
-                  disabled={deliveriesLoading}
-                  className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs text-slate-300 flex items-center space-x-1.5 transition-colors"
-                >
-                  <History className="h-3.5 w-3.5 text-indigo-400" />
-                  <span>{selectedSubForDeliveries ? 'Endpoint Deliveries' : 'All Deliveries'}</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Webhooks Grid */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                  Configured Endpoints ({webhooks.length})
-                </h4>
-              </div>
-
-              {webhooks.length === 0 ? (
-                <div className="p-8 rounded-2xl bg-slate-900/40 border border-slate-800 text-center space-y-3">
-                  <Zap className="h-8 w-8 text-slate-500 mx-auto" />
-                  <p className="text-sm font-semibold text-white">
-                    No Webhook Endpoints Configured
-                  </p>
-                  <p className="text-xs text-slate-400 max-w-md mx-auto">
-                    Configure webhooks to receive real-time HTTP POST notifications in your external
-                    systems (e.g., Slack, Zapier, SIEM) whenever requests are created, approved,
-                    rejected, or escalated.
-                  </p>
-                  <button
-                    onClick={() => setShowCreateWebhookModal(true)}
-                    className="px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold inline-flex items-center space-x-1.5 shadow-md shadow-indigo-600/20"
-                  >
-                    <Plus className="h-4 w-4" />
-                    <span>Create Your First Webhook</span>
-                  </button>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {webhooks.map((sub) => {
-                    const isTesting = testingWebhookId === sub.id;
-                    const isSelected = selectedSubForDeliveries?.id === sub.id;
-
-                    return (
-                      <div
-                        key={sub.id}
-                        className={`p-5 rounded-2xl bg-slate-900/70 border transition-all space-y-4 shadow-sm ${
-                          isSelected ? 'border-indigo-600 bg-indigo-950/20' : 'border-slate-800'
-                        }`}
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="space-y-1">
-                            <div className="flex items-center space-x-2">
-                              <span
-                                className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
-                                  sub.status === 'ACTIVE'
-                                    ? 'bg-emerald-950/80 text-emerald-300 border-emerald-800'
-                                    : 'bg-slate-800 text-slate-400 border-slate-700'
-                                }`}
-                              >
-                                {sub.status}
-                              </span>
-                              {sub.failureCount > 0 && (
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-950/80 text-rose-300 border border-rose-800">
-                                  {sub.failureCount} Failures
-                                </span>
-                              )}
-                            </div>
-                            <h4 className="font-bold text-white text-base">{sub.name}</h4>
-                          </div>
-
-                          <div className="flex items-center space-x-1">
-                            <button
-                              onClick={() => handleTestPing(sub.id, sub.name)}
-                              disabled={isTesting}
-                              title="Send Test Ping to URL"
-                              className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs text-indigo-300 border border-slate-700 flex items-center space-x-1 transition-colors"
-                            >
-                              <Radio className={`h-3 w-3 ${isTesting ? 'animate-spin' : ''}`} />
-                              <span>{isTesting ? 'Pinging...' : 'Ping'}</span>
-                            </button>
-                            <button
-                              onClick={() => handleDeleteWebhook(sub.id, sub.name)}
-                              title="Delete Webhook"
-                              className="p-1.5 rounded hover:bg-rose-950/60 hover:text-rose-400 text-slate-400 border border-transparent hover:border-rose-900/60 transition-colors"
-                            >
-                              <X className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* URL snippet */}
-                        <div
-                          className="p-2 rounded bg-slate-950 border border-slate-800 font-mono text-xs text-slate-300 truncate"
-                          title={sub.url}
-                        >
-                          {sub.url}
-                        </div>
-
-                        {/* Subscribed Events */}
-                        <div className="space-y-1.5">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                            Subscribed Events
-                          </span>
-                          <div className="flex flex-wrap gap-1.5">
-                            {sub.eventTypes.map((ev) => (
-                              <span
-                                key={ev}
-                                className="px-2 py-0.5 rounded text-[10px] font-mono font-medium bg-slate-950 border border-slate-800 text-indigo-300"
-                              >
-                                {ev}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Footer details & Deliveries Button */}
-                        <div className="flex items-center justify-between pt-2 border-t border-slate-800 text-xs">
-                          <span className="text-[11px] text-slate-400">
-                            Created {new Date(sub.createdAt).toLocaleDateString()}
-                          </span>
-                          <button
-                            onClick={() => {
-                              if (isSelected) {
-                                setSelectedSubForDeliveries(null);
-                                fetchDeliveries();
-                              } else {
-                                setSelectedSubForDeliveries(sub);
-                                fetchDeliveries(sub.id);
-                              }
-                            }}
-                            className="text-xs text-indigo-400 hover:text-indigo-300 font-semibold flex items-center space-x-1"
-                          >
-                            <History className="h-3.5 w-3.5" />
-                            <span>{isSelected ? 'Viewing Deliveries' : 'View Deliveries'}</span>
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Deliveries History Section */}
-            <div className="space-y-3 pt-4 border-t border-slate-800">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                    {selectedSubForDeliveries
-                      ? `Deliveries: ${selectedSubForDeliveries.name}`
-                      : 'Recent Outbound Deliveries'}
-                  </h4>
-                  <p className="text-[11px] text-slate-400">
-                    Live delivery status, HTTP response status codes, and execution latency.
-                  </p>
-                </div>
-                {selectedSubForDeliveries && (
-                  <button
-                    onClick={() => {
-                      setSelectedSubForDeliveries(null);
-                      fetchDeliveries();
-                    }}
-                    className="text-xs text-slate-400 hover:text-white"
-                  >
-                    Clear Filter
-                  </button>
-                )}
-              </div>
-
-              {deliveriesLoading ? (
-                <div className="p-8 text-center text-slate-400 space-y-2">
-                  <RefreshCw className="h-5 w-5 animate-spin mx-auto text-indigo-400" />
-                  <p className="text-xs">Loading delivery logs...</p>
-                </div>
-              ) : deliveries.length === 0 ? (
-                <div className="p-6 rounded-xl bg-slate-900/40 border border-slate-800 text-center text-xs text-slate-400">
-                  No delivery logs recorded yet for this selection.
-                </div>
-              ) : (
-                <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/60">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-950/80 border-b border-slate-800 text-[10px] uppercase font-bold text-slate-400 tracking-wider">
-                      <tr>
-                        <th className="py-2.5 px-3">Status</th>
-                        <th className="py-2.5 px-3">HTTP Code</th>
-                        <th className="py-2.5 px-3">Event Type</th>
-                        <th className="py-2.5 px-3">Attempts</th>
-                        <th className="py-2.5 px-3">Latency</th>
-                        <th className="py-2.5 px-3">Timestamp</th>
-                        <th className="py-2.5 px-3 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-800/60">
-                      {deliveries.map((del) => {
-                        const isRetrying = retryingDeliveryId === del.id;
-                        return (
-                          <tr key={del.id} className="hover:bg-slate-800/40 transition-colors">
-                            <td className="py-2.5 px-3">
-                              <span
-                                className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
-                                  del.status === 'SENT'
-                                    ? 'bg-emerald-950/80 text-emerald-300 border-emerald-800'
-                                    : del.status === 'FAILED'
-                                      ? 'bg-rose-950/80 text-rose-300 border-rose-800'
-                                      : 'bg-amber-950/80 text-amber-300 border-amber-800'
-                                }`}
-                              >
-                                {del.status}
-                              </span>
-                            </td>
-                            <td className="py-2.5 px-3 font-mono font-semibold">
-                              {del.httpStatusCode ? (
-                                <span
-                                  className={
-                                    del.httpStatusCode >= 200 && del.httpStatusCode < 300
-                                      ? 'text-emerald-400'
-                                      : 'text-rose-400'
-                                  }
-                                >
-                                  {del.httpStatusCode}
-                                </span>
-                              ) : (
-                                <span className="text-slate-500">-</span>
-                              )}
-                            </td>
-                            <td className="py-2.5 px-3 font-mono text-indigo-300">
-                              {del.eventType}
-                            </td>
-                            <td className="py-2.5 px-3 text-slate-300">
-                              {del.attemptCount} / {del.maxAttempts}
-                            </td>
-                            <td className="py-2.5 px-3 text-slate-400 font-mono">
-                              {del.durationMs !== undefined && del.durationMs !== null
-                                ? `${del.durationMs}ms`
-                                : '-'}
-                            </td>
-                            <td className="py-2.5 px-3 text-slate-400">
-                              {new Date(del.createdAt).toLocaleTimeString()}
-                            </td>
-                            <td className="py-2.5 px-3 text-right space-x-2">
-                              <button
-                                onClick={() => setSelectedDeliveryPayload(del)}
-                                className="text-slate-400 hover:text-indigo-300 font-medium text-[11px]"
-                              >
-                                Payload
-                              </button>
-                              {del.status !== 'SENT' && (
-                                <button
-                                  onClick={() => handleRetryDelivery(del.id)}
-                                  disabled={isRetrying}
-                                  className="text-indigo-400 hover:text-indigo-300 font-medium text-[11px]"
-                                >
-                                  {isRetrying ? 'Retrying...' : 'Retry'}
-                                </button>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* =================================================================== */}
-        {/* TAB 4: OUT-OF-OFFICE DELEGATIONS */}
+        {/* TAB 3: OUT-OF-OFFICE DELEGATIONS */}
         {/* =================================================================== */}
         {activeTab === 'delegations' && (
           <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl bg-slate-900/60 border border-slate-800">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-5 rounded-2xl glass-panel border border-white/[0.08]">
               <div className="space-y-1">
                 <div className="flex items-center space-x-2">
-                  <UserCheck className="h-5 w-5 text-indigo-400" />
-                  <h3 className="font-bold text-white text-base">
-                    Out-of-Office Approver Delegations
-                  </h3>
+                  <UserCheck className="h-5 w-5 text-aurora-cyan" />
+                  <h3 className="font-bold text-white text-base">Out-of-Office Approver Delegations</h3>
                 </div>
                 <p className="text-xs text-slate-400 max-w-2xl">
-                  Temporarily assign your review and sign-off authority to an eligible colleague
-                  when traveling or on leave. All delegated votes are cryptographically attested and
-                  chained in the immutable audit log.
+                  Temporarily assign your review and sign-off authority to an eligible colleague when traveling or on leave. All delegated votes are cryptographically attested and chained in the immutable audit log.
                 </p>
               </div>
               <button
                 onClick={openCreateDelegation}
-                className="px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center space-x-1.5 shadow-md shadow-indigo-600/20 transition-colors self-start sm:self-center"
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-semibold flex items-center space-x-1.5 shadow-md shadow-cyan-600/30 transition-all self-start sm:self-center"
               >
                 <Plus className="h-4 w-4" />
                 <span>New Delegation</span>
               </button>
             </div>
 
-            {dataLoading ? (
-              <div className="py-16 text-center text-slate-400 space-y-2">
-                <RefreshCw className="h-6 w-6 animate-spin mx-auto text-indigo-400" />
-                <p className="text-xs">Loading delegations...</p>
-              </div>
-            ) : delegations.length === 0 ? (
-              <div className="p-12 text-center bg-slate-900/40 border border-slate-800/80 rounded-2xl space-y-3">
+            {delegations.length === 0 ? (
+              <div className="p-16 text-center glass-panel rounded-3xl border border-white/[0.08] space-y-3">
                 <UserCheck className="h-10 w-10 mx-auto text-slate-600" />
-                <h3 className="font-semibold text-slate-200">No delegations configured</h3>
+                <h3 className="font-bold text-slate-200">No delegations configured</h3>
                 <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                  There are no active or historical out-of-office delegations configured in your
-                  tenant.
+                  There are no active or historical out-of-office delegations configured in your tenant.
                 </p>
                 <button
                   onClick={openCreateDelegation}
-                  className="px-4 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-500 transition-colors"
+                  className="px-4 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 text-white text-xs font-semibold rounded-xl hover:from-cyan-500 hover:to-blue-500 transition-all shadow-md shadow-cyan-600/30"
                 >
                   Create Out-of-Office Delegation
                 </button>
@@ -1715,25 +1741,25 @@ export default function FlowGateApp() {
                   const statusBadgeClass = isCurrentActive
                     ? 'bg-emerald-950/80 text-emerald-300 border-emerald-800'
                     : isPendingStart
-                      ? 'bg-blue-950/80 text-blue-300 border-blue-800'
-                      : isRevoked
-                        ? 'bg-rose-950/80 text-rose-300 border-rose-800'
-                        : 'bg-slate-800 text-slate-400 border-slate-700';
+                    ? 'bg-blue-950/80 text-blue-300 border-blue-800'
+                    : isRevoked
+                    ? 'bg-rose-950/80 text-rose-300 border-rose-800'
+                    : 'bg-slate-800 text-slate-400 border-slate-700';
 
                   const statusLabel = isCurrentActive
                     ? 'ACTIVE NOW'
                     : isPendingStart
-                      ? 'SCHEDULED'
-                      : isRevoked
-                        ? 'REVOKED'
-                        : 'EXPIRED';
+                    ? 'SCHEDULED'
+                    : isRevoked
+                    ? 'REVOKED'
+                    : 'EXPIRED';
 
                   const isRevoking = revokingDelegationId === del.id;
 
                   return (
                     <div
                       key={del.id}
-                      className="p-5 rounded-2xl bg-slate-900/70 border border-slate-800 space-y-4 shadow-sm"
+                      className="p-5 rounded-2xl glass-card border border-white/[0.08] space-y-4 shadow-sm"
                     >
                       <div className="flex items-start justify-between">
                         <span
@@ -1746,7 +1772,7 @@ export default function FlowGateApp() {
                           <button
                             onClick={() => handleRevokeDelegation(del.id)}
                             disabled={isRevoking}
-                            className="px-2.5 py-1 rounded bg-rose-950/60 hover:bg-rose-900/60 text-rose-300 border border-rose-800/80 text-xs font-medium transition-colors flex items-center space-x-1"
+                            className="px-2.5 py-1 rounded-lg bg-rose-950/60 hover:bg-rose-900/60 text-rose-300 border border-rose-800/80 text-xs font-medium transition-colors flex items-center space-x-1"
                           >
                             <X className={`h-3 w-3 ${isRevoking ? 'animate-spin' : ''}`} />
                             <span>{isRevoking ? 'Revoking...' : 'Revoke Early'}</span>
@@ -1755,24 +1781,24 @@ export default function FlowGateApp() {
                       </div>
 
                       {/* Delegator -> Delegatee */}
-                      <div className="p-3 bg-slate-950 rounded-xl border border-slate-800/80 flex items-center justify-between">
+                      <div className="p-3.5 bg-obsidian-950 rounded-xl border border-white/[0.06] flex items-center justify-between">
                         <div>
-                          <span className="text-[10px] uppercase font-bold text-slate-500 block">
-                            Delegator (Principal)
+                          <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                            Principal (Delegator)
                           </span>
-                          <span className="font-semibold text-white text-xs">
+                          <span className="font-bold text-white text-xs">
                             {del.delegator?.name || del.delegatorId}
                           </span>
                           <span className="text-[10px] text-slate-400 block font-mono">
                             {del.delegator?.email}
                           </span>
                         </div>
-                        <ArrowRight className="h-4 w-4 text-indigo-400 mx-2 flex-shrink-0" />
+                        <ArrowRight className="h-4 w-4 text-aurora-cyan mx-2 flex-shrink-0" />
                         <div className="text-right">
-                          <span className="text-[10px] uppercase font-bold text-slate-500 block">
-                            Delegatee (Stand-in)
+                          <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                            Stand-in (Delegatee)
                           </span>
-                          <span className="font-semibold text-white text-xs">
+                          <span className="font-bold text-white text-xs">
                             {del.delegatee?.name || del.delegateeId}
                           </span>
                           <span className="text-[10px] text-slate-400 block font-mono">
@@ -1786,10 +1812,7 @@ export default function FlowGateApp() {
                         <div className="flex items-center justify-between text-slate-400">
                           <span className="text-[11px]">Workflow Scope:</span>
                           <span className="text-slate-200 font-medium">
-                            {del.workflowDefinitionName ||
-                              (del.workflowDefinitionId
-                                ? 'Specific Workflow'
-                                : 'All Organization Workflows')}
+                            {del.workflowDefinitionName || (del.workflowDefinitionId ? 'Specific Workflow' : 'All Organization Workflows')}
                           </span>
                         </div>
                         <div className="flex items-center justify-between text-slate-400">
@@ -1811,29 +1834,99 @@ export default function FlowGateApp() {
             )}
           </div>
         )}
+
+        {/* =================================================================== */}
+        {/* TAB 4: WEBHOOKS & INTEGRATIONS */}
+        {/* =================================================================== */}
+        {activeTab === 'webhooks' && (
+          <div className="space-y-6">
+            <div className="p-5 rounded-2xl glass-panel border border-white/[0.08] flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center space-x-2">
+                  <Zap className="h-5 w-5 text-aurora-cyan" />
+                  <h3 className="font-bold text-white text-base">SSRF-Guarded Outbound Webhooks</h3>
+                </div>
+                <p className="text-xs text-slate-400 max-w-2xl">
+                  Dispatches HMAC-SHA256 signed event payloads on workflow lifecycle state transitions. Outbound HTTP requests undergo pre-flight DNS socket verification to block private networks (RFC 1918) and cloud metadata targets.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowCreateWebhookModal(true)}
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white text-xs font-semibold flex items-center space-x-1.5 shadow-md shadow-violet-600/30 transition-all self-start md:self-center"
+              >
+                <Plus className="h-4 w-4" />
+                <span>New Webhook</span>
+              </button>
+            </div>
+
+            {webhooks.length === 0 ? (
+              <div className="p-16 text-center glass-panel rounded-3xl border border-white/[0.08] space-y-3">
+                <Zap className="h-10 w-10 mx-auto text-slate-600" />
+                <h3 className="font-bold text-slate-200">No Webhook Subscriptions</h3>
+                <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                  Subscribe third-party services, Slack bots, or internal APIs to approval events.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {webhooks.map((sub) => (
+                  <div key={sub.id} className="p-5 rounded-2xl glass-card border border-white/[0.08] space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-white text-sm">{sub.name}</span>
+                      <div className="flex items-center space-x-1">
+                        <button
+                          onClick={() => handleTestPing(sub.id, sub.name)}
+                          disabled={testingWebhookId === sub.id}
+                          className="px-2.5 py-1 rounded-lg glass-card hover:bg-white/[0.08] text-xs text-aurora-cyan font-mono transition-colors"
+                        >
+                          Ping
+                        </button>
+                        <button
+                          onClick={() => handleDeleteWebhook(sub.id, sub.name)}
+                          className="p-1.5 rounded-lg glass-card hover:bg-rose-950/60 hover:text-rose-400 text-slate-400 transition-colors"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="p-2 rounded-lg bg-obsidian-950 border border-white/[0.06] font-mono text-xs text-slate-300 truncate">
+                      {sub.url}
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {sub.eventTypes.map((ev) => (
+                        <span key={ev} className="px-2 py-0.5 rounded text-[10px] font-mono bg-violet-950/60 text-violet-300 border border-violet-800">
+                          {ev}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </main>
 
       {/* =================================================================== */}
       {/* MODAL: REQUEST DETAIL & APPROVAL ACTION */}
       {/* =================================================================== */}
       {selectedRequestId && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl p-6 space-y-6">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="glass-panel border border-white/[0.1] rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl p-6 space-y-6">
             {!selectedRequestDetail ? (
               <div className="py-12 text-center text-slate-400 space-y-2">
-                <RefreshCw className="h-6 w-6 animate-spin mx-auto text-indigo-400" />
-                <p className="text-xs">Loading request details & audit history...</p>
+                <RefreshCw className="h-6 w-6 animate-spin mx-auto text-aurora-cyan" />
+                <p className="text-xs font-mono">Loading request details...</p>
               </div>
             ) : (
               <>
-                {/* Modal Header */}
-                <div className="flex items-start justify-between border-b border-slate-800 pb-4">
+                <div className="flex items-start justify-between border-b border-white/[0.08] pb-4">
                   <div className="space-y-1">
                     <div className="flex items-center space-x-2">
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-indigo-950 text-indigo-300 border border-indigo-800">
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-violet-950 text-violet-300 border border-violet-800">
                         {selectedRequestDetail.workflowName}
                       </span>
-                      <span className="text-xs text-slate-400">
+                      <span className="text-xs text-slate-400 font-mono">
                         {new Date(selectedRequestDetail.createdAt).toLocaleString()}
                       </span>
                     </div>
@@ -1842,220 +1935,115 @@ export default function FlowGateApp() {
                   <div className="flex items-center space-x-2">
                     <a
                       href={`/requests/${selectedRequestDetail.id}`}
-                      className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center space-x-1.5 shadow-md shadow-indigo-600/20 transition-colors"
+                      className="px-3 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold flex items-center space-x-1.5 transition-colors shadow-md shadow-violet-600/30"
                     >
                       <Activity className="h-3.5 w-3.5" />
-                      <span>Full DAG & Audit</span>
+                      <span>Full Live DAG</span>
                     </a>
                     <button
                       onClick={() => setSelectedRequestId(null)}
-                      className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/[0.08]"
                     >
                       <X className="h-5 w-5" />
                     </button>
                   </div>
                 </div>
 
-                {/* Request Description */}
                 {selectedRequestDetail.description && (
-                  <div className="p-3 bg-slate-950 rounded-lg text-xs text-slate-300 border border-slate-800">
-                    <span className="text-[10px] font-bold uppercase text-slate-500 block mb-1">
-                      Description / Context
+                  <div className="p-3.5 bg-obsidian-950 rounded-xl text-xs text-slate-300 border border-white/[0.08]">
+                    <span className="text-[10px] font-bold uppercase text-slate-400 block mb-1">
+                      Description / Business Justification
                     </span>
                     {selectedRequestDetail.description}
                   </div>
                 )}
 
                 {/* Structured DAG Routing Parameters */}
-                {selectedRequestDetail.requestData &&
-                  Object.keys(selectedRequestDetail.requestData).length > 0 && (
-                    <div className="p-3 bg-slate-950 rounded-lg text-xs text-slate-300 border border-slate-800 space-y-1.5">
-                      <span className="text-[10px] uppercase font-bold text-indigo-400 tracking-wider block">
-                        DAG Routing Parameters (Execution Payload)
-                      </span>
-                      <div className="flex flex-wrap gap-2">
-                        {Object.entries(selectedRequestDetail.requestData).map(([k, v]) => (
-                          <div
-                            key={k}
-                            className="px-2 py-0.5 rounded bg-slate-900 border border-slate-700/80 font-mono text-[11px] text-slate-300"
-                          >
-                            <span className="text-slate-400">{k}:</span>{' '}
-                            <span className="text-emerald-400 font-semibold">
-                              {typeof v === 'boolean'
-                                ? v
-                                  ? 'true'
-                                  : 'false'
-                                : typeof v === 'number'
-                                  ? k.toLowerCase().includes('amount') ||
-                                    k.toLowerCase().includes('cost') ||
-                                    k.toLowerCase().includes('budget')
-                                    ? `$${v.toLocaleString()}`
-                                    : v.toString()
-                                  : String(v)}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
+                {selectedRequestDetail.requestData && Object.keys(selectedRequestDetail.requestData).length > 0 && (
+                  <div className="p-3.5 bg-obsidian-950 rounded-xl text-xs text-slate-300 border border-white/[0.08] space-y-1.5">
+                    <span className="text-[10px] uppercase font-bold text-aurora-cyan tracking-wider block">
+                      DAG Execution Parameters (Condition Routing Payload)
+                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      {Object.entries(selectedRequestDetail.requestData).map(([k, v]) => (
+                        <div
+                          key={k}
+                          className="px-2.5 py-1 rounded-lg bg-obsidian-900 border border-white/[0.08] font-mono text-[11px] text-slate-300"
+                        >
+                          <span className="text-slate-400">{k}:</span>{' '}
+                          <span className="text-emerald-400 font-semibold">
+                            {typeof v === 'boolean'
+                              ? v ? 'true' : 'false'
+                              : typeof v === 'number'
+                              ? k.toLowerCase().includes('amount') || k.toLowerCase().includes('cost') || k.toLowerCase().includes('budget')
+                                ? `$${v.toLocaleString()}`
+                                : v.toString()
+                              : String(v)}
+                          </span>
+                        </div>
+                      ))}
                     </div>
-                  )}
+                  </div>
+                )}
 
                 {/* Stepper Timeline */}
                 <div className="space-y-3">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                    Approval Sequence
-                  </h4>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">Approval Steps</h4>
                   <div className="space-y-2">
-                    {selectedRequestDetail.steps.map((step) => {
-                      const isCurrent = step.status === 'IN_REVIEW';
-                      const isApproved = step.status === 'APPROVED';
-                      const isRejected = step.status === 'REJECTED';
-                      const isSkipped = step.status === 'SKIPPED';
-
-                      return (
-                        <div
-                          key={step.id}
-                          className={`p-3 rounded-xl border transition-all ${
-                            isCurrent
-                              ? 'bg-amber-950/30 border-amber-800/80'
-                              : isApproved
-                                ? 'bg-emerald-950/20 border-emerald-900/60'
-                                : isRejected
-                                  ? 'bg-red-950/20 border-red-900/60'
-                                  : 'bg-slate-950 border-slate-800 text-slate-400'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-3">
-                              <div
-                                className={`h-6 w-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                                  isApproved
-                                    ? 'bg-emerald-600 text-white'
-                                    : isRejected
-                                      ? 'bg-red-600 text-white'
-                                      : isCurrent
-                                        ? 'bg-amber-500 text-slate-950 animate-pulse'
-                                        : 'bg-slate-800 text-slate-400'
-                                }`}
-                              >
-                                {isApproved ? (
-                                  <Check className="h-3.5 w-3.5" />
-                                ) : isRejected ? (
-                                  <X className="h-3.5 w-3.5" />
-                                ) : (
-                                  step.stepOrder
-                                )}
-                              </div>
-                              <div>
-                                <span className="font-semibold text-sm text-slate-100">
-                                  {step.stepName}
-                                </span>
-                                <div className="text-[11px] text-slate-400">
-                                  Assigned:{' '}
-                                  {step.assignedRole ||
-                                    step.assignedTo?.name ||
-                                    'Anyone in organization'}
-                                </div>
-                              </div>
-                            </div>
-
-                            <span
-                              className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
-                                isCurrent
-                                  ? 'bg-amber-900/50 text-amber-300 border-amber-700'
-                                  : isApproved
-                                    ? 'bg-emerald-900/50 text-emerald-300 border-emerald-700'
-                                    : isRejected
-                                      ? 'bg-red-900/50 text-red-300 border-red-700'
-                                      : 'bg-slate-800 text-slate-400 border-slate-700'
-                              }`}
-                            >
-                              {step.status}
+                    {selectedRequestDetail.steps.map((step) => (
+                      <div key={step.id} className="p-3 rounded-xl bg-obsidian-950 border border-white/[0.08] flex items-center justify-between text-xs">
+                        <div className="flex items-center space-x-3">
+                          <span className="h-6 w-6 rounded-full bg-violet-950 text-violet-300 border border-violet-800 flex items-center justify-center font-bold text-[11px]">
+                            {step.stepOrder}
+                          </span>
+                          <div>
+                            <span className="font-semibold text-white block">{step.stepName}</span>
+                            <span className="text-[11px] text-slate-400">
+                              Assigned: {step.assignedRole || step.assignedTo?.name || 'Authorized Approver'}
                             </span>
                           </div>
-
-                          {/* Comments & Action Details */}
-                          {step.comments && (
-                            <div className="mt-2 text-xs text-slate-300 bg-slate-900/80 p-2 rounded border border-slate-800 flex items-start space-x-2">
-                              <MessageSquare className="h-3.5 w-3.5 text-indigo-400 mt-0.5 flex-shrink-0" />
-                              <div>
-                                <span className="font-semibold text-[11px] text-slate-400 block">
-                                  {step.actionedBy
-                                    ? `${step.actionedBy.name} commented:`
-                                    : 'Reviewer comment:'}
-                                </span>
-                                <span>{step.comments}</span>
-                              </div>
-                            </div>
-                          )}
                         </div>
-                      );
-                    })}
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-white/[0.06] border border-white/[0.1] text-slate-300">
+                          {step.status}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 </div>
 
                 {/* Approver Action Panel */}
-                {selectedRequestDetail.status === 'IN_PROGRESS' && (
-                  <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-                    <label className="block text-xs font-semibold text-slate-300">
-                      Sign-off Decision & Comments
-                    </label>
+                {(selectedRequestDetail.status === 'IN_PROGRESS' || selectedRequestDetail.status === 'PENDING') && (
+                  <div className="p-4 rounded-2xl bg-obsidian-950 border border-white/[0.08] space-y-3">
+                    <label className="block text-xs font-semibold text-slate-300">Sign-off Decision & Review Comments</label>
                     <textarea
                       value={actionComments}
                       onChange={(e) => setActionComments(e.target.value)}
-                      placeholder="Add mandatory or optional comments explaining your decision..."
-                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 h-20"
+                      placeholder="Add review feedback, compliance attestations, or rationale..."
+                      className="w-full bg-obsidian-900 border border-white/[0.1] rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-violet-500 h-20"
                     />
-
                     <div className="flex items-center justify-end space-x-2 pt-1">
                       <button
                         onClick={() => handleAction('REQUEST_CHANGES')}
                         disabled={isExecutingAction}
-                        className="px-3.5 py-2 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-700/60 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50"
+                        className="px-3.5 py-2 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-700/60 rounded-xl text-xs font-semibold transition-colors"
                       >
                         Request Changes
                       </button>
                       <button
                         onClick={() => handleAction('REJECT')}
                         disabled={isExecutingAction}
-                        className="px-3.5 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-300 border border-red-700/60 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50"
+                        className="px-3.5 py-2 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-700/60 rounded-xl text-xs font-semibold transition-colors"
                       >
                         Reject
                       </button>
                       <button
                         onClick={() => handleAction('APPROVE')}
                         disabled={isExecutingAction}
-                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold shadow-md shadow-emerald-600/20 transition-colors disabled:opacity-50 flex items-center space-x-1.5"
+                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold shadow-md shadow-emerald-600/30 transition-all flex items-center space-x-1"
                       >
-                        <Check className="h-4 w-4" />
-                        <span>Approve Step</span>
+                        <Check className="h-3.5 w-3.5" />
+                        <span>Authorize Approval</span>
                       </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Audit Trail */}
-                {selectedRequestDetail.auditLogs && selectedRequestDetail.auditLogs.length > 0 && (
-                  <div className="space-y-2 pt-2 border-t border-slate-800">
-                    <div className="flex items-center space-x-2 text-xs font-bold uppercase tracking-wider text-slate-400">
-                      <History className="h-3.5 w-3.5 text-indigo-400" />
-                      <span>Tamper-Evident Audit Trail</span>
-                    </div>
-                    <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
-                      {selectedRequestDetail.auditLogs.map((log) => (
-                        <div
-                          key={log.id}
-                          className="p-2 rounded bg-slate-950 text-[11px] border border-slate-850 flex items-center justify-between"
-                        >
-                          <div className="flex items-center space-x-2">
-                            <span className="font-semibold text-indigo-300">{log.action}</span>
-                            <span className="text-slate-500">by</span>
-                            <span className="text-slate-300">{log.actor?.name || 'System'}</span>
-                          </div>
-                          <span className="text-slate-500 text-[10px]">
-                            {new Date(log.createdAt).toLocaleTimeString()}
-                          </span>
-                        </div>
-                      ))}
                     </div>
                   </div>
                 )}
@@ -2069,27 +2057,22 @@ export default function FlowGateApp() {
       {/* MODAL: CREATE APPROVAL REQUEST */}
       {/* =================================================================== */}
       {showCreateRequestModal && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl p-6 space-y-5">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="glass-panel border border-white/[0.1] rounded-3xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl p-6 space-y-5">
+            <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
               <h3 className="font-bold text-base text-white">Create Approval Request</h3>
-              <button
-                onClick={() => setShowCreateRequestModal(false)}
-                className="p-1 rounded text-slate-400 hover:text-white"
-              >
+              <button onClick={() => setShowCreateRequestModal(false)} className="p-1 rounded-lg text-slate-400 hover:text-white">
                 <X className="h-5 w-5" />
               </button>
             </div>
 
             <form onSubmit={handleCreateRequest} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Workflow Definition
-                </label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Workflow Definition</label>
                 <select
                   value={newRequestWorkflowId}
                   onChange={(e) => setNewRequestWorkflowId(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-obsidian-900 border border-white/[0.1] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-violet-500"
                 >
                   {workflows
                     .filter((w) => w.status === 'ACTIVE')
@@ -2102,53 +2085,47 @@ export default function FlowGateApp() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Request Title
-                </label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Request Title</label>
                 <input
                   type="text"
                   value={newRequestTitle}
                   onChange={(e) => setNewRequestTitle(e.target.value)}
                   required
-                  placeholder="e.g. Purchase 4x GPUs for AI cluster"
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  placeholder="e.g. Purchase 4x H100 GPUs for AI cluster"
+                  className="w-full bg-obsidian-900 border border-white/[0.1] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-violet-500 font-medium"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Description / Justification
-                </label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Description / Justification</label>
                 <textarea
                   value={newRequestDesc}
                   onChange={(e) => setNewRequestDesc(e.target.value)}
-                  placeholder="Detailed business justification and context..."
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 h-20"
+                  placeholder="Detailed business context and ROI..."
+                  className="w-full bg-obsidian-900 border border-white/[0.1] rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-violet-500 h-20"
                 />
               </div>
 
               {/* Dynamic DAG Input Schema Parameters */}
               {inputSchema?.fields && inputSchema.fields.length > 0 && (
-                <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                <div className="p-4 rounded-2xl bg-obsidian-950 border border-white/[0.08] space-y-3">
                   <div className="flex items-center space-x-2">
-                    <GitBranch className="h-4 w-4 text-indigo-400" />
+                    <GitBranch className="h-4 w-4 text-aurora-cyan" />
                     <span className="text-xs font-bold text-white uppercase tracking-wider">
                       Workflow Input Parameters
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-400">
-                    This workflow evaluates runtime condition expressions. Values provided below
-                    drive DAG branch selection.
+                    This workflow evaluates runtime condition expressions. Values provided below drive DAG branch selection.
                   </p>
                   <div className="space-y-3 pt-1">
                     {inputSchema.fields.map((field) => (
                       <div key={field.name}>
                         <div className="flex items-center justify-between mb-1">
                           <label className="text-xs font-medium text-slate-300">
-                            {field.label}{' '}
-                            {field.required && <span className="text-rose-400">*</span>}
+                            {field.label} {field.required && <span className="text-rose-400">*</span>}
                           </label>
-                          <span className="text-[10px] text-slate-500 font-mono">
+                          <span className="text-[10px] text-slate-400 font-mono">
                             {field.name} ({field.type})
                           </span>
                         </div>
@@ -2166,12 +2143,9 @@ export default function FlowGateApp() {
                               }))
                             }
                             required={field.required}
-                            placeholder={field.description || `Enter ${field.label}`}
-                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono"
+                            className="w-full bg-obsidian-900 border border-white/[0.1] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-violet-500 font-mono"
                           />
-                        ) : field.type === 'STRING' &&
-                          field.allowedValues &&
-                          field.allowedValues.length > 0 ? (
+                        ) : field.type === 'STRING' && field.allowedValues && field.allowedValues.length > 0 ? (
                           <select
                             value={newRequestData[field.name] ?? field.allowedValues[0]}
                             onChange={(e) =>
@@ -2180,7 +2154,7 @@ export default function FlowGateApp() {
                                 [field.name]: e.target.value,
                               }))
                             }
-                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                            className="w-full bg-obsidian-900 border border-white/[0.1] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-violet-500"
                           >
                             {field.allowedValues.map((opt) => (
                               <option key={opt} value={opt}>
@@ -2189,7 +2163,7 @@ export default function FlowGateApp() {
                             ))}
                           </select>
                         ) : field.type === 'BOOLEAN' ? (
-                          <label className="flex items-center space-x-2 cursor-pointer mt-1 bg-slate-900 border border-slate-800 p-2 rounded-lg">
+                          <label className="flex items-center space-x-2 cursor-pointer mt-1 bg-obsidian-900 border border-white/[0.08] p-2.5 rounded-xl">
                             <input
                               type="checkbox"
                               checked={!!newRequestData[field.name]}
@@ -2199,7 +2173,7 @@ export default function FlowGateApp() {
                                   [field.name]: e.target.checked,
                                 }))
                               }
-                              className="rounded bg-slate-950 border-slate-700 text-indigo-600 focus:ring-0"
+                              className="rounded bg-obsidian-950 border-white/[0.2] text-violet-600 focus:ring-0"
                             />
                             <span className="text-xs text-slate-300">
                               {newRequestData[field.name] ? 'Enabled / Yes' : 'Disabled / No'}
@@ -2216,8 +2190,7 @@ export default function FlowGateApp() {
                               }))
                             }
                             required={field.required}
-                            placeholder={field.description || `Enter ${field.label}`}
-                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                            className="w-full bg-obsidian-900 border border-white/[0.1] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-violet-500"
                           />
                         )}
                       </div>
@@ -2230,13 +2203,13 @@ export default function FlowGateApp() {
                 <button
                   type="button"
                   onClick={() => setShowCreateRequestModal(false)}
-                  className="px-3 py-2 rounded-lg text-xs font-semibold text-slate-400 hover:text-white"
+                  className="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold shadow-md shadow-indigo-600/20"
+                  className="px-4 py-2 bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-xl text-xs font-semibold shadow-md shadow-violet-600/30 hover:from-violet-500 hover:to-indigo-500 transition-all"
                 >
                   Submit for Approval
                 </button>
@@ -2250,52 +2223,41 @@ export default function FlowGateApp() {
       {/* MODAL: CREATE OUT-OF-OFFICE DELEGATION */}
       {/* =================================================================== */}
       {showCreateDelegationModal && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md shadow-2xl p-6 space-y-5">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="glass-panel border border-white/[0.1] rounded-3xl w-full max-w-md shadow-2xl p-6 space-y-5">
+            <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
               <div className="flex items-center space-x-2">
-                <UserCheck className="h-5 w-5 text-indigo-400" />
+                <UserCheck className="h-5 w-5 text-aurora-cyan" />
                 <h3 className="font-bold text-base text-white">New Out-of-Office Delegation</h3>
               </div>
-              <button
-                onClick={() => setShowCreateDelegationModal(false)}
-                className="p-1 rounded text-slate-400 hover:text-white"
-              >
+              <button onClick={() => setShowCreateDelegationModal(false)} className="p-1 rounded-lg text-slate-400 hover:text-white">
                 <X className="h-5 w-5" />
               </button>
             </div>
 
             <form onSubmit={handleCreateDelegation} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Designated Colleague (Delegatee) *
-                </label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Designated Colleague (Delegatee) *</label>
                 <select
                   value={newDelegateeId}
                   onChange={(e) => setNewDelegateeId(e.target.value)}
                   required
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-obsidian-900 border border-white/[0.1] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
                 >
-                  {colleagues.length === 0 ? (
-                    <option value="">Loading eligible colleagues...</option>
-                  ) : (
-                    colleagues.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name} ({c.email}) — {c.role}
-                      </option>
-                    ))
-                  )}
+                  {colleagues.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} ({c.email}) — {c.role}
+                    </option>
+                  ))}
                 </select>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Workflow Scope
-                </label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Workflow Scope</label>
                 <select
                   value={newDelegationWorkflowId}
                   onChange={(e) => setNewDelegationWorkflowId(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-obsidian-900 border border-white/[0.1] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
                 >
                   <option value="">All Organization Workflows (Universal)</option>
                   {workflows
@@ -2310,40 +2272,34 @@ export default function FlowGateApp() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Start Date & Time *
-                  </label>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Start Date & Time *</label>
                   <input
                     type="datetime-local"
                     value={newDelegationStartDate}
                     onChange={(e) => setNewDelegationStartDate(e.target.value)}
                     required
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                    className="w-full bg-obsidian-900 border border-white/[0.1] rounded-xl px-2.5 py-2 text-xs text-white focus:outline-none focus:border-cyan-500 font-mono"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    End Date & Time *
-                  </label>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">End Date & Time *</label>
                   <input
                     type="datetime-local"
                     value={newDelegationEndDate}
                     onChange={(e) => setNewDelegationEndDate(e.target.value)}
                     required
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                    className="w-full bg-obsidian-900 border border-white/[0.1] rounded-xl px-2.5 py-2 text-xs text-white focus:outline-none focus:border-cyan-500 font-mono"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Delegation Reason / Notes
-                </label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Reason / Context</label>
                 <textarea
                   value={newDelegationReason}
                   onChange={(e) => setNewDelegationReason(e.target.value)}
-                  placeholder="e.g. Annual leave, attending offsite summit..."
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 h-20"
+                  placeholder="e.g. Attending AWS re:Invent conference, PTO..."
+                  className="w-full bg-obsidian-900 border border-white/[0.1] rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-cyan-500 h-20"
                 />
               </div>
 
@@ -2351,14 +2307,14 @@ export default function FlowGateApp() {
                 <button
                   type="button"
                   onClick={() => setShowCreateDelegationModal(false)}
-                  className="px-3 py-2 rounded-lg text-xs font-semibold text-slate-400 hover:text-white"
+                  className="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmittingDelegation}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold shadow-md shadow-indigo-600/20 disabled:opacity-50"
+                  className="px-4 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-xl text-xs font-semibold shadow-md shadow-cyan-600/30 transition-all disabled:opacity-50"
                 >
                   {isSubmittingDelegation ? 'Saving...' : 'Authorize Delegation'}
                 </button>
@@ -2372,96 +2328,51 @@ export default function FlowGateApp() {
       {/* MODAL: CREATE WORKFLOW DEFINITION */}
       {/* =================================================================== */}
       {showCreateWorkflowModal && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl p-6 space-y-5">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="font-bold text-base text-white">Create New Workflow</h3>
-              <button
-                onClick={() => setShowCreateWorkflowModal(false)}
-                className="p-1 rounded text-slate-400 hover:text-white"
-              >
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="glass-panel border border-white/[0.1] rounded-3xl w-full max-w-lg shadow-2xl p-6 space-y-5">
+            <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
+              <h3 className="font-bold text-base text-white">Create Quick Workflow</h3>
+              <button onClick={() => setShowCreateWorkflowModal(false)} className="p-1 rounded-lg text-slate-400 hover:text-white">
                 <X className="h-5 w-5" />
               </button>
             </div>
 
             <form onSubmit={handleCreateWorkflow} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Workflow Name
-                </label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Workflow Name</label>
                 <input
                   type="text"
                   value={newWorkflowName}
                   onChange={(e) => setNewWorkflowName(e.target.value)}
                   required
-                  placeholder="e.g. Legal Contract Review"
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  placeholder="e.g. Cloud Infrastructure Provisioning"
+                  className="w-full bg-obsidian-900 border border-white/[0.1] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-violet-500"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Description
-                </label>
-                <input
-                  type="text"
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Description</label>
+                <textarea
                   value={newWorkflowDesc}
                   onChange={(e) => setNewWorkflowDesc(e.target.value)}
-                  placeholder="Brief description of when this workflow applies"
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  placeholder="Purpose and SLA expectations..."
+                  className="w-full bg-obsidian-900 border border-white/[0.1] rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-violet-500 h-20"
                 />
-              </div>
-
-              <div className="space-y-2">
-                <label className="block text-xs font-semibold text-slate-300">
-                  Ordered Approval Steps
-                </label>
-                {newWorkflowSteps.map((step, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-center space-x-2 p-2 rounded bg-slate-950 border border-slate-800 text-xs"
-                  >
-                    <span className="font-bold text-slate-400 w-4">{step.stepOrder}.</span>
-                    <input
-                      type="text"
-                      value={step.name}
-                      onChange={(e) => {
-                        const updated = [...newWorkflowSteps];
-                        updated[idx].name = e.target.value;
-                        setNewWorkflowSteps(updated);
-                      }}
-                      className="flex-1 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white"
-                    />
-                    <select
-                      value={step.role}
-                      onChange={(e) => {
-                        const updated = [...newWorkflowSteps];
-                        updated[idx].role = e.target.value as UserRole;
-                        setNewWorkflowSteps(updated);
-                      }}
-                      className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white"
-                    >
-                      <option value="APPROVER">APPROVER</option>
-                      <option value="MANAGER">MANAGER</option>
-                      <option value="TENANT_ADMIN">TENANT_ADMIN</option>
-                    </select>
-                  </div>
-                ))}
               </div>
 
               <div className="flex items-center justify-end space-x-2 pt-2">
                 <button
                   type="button"
                   onClick={() => setShowCreateWorkflowModal(false)}
-                  className="px-3 py-2 rounded-lg text-xs font-semibold text-slate-400 hover:text-white"
+                  className="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold shadow-md shadow-indigo-600/20"
+                  className="px-4 py-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white rounded-xl text-xs font-semibold shadow-md shadow-violet-600/30 transition-all"
                 >
-                  Create & Activate
+                  Create Workflow
                 </button>
               </div>
             </form>
@@ -2470,112 +2381,57 @@ export default function FlowGateApp() {
       )}
 
       {/* =================================================================== */}
-      {/* MODAL: CREATE WEBHOOK SUBSCRIPTION */}
+      {/* MODAL: CREATE WEBHOOK */}
       {/* =================================================================== */}
       {showCreateWebhookModal && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl p-6 space-y-5">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div className="flex items-center space-x-2">
-                <Zap className="h-5 w-5 text-indigo-400" />
-                <h3 className="text-base font-bold text-white">Create Webhook Endpoint</h3>
-              </div>
-              <button
-                onClick={() => setShowCreateWebhookModal(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white"
-              >
-                <X className="h-4 w-4" />
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="glass-panel border border-white/[0.1] rounded-3xl w-full max-w-md shadow-2xl p-6 space-y-5">
+            <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
+              <h3 className="font-bold text-base text-white">Register Webhook</h3>
+              <button onClick={() => setShowCreateWebhookModal(false)} className="p-1 rounded-lg text-slate-400 hover:text-white">
+                <X className="h-5 w-5" />
               </button>
             </div>
 
             <form onSubmit={handleCreateWebhook} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Endpoint Name
-                </label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Name</label>
                 <input
                   type="text"
                   value={newWebhookName}
                   onChange={(e) => setNewWebhookName(e.target.value)}
                   required
-                  placeholder="e.g. Slack Incident Channel / Zapier"
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  placeholder="e.g. Slack Approval Bot"
+                  className="w-full bg-obsidian-900 border border-white/[0.1] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-violet-500"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Destination HTTP/HTTPS URL
-                </label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Target Endpoint URL</label>
                 <input
                   type="url"
                   value={newWebhookUrl}
                   onChange={(e) => setNewWebhookUrl(e.target.value)}
                   required
-                  placeholder="https://hooks.zapier.com/hooks/catch/..."
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500"
+                  placeholder="https://api.example.com/webhooks"
+                  className="w-full bg-obsidian-900 border border-white/[0.1] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-violet-500 font-mono"
                 />
-              </div>
-
-              <div className="space-y-2">
-                <label className="block text-xs font-semibold text-slate-300">
-                  Subscribed Event Types
-                </label>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  {[
-                    'request.created',
-                    'step.approved',
-                    'request.approved',
-                    'request.rejected',
-                    'request.changes_requested',
-                    'request.resubmitted',
-                    'request.cancelled',
-                    '*',
-                  ].map((evt) => {
-                    const isChecked = newWebhookEvents.includes(evt);
-                    return (
-                      <label
-                        key={evt}
-                        className={`flex items-center space-x-2 p-2 rounded-lg border cursor-pointer transition-colors ${
-                          isChecked
-                            ? 'bg-indigo-950/60 border-indigo-700 text-indigo-200'
-                            : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setNewWebhookEvents([...newWebhookEvents, evt]);
-                            } else {
-                              setNewWebhookEvents(newWebhookEvents.filter((x) => x !== evt));
-                            }
-                          }}
-                          className="rounded border-slate-700 text-indigo-600 focus:ring-0"
-                        />
-                        <span className="font-mono text-[11px]">{evt}</span>
-                      </label>
-                    );
-                  })}
-                </div>
               </div>
 
               <div className="flex items-center justify-end space-x-2 pt-2">
                 <button
                   type="button"
                   onClick={() => setShowCreateWebhookModal(false)}
-                  className="px-3 py-2 rounded-lg text-xs font-semibold text-slate-400 hover:text-white"
+                  className="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmittingWebhook}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold shadow-md shadow-indigo-600/20 flex items-center space-x-1.5"
+                  className="px-4 py-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white rounded-xl text-xs font-semibold shadow-md shadow-violet-600/30 transition-all disabled:opacity-50"
                 >
-                  <Plus className="h-3.5 w-3.5" />
-                  <span>{isSubmittingWebhook ? 'Creating...' : 'Register Endpoint'}</span>
+                  {isSubmittingWebhook ? 'Saving...' : 'Register Webhook'}
                 </button>
               </div>
             </form>
@@ -2583,389 +2439,57 @@ export default function FlowGateApp() {
         </div>
       )}
 
-      {/* =================================================================== */}
-      {/* MODAL: WEBHOOK SECRET CREATED NOTICE */}
-      {/* =================================================================== */}
+      {/* Secret Display Modal */}
       {createdWebhookSecret && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-indigo-600/60 rounded-2xl w-full max-w-lg shadow-2xl p-6 space-y-4">
-            <div className="flex items-center space-x-2 text-indigo-400">
-              <ShieldCheck className="h-6 w-6" />
-              <h3 className="text-base font-bold text-white">Webhook Signing Secret Generated</h3>
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="glass-panel border border-white/[0.1] rounded-3xl w-full max-w-md shadow-2xl p-6 space-y-4">
+            <h3 className="font-bold text-base text-white">Webhook HMAC Secret</h3>
+            <p className="text-xs text-slate-400">Save this secret key. It will not be shown again.</p>
+            <div className="p-3 bg-obsidian-950 border border-white/[0.1] rounded-xl font-mono text-xs text-aurora-cyan break-all">
+              {createdWebhookSecret.secret}
             </div>
-
-            <p className="text-xs text-slate-300">
-              FlowGate has created endpoint{' '}
-              <strong className="text-white">&ldquo;{createdWebhookSecret.name}&rdquo;</strong> with
-              an HMAC-SHA256 signature key.
-            </p>
-
-            <div className="p-3 bg-rose-950/40 border border-rose-800/80 rounded-xl text-xs text-rose-300 space-y-1">
-              <div className="font-bold flex items-center space-x-1.5">
-                <AlertCircle className="h-4 w-4 text-rose-400 flex-shrink-0" />
-                <span>Save this secret now!</span>
-              </div>
-              <p className="text-[11px] text-rose-300/90">
-                For security reasons, FlowGate never stores secrets in plaintext and will never
-                display this key again.
-              </p>
-            </div>
-
-            <div className="space-y-1">
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                HMAC-SHA256 Signing Secret
-              </label>
-              <div className="p-3 bg-slate-950 rounded-lg border border-slate-800 font-mono text-xs text-emerald-400 break-all select-all flex items-center justify-between">
-                <span>{createdWebhookSecret.secret}</span>
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(createdWebhookSecret.secret);
-                    setCopiedSecret(true);
-                    setTimeout(() => setCopiedSecret(false), 2000);
-                  }}
-                  className="ml-2 p-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs flex items-center space-x-1"
-                >
-                  {copiedSecret ? (
-                    <Check className="h-3.5 w-3.5 text-emerald-400" />
-                  ) : (
-                    <Copy className="h-3.5 w-3.5" />
-                  )}
-                  <span className="text-[10px]">{copiedSecret ? 'Copied' : 'Copy'}</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="flex justify-end pt-2">
+            <div className="flex justify-end">
               <button
                 onClick={() => setCreatedWebhookSecret(null)}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold"
+                className="px-4 py-2 bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-xl text-xs font-semibold"
               >
-                I Have Stored the Secret
+                Done
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* =================================================================== */}
-      {/* MODAL: DELIVERY PAYLOAD VIEWER */}
-      {/* =================================================================== */}
-      {selectedDeliveryPayload && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl p-6 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div className="space-y-0.5">
-                <div className="flex items-center space-x-2">
-                  <span className="font-mono text-xs text-indigo-400 font-semibold">
-                    {selectedDeliveryPayload.eventType}
-                  </span>
-                  <span
-                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
-                      selectedDeliveryPayload.status === 'SENT'
-                        ? 'bg-emerald-950/80 text-emerald-300 border-emerald-800'
-                        : 'bg-rose-950/80 text-rose-300 border-rose-800'
-                    }`}
-                  >
-                    {selectedDeliveryPayload.status}
-                  </span>
-                </div>
-                <h3 className="text-sm font-bold text-white">Webhook Delivery Inspector</h3>
-              </div>
-              <button
-                onClick={() => setSelectedDeliveryPayload(null)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="overflow-y-auto space-y-3 flex-1 pr-1">
-              <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
-                  Request Payload (JSON)
-                </span>
-                <pre className="p-3 bg-slate-950 rounded-lg border border-slate-800 font-mono text-xs text-slate-200 overflow-x-auto">
-                  {JSON.stringify(selectedDeliveryPayload.payload, null, 2)}
-                </pre>
-              </div>
-
-              {selectedDeliveryPayload.errorMessage && (
-                <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-rose-400 block mb-1">
-                    Transmission Error
-                  </span>
-                  <div className="p-3 bg-rose-950/40 rounded-lg border border-rose-800 font-mono text-xs text-rose-300">
-                    {selectedDeliveryPayload.errorMessage}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="flex justify-end pt-2 border-t border-slate-800">
-              <button
-                onClick={() => setSelectedDeliveryPayload(null)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-semibold"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* =================================================================== */}
-      {/* MODAL: QUEUE & BACKGROUND ENGINE HEALTH */}
-      {/* =================================================================== */}
-      {showQueueModal && (queueHealth || tenantQueueHealth) && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl p-6 space-y-5">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div className="flex items-center space-x-2">
-                <Activity className="h-5 w-5 text-indigo-400" />
-                <h3 className="text-base font-bold text-white">
-                  {queueHealth
-                    ? 'Global Background Engine Status'
-                    : 'Tenant Background Engine Status'}
-                </h3>
-              </div>
-              <button
-                onClick={() => setShowQueueModal(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            {/* Redis Connection Pill */}
-            <div className="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800">
-              <div className="flex items-center space-x-2.5">
-                <span
-                  className={`h-2.5 w-2.5 rounded-full ${
-                    (queueHealth?.redisConnected ?? tenantQueueHealth?.redisConnected)
-                      ? 'bg-emerald-400 animate-pulse'
-                      : 'bg-rose-500'
-                  }`}
-                />
-                <div>
-                  <div className="text-xs font-bold text-white">Redis Infrastructure</div>
-                  <div className="text-[10px] text-slate-400">
-                    Distributed Locks, Delayed Timers & BullMQ Streams
-                  </div>
-                </div>
-              </div>
-              <span
-                className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
-                  (queueHealth?.redisConnected ?? tenantQueueHealth?.redisConnected)
-                    ? 'bg-emerald-950 text-emerald-300 border-emerald-800'
-                    : 'bg-rose-950 text-rose-300 border-rose-800'
-                }`}
-              >
-                {(queueHealth?.redisConnected ?? tenantQueueHealth?.redisConnected)
-                  ? 'Connected'
-                  : 'Offline'}
-              </span>
-            </div>
-
-            {/* Queue Metrics (SUPER_ADMIN) */}
-            {queueHealth && (
-              <div className="space-y-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                  Active Worker Queues (Global)
-                </span>
-                {(['notifications', 'escalations', 'webhooks'] as const).map((qName) => {
-                  const q = queueHealth.queues[qName];
-                  return (
-                    <div
-                      key={qName}
-                      className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-white uppercase tracking-wider">
-                          {qName}
-                        </span>
-                        <span className="text-[10px] text-slate-400 font-mono">
-                          {q.completed} completed
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-4 gap-2 text-center text-xs">
-                        <div className="p-1.5 rounded bg-slate-900 border border-slate-800">
-                          <div className="text-[10px] text-slate-400">Waiting</div>
-                          <div className="font-bold text-slate-200">{q.waiting}</div>
-                        </div>
-                        <div className="p-1.5 rounded bg-slate-900 border border-slate-800">
-                          <div className="text-[10px] text-indigo-400">Active</div>
-                          <div className="font-bold text-indigo-300">{q.active}</div>
-                        </div>
-                        <div className="p-1.5 rounded bg-slate-900 border border-slate-800">
-                          <div className="text-[10px] text-amber-400">Delayed</div>
-                          <div className="font-bold text-amber-300">{q.delayed || 0}</div>
-                        </div>
-                        <div className="p-1.5 rounded bg-slate-900 border border-slate-800">
-                          <div className="text-[10px] text-rose-400">Failed</div>
-                          <div className="font-bold text-rose-300">{q.failed}</div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Tenant Metrics (TENANT_ADMIN) */}
-            {tenantQueueHealth && !queueHealth && (
-              <div className="space-y-3">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                  Tenant Background Activity
-                </span>
-
-                {/* Outbox Events */}
-                <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-white uppercase tracking-wider">
-                      Transactional Outbox
-                    </span>
-                    <span className="text-[10px] text-slate-400 font-mono">
-                      {tenantQueueHealth.outbox.published} published
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                    <div className="p-1.5 rounded bg-slate-900 border border-slate-800">
-                      <div className="text-[10px] text-slate-400">Pending</div>
-                      <div className="font-bold text-slate-200">
-                        {tenantQueueHealth.outbox.pending}
-                      </div>
-                    </div>
-                    <div className="p-1.5 rounded bg-slate-900 border border-slate-800">
-                      <div className="text-[10px] text-indigo-400">Processing</div>
-                      <div className="font-bold text-indigo-300">
-                        {tenantQueueHealth.outbox.processing}
-                      </div>
-                    </div>
-                    <div className="p-1.5 rounded bg-slate-900 border border-slate-800">
-                      <div className="text-[10px] text-rose-400">Failed</div>
-                      <div className="font-bold text-rose-300">
-                        {tenantQueueHealth.outbox.failed}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Notifications & Webhooks */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
-                    <div className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">
-                      Notifications
-                    </div>
-                    <div className="text-xs text-white">
-                      <span className="text-emerald-400 font-bold">
-                        {tenantQueueHealth.notifications.sent}
-                      </span>{' '}
-                      sent /{' '}
-                      <span className="text-slate-300">
-                        {tenantQueueHealth.notifications.pending}
-                      </span>{' '}
-                      queued
-                    </div>
-                  </div>
-                  <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
-                    <div className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">
-                      Webhooks
-                    </div>
-                    <div className="text-xs text-white">
-                      <span className="text-indigo-400 font-bold">
-                        {tenantQueueHealth.webhooks.totalDeliveries}
-                      </span>{' '}
-                      deliveries across{' '}
-                      <span className="text-slate-300">
-                        {tenantQueueHealth.webhooks.activeEndpoints}
-                      </span>{' '}
-                      endpoints
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div className="flex justify-end pt-2">
-              <button
-                onClick={() => setShowQueueModal(false)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-semibold"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* =================================================================== */}
-      {/* DRAWER: NOTIFICATION LOGS ACTIVITY */}
-      {/* =================================================================== */}
+      {/* Notifications Drawer */}
       {showNotificationsDrawer && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex justify-end">
-          <div className="bg-slate-900 border-l border-slate-800 w-full max-w-md h-full flex flex-col p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div className="flex items-center space-x-2">
-                <Bell className="h-5 w-5 text-indigo-400" />
-                <h3 className="text-base font-bold text-white">Notifications Activity</h3>
+          <div className="w-full max-w-md h-full glass-panel border-l border-white/[0.1] p-6 space-y-4 overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
+              <h3 className="font-bold text-base text-white">Outbound Notifications</h3>
+              <button onClick={() => setShowNotificationsDrawer(false)} className="p-1 rounded-lg text-slate-400 hover:text-white">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            {notificationsLoading ? (
+              <div className="py-12 text-center text-slate-400">
+                <RefreshCw className="h-6 w-6 animate-spin mx-auto text-aurora-cyan" />
               </div>
-              <button
-                onClick={() => setShowNotificationsDrawer(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="overflow-y-auto flex-1 space-y-3 pr-1">
-              {notificationsLoading ? (
-                <div className="py-12 text-center text-slate-400 space-y-2">
-                  <RefreshCw className="h-5 w-5 animate-spin mx-auto text-indigo-400" />
-                  <p className="text-xs">Loading notification logs...</p>
-                </div>
-              ) : notifications.length === 0 ? (
-                <div className="py-12 text-center text-xs text-slate-400">
-                  No notifications recorded yet.
-                </div>
-              ) : (
-                notifications.map((n) => (
-                  <div
-                    key={n.id}
-                    className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1.5 text-xs"
-                  >
+            ) : notifications.length === 0 ? (
+              <p className="text-xs text-slate-400 text-center py-10">No recent notifications.</p>
+            ) : (
+              <div className="space-y-2">
+                {notifications.map((n) => (
+                  <div key={n.id} className="p-3 rounded-xl bg-obsidian-950 border border-white/[0.06] text-xs space-y-1">
                     <div className="flex items-center justify-between">
-                      <span className="font-mono text-[10px] text-indigo-400 font-bold">
-                        {n.eventType}
-                      </span>
-                      <span
-                        className={`px-2 py-0.2 rounded-full text-[9px] font-bold uppercase tracking-wider border ${
-                          n.status === 'SENT'
-                            ? 'bg-emerald-950 text-emerald-300 border-emerald-800'
-                            : 'bg-amber-950 text-amber-300 border-amber-800'
-                        }`}
-                      >
-                        {n.status}
-                      </span>
+                      <span className="font-mono text-[10px] text-aurora-cyan">{n.eventType}</span>
+                      <span className="text-[10px] text-slate-500">{new Date(n.createdAt).toLocaleTimeString()}</span>
                     </div>
-                    <div className="font-semibold text-white">{n.subject}</div>
-                    <div className="text-slate-400 text-[11px] leading-relaxed">{n.content}</div>
-                    <div className="flex items-center justify-between pt-1 border-t border-slate-900 text-[10px] text-slate-500">
-                      <span>To: {n.recipientEmail}</span>
-                      <span>{new Date(n.createdAt).toLocaleTimeString()}</span>
-                    </div>
+                    <p className="text-slate-300 font-medium">{n.recipientEmail}</p>
+                    <p className="text-slate-400 text-[11px] truncate">{n.subject}</p>
                   </div>
-                ))
-              )}
-            </div>
-
-            <div className="pt-2 border-t border-slate-800 flex justify-end">
-              <button
-                onClick={() => setShowNotificationsDrawer(false)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-semibold"
-              >
-                Close
-              </button>
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -19,7 +19,12 @@ export class AuthController {
    */
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  @Throttle({ default: { limit: process.env.NODE_ENV === 'test' ? 100 : 10, ttl: 60000 } })
+  @Throttle({
+    default: {
+      limit: process.env.NODE_ENV === 'production' ? 15 : 1000,
+      ttl: 60000,
+    },
+  })
   async login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
   }

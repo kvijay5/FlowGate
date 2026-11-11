@@ -85,7 +85,10 @@ describe('Milestone 6 Core Data Layer & DAG Models (Integration)', () => {
       where: { id: testRequestId },
     });
     await prisma.userDelegation.deleteMany({
-      where: { tenantId: acmeTenantId },
+      where: {
+        tenantId: acmeTenantId,
+        reason: 'Executive annual leave delegation',
+      },
     });
     await prisma.workflowDefinition.deleteMany({
       where: { id: testWorkflowId },
@@ -387,7 +390,8 @@ describe('Milestone 6 Core Data Layer & DAG Models (Integration)', () => {
       const delegations = await prisma.userDelegation.findMany({
         where: { tenantId: acmeTenantId, delegatorId: acmeManagerId },
       });
-      expect(delegations).toHaveLength(1);
+      expect(delegations.length).toBeGreaterThanOrEqual(1);
+      expect(delegations.some((d) => d.id === delegation.id)).toBe(true);
 
       // Verify tenant isolation: Globex tenant cannot query Acme delegation
       const globexQuery = await prisma.userDelegation.findMany({

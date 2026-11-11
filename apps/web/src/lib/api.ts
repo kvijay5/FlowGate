@@ -22,7 +22,8 @@ import {
   CreateDelegationDto,
 } from '@flowgate/shared-types';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const rawBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const API_BASE = rawBase.replace(/\/api\/?$/, '').replace(/\/$/, '');
 
 export class ApiError extends Error {
   constructor(
@@ -80,10 +81,34 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     headers.set('Authorization', `Bearer ${token}`);
   }
 
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers,
-  });
+  const baseUrl = API_BASE.replace(/\/$/, '');
+  let response: Response;
+  try {
+    response = await fetch(`${baseUrl}${path}`, {
+      ...options,
+      headers,
+    });
+  } catch {
+    // If direct fetch to API_BASE fails (CORS or unreachable port), fallback to relative Next.js proxy
+    if (typeof window !== 'undefined') {
+      try {
+        response = await fetch(path, {
+          ...options,
+          headers,
+        });
+      } catch {
+        throw new ApiError(
+          0,
+          `Cannot connect to FlowGate API server at ${baseUrl}. Ensure the backend is running (pnpm dev:api).`,
+        );
+      }
+    } else {
+      throw new ApiError(
+        0,
+        `Cannot connect to FlowGate API server at ${baseUrl}. Ensure the backend is running (pnpm dev:api).`,
+      );
+    }
+  }
 
   if (!response.ok) {
     let errMessage = `HTTP ${response.status} ${response.statusText}`;
