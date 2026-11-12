@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -20,10 +21,35 @@ async function bootstrap() {
     }),
   );
 
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('FlowGate Enterprise API')
+    .setDescription(
+      'FlowGate Multi-Tenant Approval Workflow Platform & DAG Execution Engine REST API',
+    )
+    .setVersion('1.0')
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        name: 'Authorization',
+        description: 'Enter JWT access token',
+        in: 'header',
+      },
+      'JWT-auth',
+    )
+    .build();
+
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
+  SwaggerModule.setup('api/docs', app, document, {
+    customSiteTitle: 'FlowGate API Documentation',
+  });
+
   const port = process.env.API_PORT || process.env.PORT || 4000;
   await app.listen(port);
   logger.log(`FlowGate API is running on: http://localhost:${port}`);
   logger.log(`Health check available at: http://localhost:${port}/health`);
+  logger.log(`OpenAPI documentation available at: http://localhost:${port}/api/docs`);
 }
 
 bootstrap();

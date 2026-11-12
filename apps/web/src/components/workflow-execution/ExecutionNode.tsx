@@ -73,24 +73,26 @@ export const ExecutionNode: React.FC<NodeProps> = ({ data, selected }) => {
   if (isCompleted) {
     containerStyle =
       'bg-gradient-to-b from-emerald-950/40 to-[#0B0D19]/90 border-emerald-500/80 shadow-lg shadow-emerald-500/10 text-emerald-100 ring-1 ring-emerald-500/30';
-    badgeStyle = 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-[0_0_10px_rgba(16,185,129,0.2)]';
+    badgeStyle =
+      'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-[0_0_10px_rgba(16,185,129,0.2)]';
     statusText = 'Completed';
     StatusIcon = CheckCircle2;
   } else if (isActive) {
     containerStyle =
       'bg-gradient-to-b from-cyan-950/50 to-[#0B0D19]/90 border-cyan-400 shadow-xl shadow-cyan-500/25 text-cyan-100 ring-2 ring-cyan-500/40 animate-pulse';
-    badgeStyle = 'bg-cyan-500/20 text-cyan-300 border-cyan-400 shadow-[0_0_12px_rgba(6,182,212,0.4)]';
+    badgeStyle =
+      'bg-cyan-500/20 text-cyan-300 border-cyan-400 shadow-[0_0_12px_rgba(6,182,212,0.4)]';
     statusText = 'Active / In Review';
     StatusIcon = Clock;
   } else if (isRejected) {
     containerStyle =
       'bg-gradient-to-b from-rose-950/50 to-[#0B0D19]/90 border-rose-500/80 shadow-lg shadow-rose-500/20 text-rose-100 ring-1 ring-rose-500/30';
-    badgeStyle = 'bg-rose-500/20 text-rose-300 border-rose-500/40 shadow-[0_0_10px_rgba(244,63,94,0.3)]';
+    badgeStyle =
+      'bg-rose-500/20 text-rose-300 border-rose-500/40 shadow-[0_0_10px_rgba(244,63,94,0.3)]';
     statusText = 'Rejected';
     StatusIcon = XCircle;
   } else if (isPruned) {
-    containerStyle =
-      'bg-[#07080F]/60 border-slate-800/80 border-dashed opacity-40 text-slate-500';
+    containerStyle = 'bg-[#07080F]/60 border-slate-800/80 border-dashed opacity-40 text-slate-500';
     badgeStyle = 'bg-white/[0.02] text-slate-500 border-white/5';
     statusText = 'Pruned / Skipped';
     StatusIcon = AlertTriangle;

@@ -39,6 +39,48 @@ services:
     networks:
       - flowgate-network
 
+  api-preview:
+    profiles: ['preview']
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: flowgate-api-preview
+    restart: unless-stopped
+    ports:
+      - '4000:4000'
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-flowgate}:${POSTGRES_PASSWORD:-flowgate_dev_password}@postgres:5432/${POSTGRES_DB:-flowgate_dev}?schema=public
+      REDIS_URL: redis://:${REDIS_PASSWORD:-flowgate_redis_pass}@redis:6379/0
+      JWT_SECRET: ${JWT_SECRET:-flowgate_dev_jwt_secret_change_in_production_min32chars}
+      CORS_ORIGIN: http://localhost:3000,http://127.0.0.1:3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - flowgate-network
+
+  web-preview:
+    profiles: ['preview']
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: flowgate-web-preview
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      NEXT_PUBLIC_API_URL: http://localhost:4000
+    depends_on:
+      - api-preview
+    networks:
+      - flowgate-network
+
 volumes:
   postgres_data:
     name: flowgate_postgres_data

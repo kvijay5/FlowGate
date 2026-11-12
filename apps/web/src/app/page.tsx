@@ -94,8 +94,14 @@ const DEMO_PERSONAS: DemoPersona[] = [
     avatar: '⚡',
     gradient: 'from-violet-600 via-indigo-600 to-purple-700',
     borderHover: 'hover:border-violet-500/70 hover:shadow-violet-500/25',
-    description: 'Full workspace authority, visual workflow designer, webhook manager, queue monitor',
-    powers: ['Design & Publish DAGs', 'Executive Final Approval', 'Verify SHA-256 Ledger', 'SSRF Webhooks'],
+    description:
+      'Full workspace authority, visual workflow designer, webhook manager, queue monitor',
+    powers: [
+      'Design & Publish DAGs',
+      'Executive Final Approval',
+      'Verify SHA-256 Ledger',
+      'SSRF Webhooks',
+    ],
   },
   {
     id: 'acme-cfo',
@@ -110,7 +116,8 @@ const DEMO_PERSONAS: DemoPersona[] = [
     avatar: '💼',
     gradient: 'from-cyan-600 via-blue-600 to-indigo-700',
     borderHover: 'hover:border-cyan-500/70 hover:shadow-cyan-500/25',
-    description: 'Executive capex reviewer with active Out-of-Office delegation delegated to Linda Legal',
+    description:
+      'Executive capex reviewer with active Out-of-Office delegation delegated to Linda Legal',
     powers: ['Parallel Quorum 2-of-3 Vote', 'Out-of-Office Delegation', 'Budget Sign-off'],
   },
   {
@@ -126,8 +133,13 @@ const DEMO_PERSONAS: DemoPersona[] = [
     avatar: '⚖️',
     gradient: 'from-emerald-600 via-teal-600 to-cyan-700',
     borderHover: 'hover:border-emerald-500/70 hover:shadow-emerald-500/25',
-    description: 'Acme legal counsel & active stand-in delegatee casting decisive votes on Bob’s behalf',
-    powers: ['Cast Delegated Quorum Vote', 'Export Compliance Sign-off', 'Deciding Tie-breaker Vote'],
+    description:
+      'Acme legal counsel & active stand-in delegatee casting decisive votes on Bob’s behalf',
+    powers: [
+      'Cast Delegated Quorum Vote',
+      'Export Compliance Sign-off',
+      'Deciding Tie-breaker Vote',
+    ],
   },
   {
     id: 'acme-engineer',
@@ -142,8 +154,13 @@ const DEMO_PERSONAS: DemoPersona[] = [
     avatar: '🚀',
     gradient: 'from-amber-600 via-orange-600 to-rose-700',
     borderHover: 'hover:border-amber-500/70 hover:shadow-amber-500/25',
-    description: 'Submits capex purchase requests with structured runtime condition parameters ($145k AI Cluster)',
-    powers: ['Submit Structured DAG Requests', 'Selective Fast-Forward Resubmit', 'Cancel Submissions'],
+    description:
+      'Submits capex purchase requests with structured runtime condition parameters ($145k AI Cluster)',
+    powers: [
+      'Submit Structured DAG Requests',
+      'Selective Fast-Forward Resubmit',
+      'Cancel Submissions',
+    ],
   },
   {
     id: 'globex-admin',
@@ -158,13 +175,13 @@ const DEMO_PERSONAS: DemoPersona[] = [
     avatar: '🌐',
     gradient: 'from-rose-600 via-pink-600 to-purple-700',
     borderHover: 'hover:border-rose-500/70 hover:shadow-rose-500/25',
-    description: 'Demonstrates physical multi-tenant isolation — zero visibility into Acme workflows or data',
+    description:
+      'Demonstrates physical multi-tenant isolation — zero visibility into Acme workflows or data',
     powers: ['Tenant Boundary Isolation', 'Separate Workflow Catalog', 'Isolated Audit Ledger'],
   },
 ];
 
-const DEFAULT_DEV_PASSWORD =
-  process.env.NEXT_PUBLIC_DEV_PASSWORD || 'FlowGatePass123!';
+const DEFAULT_DEV_PASSWORD = process.env.NEXT_PUBLIC_DEV_PASSWORD || 'FlowGatePass123!';
 
 export default function FlowGateApp() {
   // Auth state
@@ -178,22 +195,30 @@ export default function FlowGateApp() {
   const [launchingPersonaId, setLaunchingPersonaId] = useState<string | null>(null);
 
   // App navigation
-  const [activeTab, setActiveTab] = useState<'requests' | 'workflows' | 'delegations' | 'webhooks'>('requests');
-  const [requestFilter, setRequestFilter] = useState<'pending_approval' | 'mine' | 'all'>('pending_approval');
+  const [activeTab, setActiveTab] = useState<'requests' | 'workflows' | 'delegations' | 'webhooks'>(
+    'requests',
+  );
+  const [requestFilter, setRequestFilter] = useState<'pending_approval' | 'mine' | 'all'>(
+    'pending_approval',
+  );
   const [searchQuery, setSearchQuery] = useState('');
 
   // Data state
   const [requests, setRequests] = useState<ApprovalRequestSummary[]>([]);
   const [workflows, setWorkflows] = useState<WorkflowDefinitionSummary[]>([]);
   const [delegations, setDelegations] = useState<UserDelegationSummary[]>([]);
-  const [colleagues, setColleagues] = useState<Array<{ id: string; name: string; email: string; role: UserRole }>>([]);
+  const [colleagues, setColleagues] = useState<
+    Array<{ id: string; name: string; email: string; role: UserRole }>
+  >([]);
   const [dataLoading, setDataLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
 
   // Selected request detail modal (Quick View)
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
-  const [selectedRequestDetail, setSelectedRequestDetail] = useState<ApprovalRequestDetail | null>(null);
+  const [selectedRequestDetail, setSelectedRequestDetail] = useState<ApprovalRequestDetail | null>(
+    null,
+  );
   const [actionComments, setActionComments] = useState('');
   const [isExecutingAction, setIsExecutingAction] = useState(false);
 
@@ -236,7 +261,8 @@ export default function FlowGateApp() {
 
   // Webhooks state
   const [webhooks, setWebhooks] = useState<WebhookSubscriptionSummary[]>([]);
-  const [selectedSubForDeliveries, setSelectedSubForDeliveries] = useState<WebhookSubscriptionSummary | null>(null);
+  const [selectedSubForDeliveries, setSelectedSubForDeliveries] =
+    useState<WebhookSubscriptionSummary | null>(null);
   const [deliveries, setDeliveries] = useState<WebhookDeliverySummary[]>([]);
   const [deliveriesLoading, setDeliveriesLoading] = useState(false);
   const [showCreateWebhookModal, setShowCreateWebhookModal] = useState(false);
@@ -247,12 +273,16 @@ export default function FlowGateApp() {
     'step.approved',
     'request.approved',
   ]);
-  const [createdWebhookSecret, setCreatedWebhookSecret] = useState<{ name: string; secret: string } | null>(null);
+  const [createdWebhookSecret, setCreatedWebhookSecret] = useState<{
+    name: string;
+    secret: string;
+  } | null>(null);
   const [copiedSecret, setCopiedSecret] = useState(false);
   const [isSubmittingWebhook, setIsSubmittingWebhook] = useState(false);
   const [testingWebhookId, setTestingWebhookId] = useState<string | null>(null);
   const [retryingDeliveryId, setRetryingDeliveryId] = useState<string | null>(null);
-  const [selectedDeliveryPayload, setSelectedDeliveryPayload] = useState<WebhookDeliverySummary | null>(null);
+  const [selectedDeliveryPayload, setSelectedDeliveryPayload] =
+    useState<WebhookDeliverySummary | null>(null);
 
   // Notifications state
   const [notifications, setNotifications] = useState<NotificationLogSummary[]>([]);
@@ -369,7 +399,8 @@ export default function FlowGateApp() {
   const selectedWorkflow = workflows.find((w) => w.id === newRequestWorkflowId);
   const inputSchema: InputSchema | undefined =
     selectedWorkflow?.configuration?.inputSchema ||
-    (selectedWorkflow?.configuration?.nodes?.find((n) => n.type === 'TRIGGER')?.config as any)?.inputSchema;
+    (selectedWorkflow?.configuration?.nodes?.find((n) => n.type === 'TRIGGER')?.config as any)
+      ?.inputSchema;
 
   // Initialize or reset dynamic input fields when workflow changes
   useEffect(() => {
@@ -435,7 +466,10 @@ export default function FlowGateApp() {
   // ---------------------------------------------------------------------------
   // WORKFLOW & APPROVAL ACTIONS
   // ---------------------------------------------------------------------------
-  const handleAction = async (action: 'APPROVE' | 'REJECT' | 'REQUEST_CHANGES', requestId?: string) => {
+  const handleAction = async (
+    action: 'APPROVE' | 'REJECT' | 'REQUEST_CHANGES',
+    requestId?: string,
+  ) => {
     const targetId = requestId || selectedRequestId;
     if (!targetId) return;
     setIsExecutingAction(true);
@@ -473,7 +507,7 @@ export default function FlowGateApp() {
       setActionSuccess(
         result.valid
           ? `Cryptographic Audit Chain verified: ${result.totalEntries} entries valid from genesis block.`
-          : `Tampering detected at log ${result.brokenAtId ? `ID #${result.brokenAtId}` : (result.details || 'block')}`
+          : `Tampering detected at log ${result.brokenAtId ? `ID #${result.brokenAtId}` : result.details || 'block'}`,
       );
     } catch (err: any) {
       setActionError(err.message || 'Audit chain verification failed');
@@ -722,7 +756,7 @@ export default function FlowGateApp() {
           d.delegatorId === auth.user.id &&
           d.status === 'ACTIVE' &&
           new Date(d.startDate).getTime() <= nowMs &&
-          new Date(d.endDate).getTime() >= nowMs
+          new Date(d.endDate).getTime() >= nowMs,
       )
     : null;
 
@@ -732,7 +766,7 @@ export default function FlowGateApp() {
           d.delegateeId === auth.user.id &&
           d.status === 'ACTIVE' &&
           new Date(d.startDate).getTime() <= nowMs &&
-          new Date(d.endDate).getTime() >= nowMs
+          new Date(d.endDate).getTime() >= nowMs,
       )
     : null;
 
@@ -746,7 +780,9 @@ export default function FlowGateApp() {
           </div>
           <Sparkles className="h-6 w-6 text-aurora-cyan absolute inset-0 m-auto" />
         </div>
-        <p className="text-xs uppercase tracking-widest text-slate-400 font-mono">Initializing FlowGate...</p>
+        <p className="text-xs uppercase tracking-widest text-slate-400 font-mono">
+          Initializing FlowGate...
+        </p>
       </div>
     );
   }
@@ -804,8 +840,9 @@ export default function FlowGateApp() {
             </h1>
 
             <p className="text-slate-300 text-sm sm:text-base leading-relaxed max-w-xl">
-              FlowGate provides enterprise organizations with automated multi-step DAG approval routing,
-              AST condition evaluations, parallel quorum consensus, and append-only SHA-256 cryptographic audit trails.
+              FlowGate provides enterprise organizations with automated multi-step DAG approval
+              routing, AST condition evaluations, parallel quorum consensus, and append-only SHA-256
+              cryptographic audit trails.
             </p>
 
             {/* Live Interactive DAG Preview Card */}
@@ -864,19 +901,27 @@ export default function FlowGateApp() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-2">
               <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.06] text-center">
                 <span className="text-lg font-extrabold text-white">367</span>
-                <span className="block text-[10px] text-slate-400 uppercase tracking-wider">Automated Tests</span>
+                <span className="block text-[10px] text-slate-400 uppercase tracking-wider">
+                  Automated Tests
+                </span>
               </div>
               <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.06] text-center">
                 <span className="text-lg font-extrabold text-aurora-cyan">Zero</span>
-                <span className="block text-[10px] text-slate-400 uppercase tracking-wider">Eval AST Safety</span>
+                <span className="block text-[10px] text-slate-400 uppercase tracking-wider">
+                  Eval AST Safety
+                </span>
               </div>
               <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.06] text-center">
                 <span className="text-lg font-extrabold text-aurora-violet">SHA-256</span>
-                <span className="block text-[10px] text-slate-400 uppercase tracking-wider">Audit Ledger</span>
+                <span className="block text-[10px] text-slate-400 uppercase tracking-wider">
+                  Audit Ledger
+                </span>
               </div>
               <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.06] text-center">
                 <span className="text-lg font-extrabold text-aurora-emerald">Strict</span>
-                <span className="block text-[10px] text-slate-400 uppercase tracking-wider">Tenant Isolation</span>
+                <span className="block text-[10px] text-slate-400 uppercase tracking-wider">
+                  Tenant Isolation
+                </span>
               </div>
             </div>
           </div>
@@ -893,7 +938,8 @@ export default function FlowGateApp() {
                     <span>Instant Persona Launchpad</span>
                   </h2>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    Click any enterprise role card below to authenticate and enter workspace immediately.
+                    Click any enterprise role card below to authenticate and enter workspace
+                    immediately.
                   </p>
                 </div>
               </div>
@@ -928,12 +974,15 @@ export default function FlowGateApp() {
                             <h4 className="font-bold text-white text-sm truncate group-hover:text-aurora-cyan transition-colors">
                               {persona.name}
                             </h4>
-                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-mono font-bold uppercase tracking-wider border ${persona.badgeColor}`}>
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[9px] font-mono font-bold uppercase tracking-wider border ${persona.badgeColor}`}
+                            >
                               {persona.badge}
                             </span>
                           </div>
                           <p className="text-[11px] text-slate-300 font-medium truncate mt-0.5">
-                            {persona.title} • <span className="font-mono text-slate-400">{persona.email}</span>
+                            {persona.title} •{' '}
+                            <span className="font-mono text-slate-400">{persona.email}</span>
                           </p>
                           <p className="text-[10px] text-slate-400 truncate mt-0.5">
                             {persona.description}
@@ -959,13 +1008,17 @@ export default function FlowGateApp() {
                   <span className="font-semibold uppercase tracking-wider text-[10px]">
                     Or Sign In with Custom Credentials
                   </span>
-                  <span className="text-[10px] font-mono text-slate-400">Default: FlowGatePass123!</span>
+                  <span className="text-[10px] font-mono text-slate-400">
+                    Default: FlowGatePass123!
+                  </span>
                 </div>
 
                 <form onSubmit={handleLogin} className="space-y-3">
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     <div>
-                      <label className="block text-[11px] font-medium text-slate-300 mb-1">Tenant Slug</label>
+                      <label className="block text-[11px] font-medium text-slate-300 mb-1">
+                        Tenant Slug
+                      </label>
                       <input
                         type="text"
                         value={loginSlug}
@@ -975,7 +1028,9 @@ export default function FlowGateApp() {
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] font-medium text-slate-300 mb-1">Email</label>
+                      <label className="block text-[11px] font-medium text-slate-300 mb-1">
+                        Email
+                      </label>
                       <input
                         type="email"
                         value={loginEmail}
@@ -987,7 +1042,9 @@ export default function FlowGateApp() {
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-medium text-slate-300 mb-1">Password</label>
+                    <label className="block text-[11px] font-medium text-slate-300 mb-1">
+                      Password
+                    </label>
                     <input
                       type="password"
                       value={loginPassword}
@@ -1057,7 +1114,9 @@ export default function FlowGateApp() {
 
           {/* Instant One-Click Persona Switcher Bar */}
           <div className="hidden xl:flex items-center space-x-1.5 p-1 rounded-xl bg-white/[0.03] border border-white/[0.08] text-xs">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-2">Switch Persona:</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-2">
+              Switch Persona:
+            </span>
             {DEMO_PERSONAS.map((persona) => {
               const isActive = auth.user.email === persona.email;
               const isSwitching = launchingPersonaId === persona.id;
@@ -1101,7 +1160,9 @@ export default function FlowGateApp() {
             {/* User Profile Pill */}
             <div className="flex items-center space-x-2 pl-1 text-xs">
               <div className="text-right hidden sm:block">
-                <span className="font-semibold text-white block leading-tight">{auth.user.name}</span>
+                <span className="font-semibold text-white block leading-tight">
+                  {auth.user.name}
+                </span>
                 <span className="text-[10px] text-slate-400 font-mono">{auth.user.email}</span>
               </div>
               <span className="px-2.5 py-1 rounded-lg font-mono font-bold text-[10px] uppercase bg-violet-950/80 text-violet-300 border border-violet-800">
@@ -1142,7 +1203,10 @@ export default function FlowGateApp() {
               <CheckCircle2 className="h-4 w-4 text-emerald-400 flex-shrink-0" />
               <span>{actionSuccess}</span>
             </div>
-            <button onClick={() => setActionSuccess(null)} className="text-emerald-400 hover:text-white">
+            <button
+              onClick={() => setActionSuccess(null)}
+              className="text-emerald-400 hover:text-white"
+            >
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -1159,8 +1223,11 @@ export default function FlowGateApp() {
                 <strong className="text-white block">Out-of-Office Delegation Active</strong>
                 <span>
                   Your review and sign-off authority is currently delegated to{' '}
-                  <strong className="text-amber-300">{activeOutgoingDelegation.delegatee?.name || activeOutgoingDelegation.delegateeId}</strong> until{' '}
-                  {new Date(activeOutgoingDelegation.endDate).toLocaleDateString()}.
+                  <strong className="text-amber-300">
+                    {activeOutgoingDelegation.delegatee?.name ||
+                      activeOutgoingDelegation.delegateeId}
+                  </strong>{' '}
+                  until {new Date(activeOutgoingDelegation.endDate).toLocaleDateString()}.
                 </span>
               </div>
             </div>
@@ -1183,8 +1250,12 @@ export default function FlowGateApp() {
                 <strong className="text-white block">Acting as Authorized Delegatee</strong>
                 <span>
                   You hold delegated approval authority for{' '}
-                  <strong className="text-cyan-300">{activeIncomingDelegation.delegator?.name || activeIncomingDelegation.delegatorId}</strong> until{' '}
-                  {new Date(activeIncomingDelegation.endDate).toLocaleDateString()}. Your decisions carry full quorum weight.
+                  <strong className="text-cyan-300">
+                    {activeIncomingDelegation.delegator?.name ||
+                      activeIncomingDelegation.delegatorId}
+                  </strong>{' '}
+                  until {new Date(activeIncomingDelegation.endDate).toLocaleDateString()}. Your
+                  decisions carry full quorum weight.
                 </span>
               </div>
             </div>
@@ -1219,7 +1290,10 @@ export default function FlowGateApp() {
             </div>
             <div className="flex items-baseline space-x-2">
               <span className="text-3xl font-extrabold text-white">
-                {requests.filter((r) => r.status === 'IN_PROGRESS' || r.status === 'PENDING').length}
+                {
+                  requests.filter((r) => r.status === 'IN_PROGRESS' || r.status === 'PENDING')
+                    .length
+                }
               </span>
               <span className="text-xs text-amber-400 font-medium">Action Required</span>
             </div>
@@ -1270,7 +1344,9 @@ export default function FlowGateApp() {
               <span className="text-xs text-cyan-400 font-medium">Active Windows</span>
             </div>
             <p className="text-[11px] text-slate-400 line-clamp-1">
-              {activeOutgoingDelegation ? 'You have an active outgoing stand-in' : 'Manage travel & leave coverage'}
+              {activeOutgoingDelegation
+                ? 'You have an active outgoing stand-in'
+                : 'Manage travel & leave coverage'}
             </p>
           </div>
 
@@ -1366,7 +1442,9 @@ export default function FlowGateApp() {
               className="p-2 rounded-xl glass-card hover:bg-white/[0.08] text-slate-300 text-xs flex items-center space-x-1.5 transition-colors"
               title="Refresh Data"
             >
-              <RefreshCw className={`h-3.5 w-3.5 ${dataLoading || deliveriesLoading ? 'animate-spin' : ''}`} />
+              <RefreshCw
+                className={`h-3.5 w-3.5 ${dataLoading || deliveriesLoading ? 'animate-spin' : ''}`}
+              />
               <span className="hidden sm:inline">Refresh</span>
             </button>
 
@@ -1380,24 +1458,25 @@ export default function FlowGateApp() {
               </button>
             )}
 
-            {activeTab === 'workflows' && (auth.user.role === 'TENANT_ADMIN' || auth.user.role === 'MANAGER') && (
-              <div className="flex items-center space-x-2">
-                <a
-                  href="/workflows/new/builder"
-                  className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-semibold flex items-center space-x-1.5 shadow-md shadow-emerald-600/30 transition-all"
-                >
-                  <GitBranch className="h-4 w-4" />
-                  <span>Visual Workflow Builder</span>
-                </a>
-                <button
-                  onClick={() => setShowCreateWorkflowModal(true)}
-                  className="px-3 py-2 rounded-xl glass-card hover:bg-white/[0.08] text-slate-200 text-xs font-semibold flex items-center space-x-1.5 transition-colors"
-                >
-                  <Plus className="h-4 w-4" />
-                  <span>Quick Workflow</span>
-                </button>
-              </div>
-            )}
+            {activeTab === 'workflows' &&
+              (auth.user.role === 'TENANT_ADMIN' || auth.user.role === 'MANAGER') && (
+                <div className="flex items-center space-x-2">
+                  <a
+                    href="/workflows/new/builder"
+                    className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-semibold flex items-center space-x-1.5 shadow-md shadow-emerald-600/30 transition-all"
+                  >
+                    <GitBranch className="h-4 w-4" />
+                    <span>Visual Workflow Builder</span>
+                  </a>
+                  <button
+                    onClick={() => setShowCreateWorkflowModal(true)}
+                    className="px-3 py-2 rounded-xl glass-card hover:bg-white/[0.08] text-slate-200 text-xs font-semibold flex items-center space-x-1.5 transition-colors"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>Quick Workflow</span>
+                  </button>
+                </div>
+              )}
 
             {activeTab === 'delegations' && (
               <button
@@ -1409,15 +1488,16 @@ export default function FlowGateApp() {
               </button>
             )}
 
-            {activeTab === 'webhooks' && (auth.user.role === 'TENANT_ADMIN' || auth.user.role === 'SUPER_ADMIN') && (
-              <button
-                onClick={() => setShowCreateWebhookModal(true)}
-                className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white text-xs font-semibold flex items-center space-x-1.5 shadow-md shadow-violet-600/30 transition-all"
-              >
-                <Plus className="h-4 w-4" />
-                <span>New Webhook</span>
-              </button>
-            )}
+            {activeTab === 'webhooks' &&
+              (auth.user.role === 'TENANT_ADMIN' || auth.user.role === 'SUPER_ADMIN') && (
+                <button
+                  onClick={() => setShowCreateWebhookModal(true)}
+                  className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white text-xs font-semibold flex items-center space-x-1.5 shadow-md shadow-violet-600/30 transition-all"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>New Webhook</span>
+                </button>
+              )}
           </div>
         </div>
 
@@ -1478,7 +1558,9 @@ export default function FlowGateApp() {
             {dataLoading ? (
               <div className="py-20 text-center text-slate-400 space-y-3">
                 <RefreshCw className="h-8 w-8 animate-spin mx-auto text-aurora-cyan" />
-                <p className="text-xs font-mono uppercase tracking-wider">Loading approval requests...</p>
+                <p className="text-xs font-mono uppercase tracking-wider">
+                  Loading approval requests...
+                </p>
               </div>
             ) : filteredRequests.length === 0 ? (
               <div className="p-16 text-center glass-panel rounded-3xl border border-white/[0.08] space-y-4">
@@ -1547,11 +1629,16 @@ export default function FlowGateApp() {
                         )}
 
                         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-400 pt-0.5">
-                          <span>Requester: <strong className="text-slate-200">{req.requesterName}</strong></span>
+                          <span>
+                            Requester:{' '}
+                            <strong className="text-slate-200">{req.requesterName}</strong>
+                          </span>
                           <span>•</span>
                           <span>Submitted: {new Date(req.createdAt).toLocaleDateString()}</span>
                           <span>•</span>
-                          <span className="font-mono text-slate-500">ID: {req.id.slice(0, 8)}...</span>
+                          <span className="font-mono text-slate-500">
+                            ID: {req.id.slice(0, 8)}...
+                          </span>
                         </div>
                       </div>
 
@@ -1559,7 +1646,10 @@ export default function FlowGateApp() {
                       <div className="flex items-center space-x-2 self-end md:self-center flex-shrink-0">
                         {/* 1-Click Approve / Reject (If In Review) */}
                         {isPendingReview && (
-                          <div className="flex items-center space-x-1.5 mr-1" onClick={(e) => e.stopPropagation()}>
+                          <div
+                            className="flex items-center space-x-1.5 mr-1"
+                            onClick={(e) => e.stopPropagation()}
+                          >
                             <button
                               onClick={() => handleAction('APPROVE', req.id)}
                               disabled={isExecutingAction}
@@ -1699,10 +1789,14 @@ export default function FlowGateApp() {
               <div className="space-y-1">
                 <div className="flex items-center space-x-2">
                   <UserCheck className="h-5 w-5 text-aurora-cyan" />
-                  <h3 className="font-bold text-white text-base">Out-of-Office Approver Delegations</h3>
+                  <h3 className="font-bold text-white text-base">
+                    Out-of-Office Approver Delegations
+                  </h3>
                 </div>
                 <p className="text-xs text-slate-400 max-w-2xl">
-                  Temporarily assign your review and sign-off authority to an eligible colleague when traveling or on leave. All delegated votes are cryptographically attested and chained in the immutable audit log.
+                  Temporarily assign your review and sign-off authority to an eligible colleague
+                  when traveling or on leave. All delegated votes are cryptographically attested and
+                  chained in the immutable audit log.
                 </p>
               </div>
               <button
@@ -1719,7 +1813,8 @@ export default function FlowGateApp() {
                 <UserCheck className="h-10 w-10 mx-auto text-slate-600" />
                 <h3 className="font-bold text-slate-200">No delegations configured</h3>
                 <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                  There are no active or historical out-of-office delegations configured in your tenant.
+                  There are no active or historical out-of-office delegations configured in your
+                  tenant.
                 </p>
                 <button
                   onClick={openCreateDelegation}
@@ -1741,18 +1836,18 @@ export default function FlowGateApp() {
                   const statusBadgeClass = isCurrentActive
                     ? 'bg-emerald-950/80 text-emerald-300 border-emerald-800'
                     : isPendingStart
-                    ? 'bg-blue-950/80 text-blue-300 border-blue-800'
-                    : isRevoked
-                    ? 'bg-rose-950/80 text-rose-300 border-rose-800'
-                    : 'bg-slate-800 text-slate-400 border-slate-700';
+                      ? 'bg-blue-950/80 text-blue-300 border-blue-800'
+                      : isRevoked
+                        ? 'bg-rose-950/80 text-rose-300 border-rose-800'
+                        : 'bg-slate-800 text-slate-400 border-slate-700';
 
                   const statusLabel = isCurrentActive
                     ? 'ACTIVE NOW'
                     : isPendingStart
-                    ? 'SCHEDULED'
-                    : isRevoked
-                    ? 'REVOKED'
-                    : 'EXPIRED';
+                      ? 'SCHEDULED'
+                      : isRevoked
+                        ? 'REVOKED'
+                        : 'EXPIRED';
 
                   const isRevoking = revokingDelegationId === del.id;
 
@@ -1812,7 +1907,10 @@ export default function FlowGateApp() {
                         <div className="flex items-center justify-between text-slate-400">
                           <span className="text-[11px]">Workflow Scope:</span>
                           <span className="text-slate-200 font-medium">
-                            {del.workflowDefinitionName || (del.workflowDefinitionId ? 'Specific Workflow' : 'All Organization Workflows')}
+                            {del.workflowDefinitionName ||
+                              (del.workflowDefinitionId
+                                ? 'Specific Workflow'
+                                : 'All Organization Workflows')}
                           </span>
                         </div>
                         <div className="flex items-center justify-between text-slate-400">
@@ -1847,7 +1945,9 @@ export default function FlowGateApp() {
                   <h3 className="font-bold text-white text-base">SSRF-Guarded Outbound Webhooks</h3>
                 </div>
                 <p className="text-xs text-slate-400 max-w-2xl">
-                  Dispatches HMAC-SHA256 signed event payloads on workflow lifecycle state transitions. Outbound HTTP requests undergo pre-flight DNS socket verification to block private networks (RFC 1918) and cloud metadata targets.
+                  Dispatches HMAC-SHA256 signed event payloads on workflow lifecycle state
+                  transitions. Outbound HTTP requests undergo pre-flight DNS socket verification to
+                  block private networks (RFC 1918) and cloud metadata targets.
                 </p>
               </div>
               <button
@@ -1870,7 +1970,10 @@ export default function FlowGateApp() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {webhooks.map((sub) => (
-                  <div key={sub.id} className="p-5 rounded-2xl glass-card border border-white/[0.08] space-y-3">
+                  <div
+                    key={sub.id}
+                    className="p-5 rounded-2xl glass-card border border-white/[0.08] space-y-3"
+                  >
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-white text-sm">{sub.name}</span>
                       <div className="flex items-center space-x-1">
@@ -1894,7 +1997,10 @@ export default function FlowGateApp() {
                     </div>
                     <div className="flex flex-wrap gap-1">
                       {sub.eventTypes.map((ev) => (
-                        <span key={ev} className="px-2 py-0.5 rounded text-[10px] font-mono bg-violet-950/60 text-violet-300 border border-violet-800">
+                        <span
+                          key={ev}
+                          className="px-2 py-0.5 rounded text-[10px] font-mono bg-violet-950/60 text-violet-300 border border-violet-800"
+                        >
                           {ev}
                         </span>
                       ))}
@@ -1959,39 +2065,49 @@ export default function FlowGateApp() {
                 )}
 
                 {/* Structured DAG Routing Parameters */}
-                {selectedRequestDetail.requestData && Object.keys(selectedRequestDetail.requestData).length > 0 && (
-                  <div className="p-3.5 bg-obsidian-950 rounded-xl text-xs text-slate-300 border border-white/[0.08] space-y-1.5">
-                    <span className="text-[10px] uppercase font-bold text-aurora-cyan tracking-wider block">
-                      DAG Execution Parameters (Condition Routing Payload)
-                    </span>
-                    <div className="flex flex-wrap gap-2">
-                      {Object.entries(selectedRequestDetail.requestData).map(([k, v]) => (
-                        <div
-                          key={k}
-                          className="px-2.5 py-1 rounded-lg bg-obsidian-900 border border-white/[0.08] font-mono text-[11px] text-slate-300"
-                        >
-                          <span className="text-slate-400">{k}:</span>{' '}
-                          <span className="text-emerald-400 font-semibold">
-                            {typeof v === 'boolean'
-                              ? v ? 'true' : 'false'
-                              : typeof v === 'number'
-                              ? k.toLowerCase().includes('amount') || k.toLowerCase().includes('cost') || k.toLowerCase().includes('budget')
-                                ? `$${v.toLocaleString()}`
-                                : v.toString()
-                              : String(v)}
-                          </span>
-                        </div>
-                      ))}
+                {selectedRequestDetail.requestData &&
+                  Object.keys(selectedRequestDetail.requestData).length > 0 && (
+                    <div className="p-3.5 bg-obsidian-950 rounded-xl text-xs text-slate-300 border border-white/[0.08] space-y-1.5">
+                      <span className="text-[10px] uppercase font-bold text-aurora-cyan tracking-wider block">
+                        DAG Execution Parameters (Condition Routing Payload)
+                      </span>
+                      <div className="flex flex-wrap gap-2">
+                        {Object.entries(selectedRequestDetail.requestData).map(([k, v]) => (
+                          <div
+                            key={k}
+                            className="px-2.5 py-1 rounded-lg bg-obsidian-900 border border-white/[0.08] font-mono text-[11px] text-slate-300"
+                          >
+                            <span className="text-slate-400">{k}:</span>{' '}
+                            <span className="text-emerald-400 font-semibold">
+                              {typeof v === 'boolean'
+                                ? v
+                                  ? 'true'
+                                  : 'false'
+                                : typeof v === 'number'
+                                  ? k.toLowerCase().includes('amount') ||
+                                    k.toLowerCase().includes('cost') ||
+                                    k.toLowerCase().includes('budget')
+                                    ? `$${v.toLocaleString()}`
+                                    : v.toString()
+                                  : String(v)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
                 {/* Stepper Timeline */}
                 <div className="space-y-3">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">Approval Steps</h4>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Approval Steps
+                  </h4>
                   <div className="space-y-2">
                     {selectedRequestDetail.steps.map((step) => (
-                      <div key={step.id} className="p-3 rounded-xl bg-obsidian-950 border border-white/[0.08] flex items-center justify-between text-xs">
+                      <div
+                        key={step.id}
+                        className="p-3 rounded-xl bg-obsidian-950 border border-white/[0.08] flex items-center justify-between text-xs"
+                      >
                         <div className="flex items-center space-x-3">
                           <span className="h-6 w-6 rounded-full bg-violet-950 text-violet-300 border border-violet-800 flex items-center justify-center font-bold text-[11px]">
                             {step.stepOrder}
@@ -1999,7 +2115,8 @@ export default function FlowGateApp() {
                           <div>
                             <span className="font-semibold text-white block">{step.stepName}</span>
                             <span className="text-[11px] text-slate-400">
-                              Assigned: {step.assignedRole || step.assignedTo?.name || 'Authorized Approver'}
+                              Assigned:{' '}
+                              {step.assignedRole || step.assignedTo?.name || 'Authorized Approver'}
                             </span>
                           </div>
                         </div>
@@ -2012,9 +2129,12 @@ export default function FlowGateApp() {
                 </div>
 
                 {/* Approver Action Panel */}
-                {(selectedRequestDetail.status === 'IN_PROGRESS' || selectedRequestDetail.status === 'PENDING') && (
+                {(selectedRequestDetail.status === 'IN_PROGRESS' ||
+                  selectedRequestDetail.status === 'PENDING') && (
                   <div className="p-4 rounded-2xl bg-obsidian-950 border border-white/[0.08] space-y-3">
-                    <label className="block text-xs font-semibold text-slate-300">Sign-off Decision & Review Comments</label>
+                    <label className="block text-xs font-semibold text-slate-300">
+                      Sign-off Decision & Review Comments
+                    </label>
                     <textarea
                       value={actionComments}
                       onChange={(e) => setActionComments(e.target.value)}
@@ -2061,14 +2181,19 @@ export default function FlowGateApp() {
           <div className="glass-panel border border-white/[0.1] rounded-3xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl p-6 space-y-5">
             <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
               <h3 className="font-bold text-base text-white">Create Approval Request</h3>
-              <button onClick={() => setShowCreateRequestModal(false)} className="p-1 rounded-lg text-slate-400 hover:text-white">
+              <button
+                onClick={() => setShowCreateRequestModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white"
+              >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
             <form onSubmit={handleCreateRequest} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Workflow Definition</label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Workflow Definition
+                </label>
                 <select
                   value={newRequestWorkflowId}
                   onChange={(e) => setNewRequestWorkflowId(e.target.value)}
@@ -2085,7 +2210,9 @@ export default function FlowGateApp() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Request Title</label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Request Title
+                </label>
                 <input
                   type="text"
                   value={newRequestTitle}
@@ -2097,7 +2224,9 @@ export default function FlowGateApp() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Description / Justification</label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Description / Justification
+                </label>
                 <textarea
                   value={newRequestDesc}
                   onChange={(e) => setNewRequestDesc(e.target.value)}
@@ -2116,14 +2245,16 @@ export default function FlowGateApp() {
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-400">
-                    This workflow evaluates runtime condition expressions. Values provided below drive DAG branch selection.
+                    This workflow evaluates runtime condition expressions. Values provided below
+                    drive DAG branch selection.
                   </p>
                   <div className="space-y-3 pt-1">
                     {inputSchema.fields.map((field) => (
                       <div key={field.name}>
                         <div className="flex items-center justify-between mb-1">
                           <label className="text-xs font-medium text-slate-300">
-                            {field.label} {field.required && <span className="text-rose-400">*</span>}
+                            {field.label}{' '}
+                            {field.required && <span className="text-rose-400">*</span>}
                           </label>
                           <span className="text-[10px] text-slate-400 font-mono">
                             {field.name} ({field.type})
@@ -2145,7 +2276,9 @@ export default function FlowGateApp() {
                             required={field.required}
                             className="w-full bg-obsidian-900 border border-white/[0.1] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-violet-500 font-mono"
                           />
-                        ) : field.type === 'STRING' && field.allowedValues && field.allowedValues.length > 0 ? (
+                        ) : field.type === 'STRING' &&
+                          field.allowedValues &&
+                          field.allowedValues.length > 0 ? (
                           <select
                             value={newRequestData[field.name] ?? field.allowedValues[0]}
                             onChange={(e) =>
@@ -2230,14 +2363,19 @@ export default function FlowGateApp() {
                 <UserCheck className="h-5 w-5 text-aurora-cyan" />
                 <h3 className="font-bold text-base text-white">New Out-of-Office Delegation</h3>
               </div>
-              <button onClick={() => setShowCreateDelegationModal(false)} className="p-1 rounded-lg text-slate-400 hover:text-white">
+              <button
+                onClick={() => setShowCreateDelegationModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white"
+              >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
             <form onSubmit={handleCreateDelegation} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Designated Colleague (Delegatee) *</label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Designated Colleague (Delegatee) *
+                </label>
                 <select
                   value={newDelegateeId}
                   onChange={(e) => setNewDelegateeId(e.target.value)}
@@ -2253,7 +2391,9 @@ export default function FlowGateApp() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Workflow Scope</label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Workflow Scope
+                </label>
                 <select
                   value={newDelegationWorkflowId}
                   onChange={(e) => setNewDelegationWorkflowId(e.target.value)}
@@ -2272,7 +2412,9 @@ export default function FlowGateApp() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Start Date & Time *</label>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    Start Date & Time *
+                  </label>
                   <input
                     type="datetime-local"
                     value={newDelegationStartDate}
@@ -2282,7 +2424,9 @@ export default function FlowGateApp() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">End Date & Time *</label>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    End Date & Time *
+                  </label>
                   <input
                     type="datetime-local"
                     value={newDelegationEndDate}
@@ -2294,7 +2438,9 @@ export default function FlowGateApp() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Reason / Context</label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Reason / Context
+                </label>
                 <textarea
                   value={newDelegationReason}
                   onChange={(e) => setNewDelegationReason(e.target.value)}
@@ -2332,14 +2478,19 @@ export default function FlowGateApp() {
           <div className="glass-panel border border-white/[0.1] rounded-3xl w-full max-w-lg shadow-2xl p-6 space-y-5">
             <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
               <h3 className="font-bold text-base text-white">Create Quick Workflow</h3>
-              <button onClick={() => setShowCreateWorkflowModal(false)} className="p-1 rounded-lg text-slate-400 hover:text-white">
+              <button
+                onClick={() => setShowCreateWorkflowModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white"
+              >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
             <form onSubmit={handleCreateWorkflow} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Workflow Name</label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Workflow Name
+                </label>
                 <input
                   type="text"
                   value={newWorkflowName}
@@ -2351,7 +2502,9 @@ export default function FlowGateApp() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Description</label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Description
+                </label>
                 <textarea
                   value={newWorkflowDesc}
                   onChange={(e) => setNewWorkflowDesc(e.target.value)}
@@ -2388,7 +2541,10 @@ export default function FlowGateApp() {
           <div className="glass-panel border border-white/[0.1] rounded-3xl w-full max-w-md shadow-2xl p-6 space-y-5">
             <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
               <h3 className="font-bold text-base text-white">Register Webhook</h3>
-              <button onClick={() => setShowCreateWebhookModal(false)} className="p-1 rounded-lg text-slate-400 hover:text-white">
+              <button
+                onClick={() => setShowCreateWebhookModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white"
+              >
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -2407,7 +2563,9 @@ export default function FlowGateApp() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Target Endpoint URL</label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Target Endpoint URL
+                </label>
                 <input
                   type="url"
                   value={newWebhookUrl}
@@ -2444,7 +2602,9 @@ export default function FlowGateApp() {
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
           <div className="glass-panel border border-white/[0.1] rounded-3xl w-full max-w-md shadow-2xl p-6 space-y-4">
             <h3 className="font-bold text-base text-white">Webhook HMAC Secret</h3>
-            <p className="text-xs text-slate-400">Save this secret key. It will not be shown again.</p>
+            <p className="text-xs text-slate-400">
+              Save this secret key. It will not be shown again.
+            </p>
             <div className="p-3 bg-obsidian-950 border border-white/[0.1] rounded-xl font-mono text-xs text-aurora-cyan break-all">
               {createdWebhookSecret.secret}
             </div>
@@ -2466,7 +2626,10 @@ export default function FlowGateApp() {
           <div className="w-full max-w-md h-full glass-panel border-l border-white/[0.1] p-6 space-y-4 overflow-y-auto">
             <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
               <h3 className="font-bold text-base text-white">Outbound Notifications</h3>
-              <button onClick={() => setShowNotificationsDrawer(false)} className="p-1 rounded-lg text-slate-400 hover:text-white">
+              <button
+                onClick={() => setShowNotificationsDrawer(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white"
+              >
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -2479,10 +2642,15 @@ export default function FlowGateApp() {
             ) : (
               <div className="space-y-2">
                 {notifications.map((n) => (
-                  <div key={n.id} className="p-3 rounded-xl bg-obsidian-950 border border-white/[0.06] text-xs space-y-1">
+                  <div
+                    key={n.id}
+                    className="p-3 rounded-xl bg-obsidian-950 border border-white/[0.06] text-xs space-y-1"
+                  >
                     <div className="flex items-center justify-between">
                       <span className="font-mono text-[10px] text-aurora-cyan">{n.eventType}</span>
-                      <span className="text-[10px] text-slate-500">{new Date(n.createdAt).toLocaleTimeString()}</span>
+                      <span className="text-[10px] text-slate-500">
+                        {new Date(n.createdAt).toLocaleTimeString()}
+                      </span>
                     </div>
                     <p className="text-slate-300 font-medium">{n.recipientEmail}</p>
                     <p className="text-slate-400 text-[11px] truncate">{n.subject}</p>

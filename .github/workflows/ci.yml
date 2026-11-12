@@ -94,6 +94,11 @@ jobs:
         env:
           DATABASE_URL: postgresql://flowgate:flowgate_dev_password@localhost:5432/flowgate_dev?schema=public
 
+      - name: Run Database Seed
+        run: pnpm db:seed
+        env:
+          DATABASE_URL: postgresql://flowgate:flowgate_dev_password@localhost:5432/flowgate_dev?schema=public
+
       - name: Run Unit Tests
         run: pnpm test
 
@@ -101,6 +106,11 @@ jobs:
         run: pnpm test:e2e
         env:
           DATABASE_URL: postgresql://flowgate:flowgate_dev_password@localhost:5432/flowgate_dev?schema=public
+          JWT_SECRET: test-jwt-secret-key-minimum-32-chars
+          ALLOW_INSECURE_HTTP_WEBHOOKS: 'true'
+          ALLOW_LOOPBACK_WEBHOOK_FOR_TESTS: 'true'
+          REDIS_HOST: 'localhost'
+          REDIS_PORT: '6379'
 
       - name: Build Shared Packages & Applications
         run: pnpm build
