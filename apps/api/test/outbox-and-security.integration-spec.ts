@@ -478,6 +478,11 @@ describe('Milestone 5.1: Transactional Outbox, Replay Deduplication & SSRF Prote
 
       expect(res.status).toBe(400);
       expect(res.body.message).toMatch(/SSRF|forbidden|private|metadata/i);
+
+      // Clean up test subscription to prevent queue clutter in subsequent integration suites
+      await prisma.webhookSubscription.delete({
+        where: { id: ssrfSub.id },
+      });
     });
   });
 

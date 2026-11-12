@@ -127,6 +127,14 @@ describe('Background Processing & Escalation Engine (Integration)', () => {
       tenantId: superAdmin.tenantId,
       role: superAdmin.role,
     });
+
+    // Clean up any stale webhook subscriptions from previous runs
+    await prisma.webhookSubscription.deleteMany({
+      where: {
+        tenantId: acmeTenantId,
+        name: { contains: 'Test' },
+      },
+    });
   });
 
   afterAll(async () => {
@@ -134,6 +142,12 @@ describe('Background Processing & Escalation Engine (Integration)', () => {
       await new Promise<void>((resolve) => webhookServer.close(() => resolve()));
     }
     if (app) {
+      const prisma = app.get(PrismaService);
+      await prisma.webhookSubscription.deleteMany({
+        where: {
+          name: { contains: 'Test' },
+        },
+      });
       await app.close();
     }
   });
@@ -321,7 +335,7 @@ describe('Background Processing & Escalation Engine (Integration)', () => {
 
         if (!delivery) {
           const deliveriesRes = await request(app.getHttpServer())
-            .get('/api/v1/webhooks/deliveries')
+            .get('/api/v1/webhooks/deliveries?limit=100')
             .set('Authorization', `Bearer ${acmeAdminToken}`);
           if (deliveriesRes.status !== 200) {
             console.error('Deliveries endpoint error:', deliveriesRes.status, deliveriesRes.body);
