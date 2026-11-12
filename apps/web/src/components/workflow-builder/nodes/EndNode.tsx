@@ -14,59 +14,59 @@ export function EndNode({ data, selected }: NodeProps) {
 
   return (
     <div
-      className={`relative min-w-[220px] max-w-[260px] rounded-xl border-2 bg-white p-4 shadow-sm transition-all ${
+      className={`relative min-w-[240px] max-w-[280px] rounded-none border bg-surface p-3.5 transition-colors shadow-none text-fg-primary ${
         selected
-          ? isApproved
-            ? 'border-emerald-500 shadow-md ring-2 ring-emerald-200'
-            : 'border-rose-500 shadow-md ring-2 ring-rose-200'
+          ? 'border-accent ring-1 ring-accent'
           : isApproved
-            ? 'border-emerald-200 hover:border-emerald-300 hover:shadow'
-            : 'border-rose-200 hover:border-rose-300 hover:shadow'
+            ? 'border-emerald-600/40 hover:border-emerald-600'
+            : 'border-danger/40 hover:border-danger'
       }`}
     >
       {/* Incoming connection handle */}
       <Handle
         type="target"
         position={Position.Top}
-        className={`!h-3 !w-3 !rounded-full !border-2 !border-white hover:!scale-125 ${
-          isApproved ? '!bg-emerald-500' : '!bg-rose-500'
+        className={`!h-2.5 !w-2.5 !rounded-none !border !border-surface -top-1.5 ${
+          isApproved ? '!bg-emerald-500' : '!bg-danger'
         }`}
       />
 
-      <div className="flex items-center space-x-3">
+      <div className="flex items-center space-x-2.5">
         <div
-          className={`flex h-9 w-9 items-center justify-center rounded-lg ${
-            isApproved ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
+          className={`flex h-7 w-7 items-center justify-center rounded-none border ${
+            isApproved
+              ? 'border-emerald-600/40 bg-emerald-950/20 text-emerald-500'
+              : 'border-danger/40 bg-danger/10 text-danger'
           }`}
         >
-          {isApproved ? <CheckCircle2 className="h-5 w-5" /> : <XCircle className="h-5 w-5" />}
+          {isApproved ? (
+            <CheckCircle2 className="h-3.5 w-3.5" />
+          ) : (
+            <XCircle className="h-3.5 w-3.5" />
+          )}
         </div>
         <div className="min-w-0 flex-1">
           <span
-            className={`text-[10px] font-semibold uppercase tracking-wider ${
-              isApproved ? 'text-emerald-600' : 'text-rose-600'
+            className={`font-mono text-[9px] uppercase tracking-widest block ${
+              isApproved ? 'text-emerald-500' : 'text-danger'
             }`}
           >
-            Terminal Node
+            [ TERMINAL NODE ]
           </span>
-          <h4 className="truncate text-sm font-semibold text-slate-800">
+          <h4 className="font-serif font-bold text-xs text-fg-primary truncate tracking-tight">
             {nodeData.label || 'End of Workflow'}
           </h4>
         </div>
       </div>
 
-      <div className="mt-3 border-t border-slate-100 pt-2.5">
-        <div className="flex items-center justify-between text-xs">
-          <span className="flex items-center text-slate-500">
-            <Flag className="mr-1 h-3 w-3 text-slate-400" />
-            Outcome:
+      <div className="mt-2.5 border-t border-line pt-2 font-mono text-[10px]">
+        <div className="flex items-center justify-between text-fg-secondary">
+          <span className="flex items-center uppercase">
+            <Flag className="mr-1 h-3 w-3 text-fg-tertiary" />
+            FINAL OUTCOME
           </span>
           <span
-            className={`rounded-md px-2 py-0.5 text-[11px] font-bold ${
-              isApproved
-                ? 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20'
-                : 'bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-600/20'
-            }`}
+            className={`font-bold uppercase ${isApproved ? 'text-emerald-500' : 'text-danger'}`}
           >
             {outcome}
           </span>

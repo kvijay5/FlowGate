@@ -150,11 +150,11 @@ export function SimulatorPanel({
               setPayloadError(null);
             }}
             rows={7}
-            className="w-full p-3 font-mono text-xs rounded-xl border border-line bg-canvas text-fg outline-none focus:border-accent transition-colors resize-y"
+            className="w-full p-3 font-mono text-xs rounded-none border border-line bg-canvas text-fg-primary outline-none focus:border-accent transition-colors resize-y"
             placeholder="Enter JSON request data..."
           />
 
-          {payloadError && <p className="text-xs text-red-500 font-mono">{payloadError}</p>}
+          {payloadError && <p className="text-xs text-danger font-mono">{payloadError}</p>}
 
           {/* Action Buttons */}
           <div className="flex items-center gap-2 pt-1">
@@ -163,7 +163,7 @@ export function SimulatorPanel({
               size="sm"
               loading={simulating}
               onClick={handleRunSimulation}
-              className="gap-2 shadow-sm"
+              className="gap-2 shadow-none"
             >
               <Play className="w-3.5 h-3.5 fill-current" />
               <span>Simulate DAG Path</span>
@@ -173,7 +173,7 @@ export function SimulatorPanel({
                 variant="outline"
                 size="sm"
                 onClick={handleReset}
-                className="gap-1.5 text-fg-muted"
+                className="gap-1.5 text-fg-secondary"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
                 <span>Reset View</span>
@@ -184,25 +184,25 @@ export function SimulatorPanel({
 
         {/* Results Container */}
         {simulationResult && (
-          <div className="space-y-5 pt-4 border-t border-line animate-fade-in">
+          <div className="space-y-4 pt-4 border-t border-line">
             {/* Outcome Banner */}
             <div
-              className={`p-4 rounded-xl border flex items-start gap-3 ${
+              className={`p-3.5 rounded-none border flex items-start gap-3 ${
                 simulationResult.success
                   ? simulationResult.finalOutcome === 'APPROVED'
-                    ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-700 dark:text-emerald-300'
-                    : 'bg-blue-500/10 border-blue-500/20 text-blue-700 dark:text-blue-300'
-                  : 'bg-red-500/10 border-red-500/20 text-red-700 dark:text-red-300'
+                    ? 'bg-emerald-950/20 border-emerald-600/40 text-emerald-500'
+                    : 'bg-surface border-line text-fg-primary'
+                  : 'bg-danger/10 border-danger/40 text-danger'
               }`}
             >
               {simulationResult.success ? (
-                <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5 text-emerald-500" />
+                <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-500" />
               ) : (
-                <XCircle className="w-5 h-5 shrink-0 mt-0.5 text-red-500" />
+                <XCircle className="w-4 h-4 shrink-0 mt-0.5 text-danger" />
               )}
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
-                  <span className="font-bold text-sm">
+                  <span className="font-serif font-bold text-sm">
                     {simulationResult.success
                       ? `Execution Outcome: ${simulationResult.finalOutcome || 'IN_REVIEW'}`
                       : 'Validation Failed'}
@@ -212,7 +212,7 @@ export function SimulatorPanel({
                   </Chip>
                 </div>
                 {simulationResult.validationErrors && (
-                  <ul className="text-xs list-disc list-inside space-y-0.5">
+                  <ul className="text-xs font-mono list-disc list-inside space-y-0.5">
                     {simulationResult.validationErrors.map((err, i) => (
                       <li key={i}>{err}</li>
                     ))}
@@ -223,7 +223,7 @@ export function SimulatorPanel({
 
             {/* Stepped Traversal Pipeline */}
             <div className="space-y-2">
-              <span className="text-xs font-mono uppercase tracking-wider text-fg-muted">
+              <span className="text-xs font-mono uppercase tracking-wider text-fg-secondary">
                 Traversal Trace ({simulationResult.steps.length} Steps)
               </span>
 
@@ -231,10 +231,10 @@ export function SimulatorPanel({
                 {simulationResult.steps.map((step, idx) => (
                   <div
                     key={`${step.nodeId}-${idx}`}
-                    className={`p-3 rounded-xl border text-xs font-sans transition-all ${
+                    className={`p-3 rounded-none border text-xs font-sans transition-all ${
                       step.status === 'PRUNED'
-                        ? 'bg-canvas/40 border-line/50 text-fg-muted line-through opacity-60'
-                        : 'bg-surface border-line text-fg shadow-sm'
+                        ? 'bg-canvas border-line text-fg-secondary line-through opacity-50'
+                        : 'bg-surface border-line text-fg-primary'
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2">

@@ -33,37 +33,37 @@ export function TopBar({
   ];
 
   return (
-    <header className="sticky top-0 z-40 h-12 w-full border-b border-line bg-surface/75 backdrop-blur-xl transition-colors">
+    <header className="sticky top-0 z-40 h-12 w-full border-b border-line bg-surface transition-colors">
       <div className="flex h-full items-center justify-between px-4 sm:px-6">
         {/* Brand & Main Navigation or Breadcrumbs */}
         <div className="flex items-center gap-6">
-          <Link
-            href="/"
-            className="flex items-center gap-2 font-bold text-sm text-fg group shrink-0"
-          >
-            <div className="flex h-6 w-6 items-center justify-center rounded-md bg-accent text-white shadow-xs group-hover:scale-105 transition-transform">
+          <Link href="/" className="flex items-center gap-2 text-sm text-fg-primary group shrink-0">
+            <div className="flex h-6 w-6 items-center justify-center rounded-none border border-accent bg-accent text-white shadow-none">
               <ShieldCheck className="h-4 w-4" />
             </div>
-            <span className="tracking-tight">FlowGate</span>
+            <span className="font-serif font-bold tracking-tight text-base">FlowGate</span>
           </Link>
 
           {breadcrumbs && breadcrumbs.length > 0 ? (
-            <div className="hidden sm:flex items-center gap-1.5 text-xs font-medium text-fg-muted">
+            <div className="hidden sm:flex items-center gap-1.5 font-mono text-xs text-fg-secondary">
               {breadcrumbs.map((crumb, idx) => (
                 <React.Fragment key={idx}>
-                  <ChevronRight className="w-3.5 h-3.5 text-fg-subtle" />
+                  <ChevronRight className="w-3.5 h-3.5 text-fg-tertiary" />
                   {crumb.href ? (
-                    <Link href={crumb.href} className="hover:text-fg transition-colors">
+                    <Link
+                      href={crumb.href}
+                      className="hover:text-fg-primary transition-colors uppercase"
+                    >
                       {crumb.label}
                     </Link>
                   ) : (
-                    <span className="text-fg font-semibold">{crumb.label}</span>
+                    <span className="text-fg-primary font-bold uppercase">{crumb.label}</span>
                   )}
                 </React.Fragment>
               ))}
             </div>
           ) : (
-            <nav className="hidden md:flex items-center gap-1 text-xs font-medium">
+            <nav className="hidden md:flex items-center gap-1 font-mono text-xs uppercase tracking-wider">
               {navLinks.map((link) => {
                 const isActive =
                   pathname === link.href || (link.href !== '/' && pathname.startsWith(link.href));
@@ -71,10 +71,10 @@ export function TopBar({
                   <Link
                     key={link.label}
                     href={link.href}
-                    className={`px-2.5 py-1 rounded-md transition-colors ${
+                    className={`px-2.5 py-1 rounded-none border transition-colors ${
                       isActive
-                        ? 'bg-raised text-fg font-semibold shadow-2xs'
-                        : 'text-fg-muted hover:text-fg hover:bg-raised/60'
+                        ? 'border-accent bg-accent text-white font-bold'
+                        : 'border-transparent text-fg-secondary hover:text-fg-primary hover:border-line hover:bg-raised'
                     }`}
                   >
                     {link.label}
@@ -86,16 +86,16 @@ export function TopBar({
         </div>
 
         {/* Global Search, Theme & Persona Context */}
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2">
           {onOpenCommandPalette && (
             <button
               type="button"
               onClick={onOpenCommandPalette}
-              className="hidden sm:flex items-center gap-2 rounded-lg border border-line bg-raised px-2.5 py-1 text-xs text-fg-muted hover:border-fg-muted/40 hover:text-fg transition-all"
+              className="hidden sm:flex items-center gap-2 rounded-none border border-line bg-surface px-2.5 py-1 font-mono text-xs text-fg-secondary hover:border-accent hover:text-fg-primary transition-colors"
             >
-              <Search className="h-3.5 w-3.5" />
-              <span>Search...</span>
-              <kbd className="rounded bg-canvas px-1.5 py-0.5 font-mono text-[10px] text-fg-subtle border border-line">
+              <Search className="h-3.5 w-3.5 text-accent" />
+              <span>SEARCH...</span>
+              <kbd className="rounded-none bg-canvas px-1 py-0.5 font-mono text-[9px] text-fg-secondary border border-line">
                 ⌘K
               </kbd>
             </button>

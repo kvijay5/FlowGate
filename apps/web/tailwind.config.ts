@@ -8,7 +8,27 @@ const config: Config = {
     './src/app/**/*.{js,ts,jsx,tsx,mdx}',
   ],
   theme: {
+    // Brutalist minimal border radius: 0px or 2px max
+    borderRadius: {
+      none: '0px',
+      DEFAULT: '0px',
+      sm: '2px',
+      md: '2px',
+      lg: '2px',
+      xl: '2px',
+      '2xl': '2px',
+      '3xl': '2px',
+      full: '9999px',
+      control: '2px',
+      card: '0px',
+      sheet: '0px',
+    },
     extend: {
+      fontFamily: {
+        serif: ['var(--font-serif)', 'Georgia', 'serif'],
+        mono: ['var(--font-mono)', 'Menlo', 'monospace'],
+        sans: ['var(--font-sans)', 'system-ui', 'sans-serif'],
+      },
       colors: {
         canvas: 'rgb(var(--bg-canvas) / <alpha-value>)',
         surface: 'rgb(var(--bg-surface) / <alpha-value>)',
@@ -24,16 +44,27 @@ const config: Config = {
           pressed: 'rgb(var(--accent-pressed) / <alpha-value>)',
           text: 'rgb(var(--accent-text) / <alpha-value>)',
         },
+        crimson: {
+          DEFAULT: '#DC2626',
+          50: '#FEF2F2',
+          100: '#FEE2E2',
+          500: '#EF4444',
+          600: '#DC2626',
+          700: '#B91C1C',
+          800: '#991B1B',
+          900: '#7F1D1D',
+          950: '#450A0A',
+        },
         success: 'rgb(var(--success) / <alpha-value>)',
         warning: 'rgb(var(--warning) / <alpha-value>)',
         danger: 'rgb(var(--danger) / <alpha-value>)',
         info: 'rgb(var(--accent) / <alpha-value>)',
-        glass: 'var(--glass-bg)',
+        border: 'var(--border-subtle)',
         line: {
-          DEFAULT: 'var(--glass-border)',
+          DEFAULT: 'var(--border-subtle)',
           subtle: 'var(--line-subtle)',
         },
-        // Backwards compatibility mappings for legacy Obsidian & Aurora utilities
+        // Neutralized obsidian & aurora aliases (zero blue/purple)
         obsidian: {
           950: 'rgb(var(--bg-canvas) / <alpha-value>)',
           900: 'rgb(var(--bg-surface) / <alpha-value>)',
@@ -43,44 +74,17 @@ const config: Config = {
           700: 'rgb(var(--bg-raised) / <alpha-value>)',
         },
         aurora: {
-          violet: '#7C3AED',
-          purple: '#A855F7',
+          violet: 'rgb(var(--accent) / <alpha-value>)',
+          purple: 'rgb(var(--accent) / <alpha-value>)',
           cyan: 'rgb(var(--accent) / <alpha-value>)',
           emerald: 'rgb(var(--success) / <alpha-value>)',
           rose: 'rgb(var(--danger) / <alpha-value>)',
           amber: 'rgb(var(--warning) / <alpha-value>)',
         },
-        brand: {
-          50: '#f0fdf4',
-          100: '#dcfce7',
-          500: '#22c55e',
-          600: '#16a34a',
-          700: '#15803d',
-        },
       },
       boxShadow: {
-        float: '0 8px 30px rgba(0, 0, 0, 0.12)',
-        dialog: '0 20px 60px rgba(0, 0, 0, 0.3)',
-      },
-      borderRadius: {
-        control: '8px',
-        card: '14px',
-        sheet: '20px',
-      },
-      backgroundImage: {
-        'radial-glow': 'radial-gradient(circle at 50% 0%, var(--tw-gradient-stops))',
-        'aurora-mesh':
-          'radial-gradient(at 10% 20%, rgba(124, 58, 237, 0.18) 0px, transparent 50%), radial-gradient(at 90% 10%, rgba(6, 182, 212, 0.18) 0px, transparent 50%), radial-gradient(at 50% 80%, rgba(16, 185, 129, 0.12) 0px, transparent 50%)',
-      },
-      animation: {
-        'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-        'float-slow': 'float 6s ease-in-out infinite',
-      },
-      keyframes: {
-        float: {
-          '0%, 100%': { transform: 'translateY(0px)' },
-          '50%': { transform: 'translateY(-6px)' },
-        },
+        float: 'none',
+        dialog: 'none',
       },
     },
   },

@@ -59,61 +59,61 @@ export const ExecutionNodeDetailsModal: React.FC<ExecutionNodeDetailsModalProps>
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
-      <div className="bg-[#0B0D19]/95 border border-white/10 rounded-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto shadow-2xl p-5 space-y-5">
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+      <div className="bg-surface border border-border-subtle rounded-none w-full max-w-lg max-h-[85vh] overflow-y-auto shadow-2xl p-5 space-y-5 font-mono">
         {/* Header */}
-        <div className="flex items-start justify-between border-b border-white/[0.06] pb-3">
+        <div className="flex items-start justify-between border-b border-border-subtle pb-3">
           <div className="space-y-1">
             <div className="flex items-center space-x-2">
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-white/[0.05] text-slate-300 border border-white/10">
+              <span className="px-2 py-0.5 rounded-none text-[10px] font-bold uppercase tracking-wider bg-canvas text-fg-muted border border-border-subtle">
                 {nodeType}
               </span>
               <span
-                className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+                className={`px-2 py-0.5 rounded-none text-[10px] font-bold uppercase tracking-wider border ${
                   isCompleted
-                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                    ? 'bg-emerald-950/80 text-emerald-300 border-emerald-800'
                     : isActive
-                      ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                      ? 'bg-accent/20 text-accent-foreground border-accent/40 animate-pulse'
                       : isRejected
-                        ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                        ? 'bg-rose-950/80 text-rose-300 border-rose-800'
                         : isPruned
-                          ? 'bg-white/[0.02] text-slate-400 border-white/5'
-                          : 'bg-white/[0.05] text-slate-300 border-white/10'
+                          ? 'bg-canvas text-fg-subtle border-border-subtle'
+                          : 'bg-canvas text-fg-muted border-border-subtle'
                 }`}
               >
-                {status}
+                [ {status} ]
               </span>
             </div>
-            <h3 className="text-base font-bold text-white">{name}</h3>
+            <h3 className="text-base font-serif font-bold text-ink">{name}</h3>
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+            className="p-1 rounded-none text-fg-muted hover:text-ink hover:bg-canvas transition-colors"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
         {/* Timestamps & Duration */}
-        <div className="grid grid-cols-2 gap-3 p-3 rounded-xl bg-slate-950 border border-slate-800 text-xs">
+        <div className="grid grid-cols-2 gap-3 p-3 rounded-none bg-canvas border border-border-subtle text-xs">
           <div>
-            <span className="text-slate-500 text-[10px] uppercase font-bold block">
+            <span className="text-fg-subtle text-[10px] uppercase font-bold block">
               Activated At
             </span>
-            <span className="text-slate-200">
+            <span className="text-ink">
               {activatedAt ? new Date(activatedAt).toLocaleString() : 'Not activated'}
             </span>
           </div>
           <div>
-            <span className="text-slate-500 text-[10px] uppercase font-bold block">
+            <span className="text-fg-subtle text-[10px] uppercase font-bold block">
               Resolved At
             </span>
-            <span className="text-slate-200">
+            <span className="text-ink">
               {completedAt ? new Date(completedAt).toLocaleString() : 'Pending completion'}
             </span>
           </div>
           {durationText && (
-            <div className="col-span-2 pt-2 border-t border-slate-850 flex items-center justify-between text-indigo-300">
+            <div className="col-span-2 pt-2 border-t border-border-subtle flex items-center justify-between text-accent">
               <span className="flex items-center space-x-1.5 font-medium">
                 <Clock className="h-3.5 w-3.5" />
                 <span>Execution Duration</span>
@@ -126,31 +126,31 @@ export const ExecutionNodeDetailsModal: React.FC<ExecutionNodeDetailsModalProps>
         {/* Parallel Quorum Breakdown */}
         {quorumDetails && (
           <div className="space-y-2">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-              Parallel Quorum Status
+            <h4 className="text-xs font-bold uppercase tracking-wider text-fg-muted">
+              [ PARALLEL QUORUM STATUS ]
             </h4>
-            <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2 text-xs">
+            <div className="p-3 rounded-none bg-canvas border border-border-subtle space-y-2 text-xs">
               <div className="flex items-center justify-between">
-                <span className="text-slate-400">Policy:</span>
-                <span className="font-semibold text-slate-200">
+                <span className="text-fg-muted">Policy:</span>
+                <span className="font-semibold text-ink">
                   {quorumDetails.policy || 'PARALLEL_AND'}
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-slate-400">Required Approvals:</span>
-                <span className="font-bold text-indigo-300">
+                <span className="text-fg-muted">Required Approvals:</span>
+                <span className="font-bold text-accent">
                   {quorumDetails.requiredApprovals || 1}
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-slate-400">Current Approvals:</span>
+                <span className="text-fg-muted">Current Approvals:</span>
                 <span className="font-bold text-emerald-400">
                   {quorumDetails.approvedCount || 0}
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-slate-400">Current Rejections:</span>
-                <span className="font-bold text-red-400">{quorumDetails.rejectedCount || 0}</span>
+                <span className="text-fg-muted">Current Rejections:</span>
+                <span className="font-bold text-rose-400">{quorumDetails.rejectedCount || 0}</span>
               </div>
             </div>
           </div>
@@ -159,8 +159,8 @@ export const ExecutionNodeDetailsModal: React.FC<ExecutionNodeDetailsModalProps>
         {/* Assignees & Voter Decisions */}
         {assignees.length > 0 && (
           <div className="space-y-2">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-              Assignee Decisions ({assignees.length})
+            <h4 className="text-xs font-bold uppercase tracking-wider text-fg-muted">
+              [ ASSIGNEE DECISIONS ({assignees.length}) ]
             </h4>
             <div className="space-y-2">
               {assignees.map((a, idx) => {
@@ -169,26 +169,26 @@ export const ExecutionNodeDetailsModal: React.FC<ExecutionNodeDetailsModalProps>
                 return (
                   <div
                     key={a.id || idx}
-                    className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1.5 text-xs"
+                    className="p-3 rounded-none bg-canvas border border-border-subtle space-y-1.5 text-xs"
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-2">
-                        <span className="font-semibold text-slate-200">
+                        <span className="font-semibold text-ink">
                           {a.name || a.role || `Assignee ${idx + 1}`}
                         </span>
                         {a.role && (
-                          <span className="text-[10px] text-slate-400 px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700">
+                          <span className="text-[10px] text-fg-muted px-1.5 py-0.5 rounded-none bg-surface border border-border-subtle">
                             {a.role}
                           </span>
                         )}
                       </div>
                       <span
-                        className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border ${
+                        className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-none border ${
                           isVoteApproved
                             ? 'bg-emerald-950 text-emerald-300 border-emerald-800'
                             : isVoteRejected
-                              ? 'bg-red-950 text-red-300 border-red-800'
-                              : 'bg-slate-800 text-slate-400 border-slate-700'
+                              ? 'bg-rose-950 text-rose-300 border-rose-800'
+                              : 'bg-surface text-fg-muted border-border-subtle'
                         }`}
                       >
                         {a.status}
@@ -197,7 +197,7 @@ export const ExecutionNodeDetailsModal: React.FC<ExecutionNodeDetailsModalProps>
 
                     {/* Delegation Badge */}
                     {a.isDelegated && (
-                      <div className="text-[10px] text-amber-300 flex items-center space-x-1 font-medium bg-amber-950/40 p-1.5 rounded border border-amber-800/60">
+                      <div className="text-[10px] text-amber-300 flex items-center space-x-1 font-medium bg-amber-950/40 p-1.5 rounded-none border border-amber-800/60">
                         <Shield className="h-3 w-3 shrink-0" />
                         <span>Delegated by {a.delegatedFrom || 'Designated Approver'}</span>
                       </div>
@@ -205,8 +205,8 @@ export const ExecutionNodeDetailsModal: React.FC<ExecutionNodeDetailsModalProps>
 
                     {/* Voter Comments */}
                     {a.comments && (
-                      <div className="text-[11px] text-slate-300 bg-slate-900 p-2 rounded border border-slate-800 flex items-start space-x-2">
-                        <MessageSquare className="h-3.5 w-3.5 text-indigo-400 mt-0.5 shrink-0" />
+                      <div className="text-[11px] text-ink bg-surface p-2 rounded-none border border-border-subtle flex items-start space-x-2">
+                        <MessageSquare className="h-3.5 w-3.5 text-accent mt-0.5 shrink-0" />
                         <span>{a.comments}</span>
                       </div>
                     )}
@@ -220,11 +220,11 @@ export const ExecutionNodeDetailsModal: React.FC<ExecutionNodeDetailsModalProps>
         {/* Condition Evaluation Trace */}
         {evaluationTrace && (
           <div className="space-y-2">
-            <div className="flex items-center space-x-2 text-xs font-bold uppercase tracking-wider text-slate-400">
-              <FileCode className="h-3.5 w-3.5 text-indigo-400" />
-              <span>AST Evaluation Trace</span>
+            <div className="flex items-center space-x-2 text-xs font-bold uppercase tracking-wider text-fg-muted">
+              <FileCode className="h-3.5 w-3.5 text-accent" />
+              <span>[ AST Evaluation Trace ]</span>
             </div>
-            <pre className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-[11px] font-mono text-indigo-300 overflow-x-auto max-h-48">
+            <pre className="p-3 rounded-none bg-canvas border border-border-subtle text-[11px] font-mono text-accent overflow-x-auto max-h-48">
               {JSON.stringify(evaluationTrace, null, 2)}
             </pre>
           </div>
@@ -233,10 +233,10 @@ export const ExecutionNodeDetailsModal: React.FC<ExecutionNodeDetailsModalProps>
         {/* Node Level Comments */}
         {comments && (
           <div className="space-y-1">
-            <span className="text-[10px] font-bold uppercase text-slate-500 block">
+            <span className="text-[10px] font-bold uppercase text-fg-subtle block">
               Node Comments / Reason
             </span>
-            <div className="p-3 bg-slate-950 rounded-xl text-xs text-slate-300 border border-slate-800">
+            <div className="p-3 bg-canvas rounded-none text-xs text-ink border border-border-subtle">
               {comments}
             </div>
           </div>
@@ -245,9 +245,9 @@ export const ExecutionNodeDetailsModal: React.FC<ExecutionNodeDetailsModalProps>
         <div className="pt-2 flex justify-end">
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg transition-colors"
+            className="px-4 py-2 bg-canvas hover:bg-surface text-ink border border-border-subtle text-xs font-semibold uppercase tracking-wider rounded-none transition-colors"
           >
-            Close Details
+            [ Close Details ]
           </button>
         </div>
       </div>

@@ -98,10 +98,11 @@ export default function RequestDetailPage() {
           });
         }
 
-        const currentRound = (detail as any).currentReviewRound || 1;
-        setSelectedRound(currentRound);
+        // Set selected round to current round initially
+        const currentRoundNum = (detail as any).currentReviewRound || 1;
+        setSelectedRound((prev) => (prev > currentRoundNum ? currentRoundNum : prev));
       } catch (err: any) {
-        setError(err?.message || 'Failed to load approval request details.');
+        setError(err?.message || 'Failed to fetch request execution details');
       } finally {
         setIsLoading(false);
         setIsRefreshing(false);
@@ -111,23 +112,20 @@ export default function RequestDetailPage() {
   );
 
   useEffect(() => {
-    if (requestId) {
-      fetchData(true);
-    }
-  }, [requestId, fetchData]);
+    fetchData(true);
+  }, [fetchData]);
 
-  const handleAction = async (action: ApprovalActionType, stepId?: string) => {
+  const handleAction = async (action: ApprovalActionType) => {
     setIsSubmittingAction(true);
     setActionSuccessMessage(null);
+
     try {
-      await api.submitAction(requestId, action, actionComments, stepId);
+      await api.submitAction(requestId, action, actionComments || undefined);
+
+      setActionSuccessMessage(
+        `Action "${action.replace('_', ' ')}" recorded successfully. Workflow updated.`,
+      );
       setActionComments('');
-      setActionSuccessMessage(`Successfully submitted action: ${action}`);
-      showToast({
-        title: 'Action Recorded',
-        description: `Successfully submitted ${action} decision. Cryptographically hashed into audit ledger.`,
-        type: 'success',
-      });
       await fetchData(false);
     } catch (err: any) {
       showToast({
@@ -144,16 +142,17 @@ export default function RequestDetailPage() {
     setIsResubmitting(true);
     try {
       await api.resubmitRequest(requestId, {
-        comments: resubmitComments,
-        resubmissionPolicy: 'SELECTIVE_FAST_FORWARD',
+        comments: resubmitComments || undefined,
       });
-      setShowResubmitModal(false);
-      setResubmitComments('');
+
       showToast({
         title: 'Request Resubmitted',
-        description: 'New review round initialized with selective fast-forward applied.',
+        description: 'Initialized new review round for authorized approvers.',
         type: 'success',
       });
+
+      setShowResubmitModal(false);
+      setResubmitComments('');
       await fetchData(false);
     } catch (err: any) {
       showToast({
@@ -168,24 +167,26 @@ export default function RequestDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-slate-400 space-y-3">
-        <RefreshCw className="h-8 w-8 animate-spin text-indigo-500" />
-        <p className="text-sm font-medium">Loading approval request & DAG execution graph...</p>
+      <div className="min-h-screen bg-canvas flex flex-col items-center justify-center p-6 text-fg-muted space-y-3 font-mono">
+        <RefreshCw className="h-8 w-8 animate-spin text-accent" />
+        <p className="text-xs uppercase tracking-wider">
+          [ LOADING TELEMETRY & EXECUTION GRAPH... ]
+        </p>
       </div>
     );
   }
 
   if (error || !requestDetail) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-center space-y-4">
-        <AlertTriangle className="h-10 w-10 text-red-400" />
-        <h2 className="text-lg font-bold text-white">Error Loading Request</h2>
-        <p className="text-xs text-slate-400 max-w-md">{error || 'Request not found'}</p>
+      <div className="min-h-screen bg-canvas flex flex-col items-center justify-center p-6 text-center space-y-4">
+        <AlertTriangle className="h-10 w-10 text-rose-500" />
+        <h2 className="text-lg font-serif font-bold text-ink">Error Loading Request</h2>
+        <p className="text-xs font-mono text-fg-muted max-w-md">{error || 'Request not found'}</p>
         <button
           onClick={() => router.push('/')}
-          className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-semibold"
+          className="px-4 py-2 bg-surface hover:bg-canvas text-ink border border-border-subtle rounded-none text-xs font-mono font-semibold uppercase tracking-wider"
         >
-          Return to Dashboard
+          [ Return to Dashboard ]
         </button>
       </div>
     );
@@ -195,48 +196,48 @@ export default function RequestDetailPage() {
   const roundSteps = requestDetail.steps.filter((s) => (s.reviewRound || 1) === selectedRound);
 
   const statusColors: Record<string, string> = {
-    APPROVED: 'bg-emerald-950 text-emerald-300 border-emerald-800',
-    REJECTED: 'bg-red-950 text-red-300 border-red-800',
-    IN_PROGRESS: 'bg-indigo-950 text-indigo-300 border-indigo-800 animate-pulse',
-    CHANGES_REQUESTED: 'bg-amber-950 text-amber-300 border-amber-800',
-    CANCELLED: 'bg-slate-800 text-slate-400 border-slate-700',
+    APPROVED: 'bg-emerald-950/80 text-emerald-300 border-emerald-800',
+    REJECTED: 'bg-rose-950/80 text-rose-300 border-rose-800',
+    IN_PROGRESS: 'bg-accent/20 text-accent-foreground border-accent/40 animate-pulse',
+    CHANGES_REQUESTED: 'bg-amber-950/80 text-amber-300 border-amber-800',
+    CANCELLED: 'bg-surface text-fg-muted border-border-subtle',
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+    <div className="min-h-screen bg-canvas text-ink flex flex-col font-sans transition-colors duration-200">
       {/* Top Navigation Bar */}
-      <header className="border-b border-slate-800 bg-slate-900/60 backdrop-blur-md sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 py-3.5 flex items-center justify-between">
+      <header className="border-b border-border-subtle bg-surface/90 backdrop-blur-md sticky top-0 z-40">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <button
               onClick={() => router.push('/')}
-              className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
+              className="p-2 rounded-none bg-canvas hover:bg-surface text-fg-muted hover:text-ink border border-border-subtle transition-colors"
             >
               <ArrowLeft className="h-4 w-4" />
             </button>
             <div>
               <div className="flex items-center space-x-2">
                 <span
-                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
-                    statusColors[requestDetail.status] || 'bg-slate-800 text-slate-300'
+                  className={`px-2 py-0.5 rounded-none text-[10px] font-mono font-bold uppercase tracking-wider border ${
+                    statusColors[requestDetail.status] || 'bg-surface text-ink border-border-subtle'
                   }`}
                 >
-                  {requestDetail.status.replace('_', ' ')}
+                  [ {requestDetail.status.replace('_', ' ')} ]
                 </span>
-                <span className="text-xs text-indigo-400 font-medium">
+                <span className="text-xs text-accent font-mono font-medium">
                   {requestDetail.workflowName} (v{requestDetail.workflowVersion})
                 </span>
-                <span className="text-slate-500">•</span>
-                <span className="text-xs text-slate-400 font-mono">Round #{currentRound}</span>
+                <span className="text-fg-subtle">•</span>
+                <span className="text-xs text-fg-muted font-mono">Round #{currentRound}</span>
               </div>
-              <h1 className="text-lg font-bold text-white leading-tight mt-0.5">
+              <h1 className="text-xl font-serif font-bold text-ink leading-tight mt-0.5">
                 {requestDetail.title}
               </h1>
             </div>
           </div>
 
           <div className="flex items-center space-x-2.5">
-            <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-mono font-medium">
+            <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-none bg-surface border border-border-subtle text-accent text-xs font-mono font-medium">
               <ShieldCheck className="w-3.5 h-3.5" />
               <span>SHA-256 Ledger Verified</span>
             </div>
@@ -246,7 +247,7 @@ export default function RequestDetailPage() {
             {requestDetail.status === 'CHANGES_REQUESTED' && (
               <button
                 onClick={() => setShowResubmitModal(true)}
-                className="px-3.5 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold flex items-center space-x-1.5 shadow-md shadow-amber-600/20 transition-colors"
+                className="px-3.5 py-1.5 rounded-none bg-amber-600 hover:bg-amber-500 text-white text-xs font-mono font-semibold uppercase tracking-wider flex items-center space-x-1.5 transition-colors"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
                 <span>Resubmit Request</span>
@@ -256,7 +257,7 @@ export default function RequestDetailPage() {
             <button
               onClick={() => fetchData(false)}
               disabled={isRefreshing}
-              className="p-2 rounded-lg border border-line bg-surface text-fg hover:bg-raised transition-colors"
+              className="p-2 rounded-none border border-border-subtle bg-canvas text-ink hover:bg-surface transition-colors"
               title="Refresh Data"
             >
               <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
@@ -269,7 +270,7 @@ export default function RequestDetailPage() {
       <main className="max-w-7xl mx-auto w-full px-4 py-6 space-y-6 flex-1">
         {/* Success Alert Banner */}
         {actionSuccessMessage && (
-          <div className="p-3 bg-emerald-950/80 border border-emerald-800 rounded-xl text-xs text-emerald-200 flex items-center justify-between">
+          <div className="p-3 bg-emerald-950/80 border border-emerald-800 rounded-none text-xs text-emerald-200 flex items-center justify-between font-mono">
             <span className="flex items-center space-x-2">
               <CheckCircle2 className="h-4 w-4 text-emerald-400" />
               <span>{actionSuccessMessage}</span>
@@ -281,44 +282,45 @@ export default function RequestDetailPage() {
         )}
 
         {/* Request Overview Header Card */}
-        <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="p-5 rounded-none bg-surface border border-border-subtle flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1.5">
-            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
-              Request Context & Submitter
+            <span className="text-[10px] uppercase font-mono font-bold text-fg-muted tracking-wider block">
+              [ CONTEXT & SUBMITTER ]
             </span>
-            <p className="text-xs text-slate-300">
+            <p className="text-xs text-fg-muted">
               {requestDetail.description || 'No description provided.'}
             </p>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-500 pt-1">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-fg-muted pt-1 font-mono">
               <span className="flex items-center space-x-1">
-                <User className="h-3.5 w-3.5 text-slate-400" />
+                <User className="h-3.5 w-3.5 text-fg-subtle" />
                 <span>
-                  Submitted by: {requestDetail.requesterName} ({requestDetail.requesterEmail})
+                  Submitted by: <strong className="text-ink">{requestDetail.requesterName}</strong>{' '}
+                  ({requestDetail.requesterEmail})
                 </span>
               </span>
               <span>•</span>
               <span className="flex items-center space-x-1">
-                <Calendar className="h-3.5 w-3.5 text-slate-400" />
+                <Calendar className="h-3.5 w-3.5 text-fg-subtle" />
                 <span>Created {new Date(requestDetail.createdAt).toLocaleString()}</span>
               </span>
               <span>•</span>
-              <span className="font-mono text-slate-400">ID: {requestDetail.id}</span>
+              <span className="text-fg-subtle">ID: {requestDetail.id}</span>
             </div>
 
             {/* Structured DAG Routing Parameters */}
             {requestDetail.requestData && Object.keys(requestDetail.requestData).length > 0 && (
-              <div className="pt-2 border-t border-slate-800/80 mt-2 space-y-1.5">
-                <span className="text-[10px] uppercase font-bold text-indigo-400 tracking-wider block">
+              <div className="pt-2 border-t border-border-subtle mt-2 space-y-1.5 font-mono">
+                <span className="text-[10px] uppercase font-bold text-accent tracking-wider block">
                   Workflow Execution Parameters (Condition Routing Payload)
                 </span>
                 <div className="flex flex-wrap gap-2">
                   {Object.entries(requestDetail.requestData).map(([key, value]) => (
                     <div
                       key={key}
-                      className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 flex items-center space-x-1.5 text-xs font-mono"
+                      className="px-2.5 py-1 rounded-none bg-canvas border border-border-subtle flex items-center space-x-1.5 text-xs font-mono"
                     >
-                      <span className="text-slate-400">{key}:</span>
-                      <span className="text-emerald-400 font-semibold">
+                      <span className="text-fg-muted">{key}:</span>
+                      <span className="text-accent font-semibold">
                         {typeof value === 'boolean'
                           ? value
                             ? 'true'
@@ -340,39 +342,39 @@ export default function RequestDetailPage() {
         </div>
 
         {/* Tab Selection */}
-        <div className="flex items-center space-x-2 border-b border-slate-800">
+        <div className="flex items-center space-x-2 border-b border-border-subtle font-mono text-xs">
           <button
             onClick={() => setActiveTab('graph')}
-            className={`pb-3 px-4 text-xs font-semibold flex items-center space-x-2 border-b-2 transition-all ${
+            className={`pb-3 px-4 font-semibold uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-all ${
               activeTab === 'graph'
-                ? 'border-indigo-500 text-indigo-400'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
+                ? 'border-accent text-accent'
+                : 'border-transparent text-fg-muted hover:text-ink'
             }`}
           >
             <Activity className="h-4 w-4" />
-            <span>Live Execution Graph</span>
+            <span>[ Live Execution Graph ]</span>
           </button>
           <button
             onClick={() => setActiveTab('steps')}
-            className={`pb-3 px-4 text-xs font-semibold flex items-center space-x-2 border-b-2 transition-all ${
+            className={`pb-3 px-4 font-semibold uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-all ${
               activeTab === 'steps'
-                ? 'border-indigo-500 text-indigo-400'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
+                ? 'border-accent text-accent'
+                : 'border-transparent text-fg-muted hover:text-ink'
             }`}
           >
             <Layers className="h-4 w-4" />
-            <span>Approval Steps & Voting</span>
+            <span>[ Approval Steps & Voting ]</span>
           </button>
           <button
             onClick={() => setActiveTab('audit')}
-            className={`pb-3 px-4 text-xs font-semibold flex items-center space-x-2 border-b-2 transition-all ${
+            className={`pb-3 px-4 font-semibold uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-all ${
               activeTab === 'audit'
-                ? 'border-indigo-500 text-indigo-400'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
+                ? 'border-accent text-accent'
+                : 'border-transparent text-fg-muted hover:text-ink'
             }`}
           >
             <ShieldCheck className="h-4 w-4" />
-            <span>Cryptographic Audit Chain</span>
+            <span>[ Cryptographic Audit Chain ]</span>
           </button>
         </div>
 
@@ -416,39 +418,39 @@ export default function RequestDetailPage() {
 
             {/* Approver Action Box (if live in-progress) */}
             {requestDetail.status === 'IN_PROGRESS' && selectedRound === currentRound && (
-              <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-3">
+              <div className="p-5 rounded-none bg-surface border border-border-subtle space-y-3 font-mono">
                 <div className="flex items-center space-x-2">
-                  <User className="h-4 w-4 text-indigo-400" />
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-white">
-                    Submit Approval Action & Sign-off
+                  <User className="h-4 w-4 text-accent" />
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-ink">
+                    [ Submit Approval Action & Sign-off ]
                   </h3>
                 </div>
                 <textarea
                   value={actionComments}
                   onChange={(e) => setActionComments(e.target.value)}
                   placeholder="Enter comments or sign-off feedback (required for rejections or changes)..."
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-indigo-500 h-24"
+                  className="w-full bg-canvas border border-border-subtle rounded-none p-3 text-xs text-ink focus:outline-none focus:border-accent h-24 placeholder:text-fg-subtle"
                 />
 
                 <div className="flex items-center justify-end space-x-2 pt-1">
                   <button
                     onClick={() => handleAction('REQUEST_CHANGES')}
                     disabled={isSubmittingAction}
-                    className="px-3.5 py-2 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-700/60 rounded-xl text-xs font-semibold transition-colors disabled:opacity-50"
+                    className="px-3.5 py-2 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-700/60 rounded-none text-xs font-semibold uppercase tracking-wider transition-colors disabled:opacity-50"
                   >
                     Request Changes
                   </button>
                   <button
                     onClick={() => handleAction('REJECT')}
                     disabled={isSubmittingAction}
-                    className="px-3.5 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-300 border border-red-700/60 rounded-xl text-xs font-semibold transition-colors disabled:opacity-50"
+                    className="px-3.5 py-2 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-700/60 rounded-none text-xs font-semibold uppercase tracking-wider transition-colors disabled:opacity-50"
                   >
                     Reject
                   </button>
                   <button
                     onClick={() => handleAction('APPROVE')}
                     disabled={isSubmittingAction}
-                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold shadow-md shadow-emerald-600/20 transition-colors disabled:opacity-50 flex items-center space-x-1.5"
+                    className="px-4 py-2 bg-accent hover:bg-accent/90 text-white rounded-none text-xs font-semibold uppercase tracking-wider transition-colors disabled:opacity-50 flex items-center space-x-1.5"
                   >
                     <Check className="h-4 w-4" />
                     <span>Approve Step</span>
@@ -459,7 +461,7 @@ export default function RequestDetailPage() {
 
             {/* Steps List for Selected Round */}
             <div className="space-y-3">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 px-1">
+              <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-fg-muted px-1">
                 Steps in Round #{selectedRound} ({roundSteps.length})
               </h3>
               {roundSteps.map((step) => {
@@ -471,27 +473,27 @@ export default function RequestDetailPage() {
                 return (
                   <div
                     key={step.id}
-                    className={`p-4 rounded-2xl border transition-all ${
+                    className={`p-4 rounded-none border transition-all ${
                       isCurrent
                         ? 'bg-amber-950/20 border-amber-800/80'
                         : isApproved
                           ? 'bg-emerald-950/20 border-emerald-900/60'
                           : isRejected
-                            ? 'bg-red-950/20 border-red-900/60'
-                            : 'bg-slate-900 border-slate-800'
+                            ? 'bg-rose-950/20 border-rose-900/60'
+                            : 'bg-surface border-border-subtle'
                     }`}
                   >
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="flex items-center space-x-3">
                         <div
-                          className={`h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                          className={`h-7 w-7 rounded-none flex items-center justify-center text-xs font-mono font-bold ${
                             isApproved
                               ? 'bg-emerald-600 text-white'
                               : isRejected
-                                ? 'bg-red-600 text-white'
+                                ? 'bg-rose-600 text-white'
                                 : isCurrent
                                   ? 'bg-amber-500 text-slate-950 animate-pulse'
-                                  : 'bg-slate-800 text-slate-400'
+                                  : 'bg-canvas text-fg-muted border border-border-subtle'
                           }`}
                         >
                           {isApproved ? (
@@ -504,14 +506,14 @@ export default function RequestDetailPage() {
                         </div>
                         <div>
                           <div className="flex items-center space-x-2">
-                            <span className="font-semibold text-sm text-white">
+                            <span className="font-semibold text-sm text-ink font-mono">
                               {step.stepName}
                             </span>
-                            <span className="text-[10px] font-mono text-slate-400 uppercase">
+                            <span className="text-[10px] font-mono text-fg-muted uppercase">
                               {step.nodeType || 'APPROVAL_STEP'}
                             </span>
                           </div>
-                          <span className="text-xs text-slate-400">
+                          <span className="text-xs text-fg-muted">
                             Assigned:{' '}
                             {step.assignedRole ||
                               step.assignedTo?.name ||
@@ -522,21 +524,21 @@ export default function RequestDetailPage() {
                         </div>
                       </div>
 
-                      <div className="flex items-center space-x-2">
+                      <div className="flex items-center space-x-2 font-mono">
                         {step.policy === 'PARALLEL_AND' && (
-                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-indigo-950 text-indigo-300 border border-indigo-800">
+                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-none bg-canvas text-accent border border-accent/40">
                             {step.approvedCount || 0} / {step.requiredApprovals || 1} Quorum
                           </span>
                         )}
                         <span
-                          className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                          className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-none border ${
                             isCurrent
                               ? 'bg-amber-900/50 text-amber-300 border-amber-700'
                               : isApproved
                                 ? 'bg-emerald-900/50 text-emerald-300 border-emerald-700'
                                 : isRejected
-                                  ? 'bg-red-900/50 text-red-300 border-red-700'
-                                  : 'bg-slate-800 text-slate-400 border-slate-700'
+                                  ? 'bg-rose-900/50 text-rose-300 border-rose-700'
+                                  : 'bg-canvas text-fg-muted border-border-subtle'
                           }`}
                         >
                           {step.status}
@@ -546,10 +548,10 @@ export default function RequestDetailPage() {
 
                     {/* Comments */}
                     {step.comments && (
-                      <div className="mt-3 text-xs text-slate-300 bg-slate-950 p-2.5 rounded-xl border border-slate-850 flex items-start space-x-2">
-                        <MessageSquare className="h-3.5 w-3.5 text-indigo-400 mt-0.5 shrink-0" />
+                      <div className="mt-3 text-xs text-ink bg-canvas p-2.5 rounded-none border border-border-subtle flex items-start space-x-2 font-mono">
+                        <MessageSquare className="h-3.5 w-3.5 text-accent mt-0.5 shrink-0" />
                         <div>
-                          <span className="font-semibold text-[11px] text-slate-400 block">
+                          <span className="font-semibold text-[11px] text-fg-muted block">
                             {step.actionedBy
                               ? `${step.actionedBy.name} commented:`
                               : 'Reviewer comment:'}
@@ -561,18 +563,18 @@ export default function RequestDetailPage() {
 
                     {/* Parallel Assignee Voters */}
                     {step.assignees && step.assignees.length > 0 && (
-                      <div className="mt-3 pt-3 border-t border-slate-800/80 space-y-1.5">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                      <div className="mt-3 pt-3 border-t border-border-subtle space-y-1.5 font-mono">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-fg-muted block">
                           Individual Assignee Decisions:
                         </span>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           {step.assignees.map((a, idx) => (
                             <div
                               key={a.id || idx}
-                              className="p-2 rounded-lg bg-slate-950 border border-slate-850 text-xs flex items-center justify-between"
+                              className="p-2 rounded-none bg-canvas border border-border-subtle text-xs flex items-center justify-between"
                             >
                               <div className="space-y-0.5">
-                                <span className="font-medium text-slate-200 block">
+                                <span className="font-medium text-ink block">
                                   {a.assignedTo?.name || a.assignedRole || `Approver ${idx + 1}`}
                                 </span>
                                 {a.delegatedFromUser && (
@@ -582,12 +584,12 @@ export default function RequestDetailPage() {
                                 )}
                               </div>
                               <span
-                                className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border ${
+                                className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-none border ${
                                   a.status === 'APPROVED'
                                     ? 'bg-emerald-950 text-emerald-300 border-emerald-800'
                                     : a.status === 'REJECTED'
-                                      ? 'bg-red-950 text-red-300 border-red-800'
-                                      : 'bg-slate-800 text-slate-400 border-slate-700'
+                                      ? 'bg-rose-950 text-rose-300 border-rose-800'
+                                      : 'bg-surface text-fg-muted border-border-subtle'
                                 }`}
                               >
                                 {a.status}
@@ -616,18 +618,18 @@ export default function RequestDetailPage() {
       {/* Resubmit Request Modal */}
       {showResubmitModal && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md shadow-2xl p-6 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="font-bold text-base text-white">Resubmit Approval Request</h3>
+          <div className="bg-surface border border-border-subtle rounded-none w-full max-w-md shadow-2xl p-6 space-y-4 font-mono">
+            <div className="flex items-center justify-between border-b border-border-subtle pb-3">
+              <h3 className="font-serif font-bold text-base text-ink">Resubmit Approval Request</h3>
               <button
                 onClick={() => setShowResubmitModal(false)}
-                className="p-1 rounded text-slate-400 hover:text-white"
+                className="p-1 rounded-none text-fg-muted hover:text-ink"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-fg-muted">
               Provide clarification or updated values addressing requested changes. A new Review
               Round #{currentRound + 1} will be initialized.
             </p>
@@ -636,20 +638,20 @@ export default function RequestDetailPage() {
               value={resubmitComments}
               onChange={(e) => setResubmitComments(e.target.value)}
               placeholder="Explain changes made for reviewers..."
-              className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-indigo-500 h-28"
+              className="w-full bg-canvas border border-border-subtle rounded-none p-3 text-xs text-ink focus:outline-none focus:border-accent h-28 placeholder:text-fg-subtle"
             />
 
             <div className="flex items-center justify-end space-x-2 pt-2">
               <button
                 onClick={() => setShowResubmitModal(false)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl"
+                className="px-4 py-2 bg-canvas hover:bg-surface text-fg-muted hover:text-ink border border-border-subtle text-xs font-semibold uppercase tracking-wider rounded-none"
               >
                 Cancel
               </button>
               <button
                 onClick={handleResubmit}
                 disabled={isResubmitting}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl disabled:opacity-50 flex items-center space-x-1.5"
+                className="px-4 py-2 bg-accent hover:bg-accent/90 text-white text-xs font-semibold uppercase tracking-wider rounded-none disabled:opacity-50 flex items-center space-x-1.5"
               >
                 {isResubmitting && <RefreshCw className="h-3.5 w-3.5 animate-spin" />}
                 <span>Resubmit Round</span>

@@ -28,26 +28,32 @@ export function Drawer({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 overflow-hidden bg-black/50 backdrop-blur-xs">
+      <div className="fixed inset-0 z-50 overflow-hidden bg-black/70 backdrop-blur-xs">
         <div className="absolute inset-0" onClick={onClose} />
         <div className="fixed inset-y-0 right-0 flex pl-10">
           <motion.div
             initial={{ x: '100%' }}
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
-            transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-            className={`w-screen ${width} bg-surface border-l border-line shadow-2xl flex flex-col`}
+            transition={{ type: 'spring', damping: 30, stiffness: 350 }}
+            className={`w-screen ${width} bg-surface border-l border-line shadow-none flex flex-col rounded-none`}
           >
             {title && (
               <div className="flex items-start justify-between px-6 py-4 border-b border-line">
                 <div>
-                  <div className="font-semibold text-base text-fg">{title}</div>
-                  {description && <div className="text-xs text-fg-muted mt-0.5">{description}</div>}
+                  <div className="font-serif font-bold text-lg text-fg-primary tracking-tight">
+                    {title}
+                  </div>
+                  {description && (
+                    <div className="font-mono text-xs text-fg-secondary mt-1 uppercase tracking-wider">
+                      {description}
+                    </div>
+                  )}
                 </div>
                 <button
                   type="button"
                   onClick={onClose}
-                  className="p-1.5 rounded-lg text-fg-subtle hover:text-fg hover:bg-raised transition-colors"
+                  className="p-1.5 rounded-none text-fg-secondary hover:text-fg-primary hover:bg-raised transition-colors border border-transparent hover:border-line"
                   aria-label="Close drawer"
                 >
                   <X className="h-4 w-4" />

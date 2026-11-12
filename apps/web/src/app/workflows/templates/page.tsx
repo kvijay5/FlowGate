@@ -82,20 +82,19 @@ export default function WorkflowTemplatesPage() {
 
       <CommandPalette open={commandPaletteOpen} onOpenChange={setCommandPaletteOpen} />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 animate-fade-in">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 animate-fade-in font-sans">
         {/* Header Hero */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-6 border-b border-line">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-6 border-b border-border-subtle">
           <div>
             <div className="flex items-center gap-2 mb-2">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-mono font-medium bg-accent/10 text-accent border border-accent/20">
-                <Sparkles className="w-3.5 h-3.5" />
-                Production-Ready Blueprints
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-none text-xs font-mono font-medium bg-surface text-accent border border-border-subtle">
+                <Sparkles className="w-3.5 h-3.5" />[ PRODUCTION-READY BLUEPRINTS ]
               </span>
             </div>
-            <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-fg">
+            <h1 className="text-3xl sm:text-4xl font-serif font-bold tracking-tight text-ink">
               Industry Workflow Templates
             </h1>
-            <p className="mt-2 text-sm sm:text-base text-fg-muted max-w-2xl">
+            <p className="mt-2 text-sm sm:text-base text-fg-muted max-w-2xl font-mono">
               Battle-tested DAG workflows featuring JSON schema validation, parallel approval
               quorums, and AST conditional branching designed for high-compliance enterprise
               operations.
@@ -110,15 +109,15 @@ export default function WorkflowTemplatesPage() {
         </div>
 
         {/* Category Tabs */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none font-mono">
           {categories.map((cat) => (
             <button
               key={cat.id}
               onClick={() => setSelectedCategory(cat.id)}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap ${
+              className={`px-3.5 py-1.5 rounded-none text-xs font-semibold uppercase tracking-wider transition-all whitespace-nowrap ${
                 selectedCategory === cat.id
-                  ? 'bg-accent text-white shadow-sm'
-                  : 'bg-surface border border-line text-fg-muted hover:text-fg hover:border-fg-muted/40'
+                  ? 'bg-accent text-white border border-accent'
+                  : 'bg-surface border border-border-subtle text-fg-muted hover:text-ink hover:border-accent/40'
               }`}
             >
               {cat.label}
@@ -135,7 +134,7 @@ export default function WorkflowTemplatesPage() {
             return (
               <Card
                 key={template.id}
-                className="flex flex-col justify-between p-6 hover:shadow-lg transition-all border-line hover:border-accent/40 group"
+                className="flex flex-col justify-between p-6 hover:shadow-none transition-all border-border-subtle hover:border-accent/50 group rounded-none"
               >
                 <div className="space-y-4">
                   {/* Card Header Meta */}
@@ -157,7 +156,7 @@ export default function WorkflowTemplatesPage() {
 
                   {/* Title & Description */}
                   <div>
-                    <h3 className="text-xl font-bold text-fg group-hover:text-accent transition-colors">
+                    <h3 className="text-xl font-serif font-bold text-ink group-hover:text-accent transition-colors">
                       {template.name}
                     </h3>
                     <p className="mt-1.5 text-xs sm:text-sm text-fg-muted leading-relaxed">
@@ -166,26 +165,26 @@ export default function WorkflowTemplatesPage() {
                   </div>
 
                   {/* Visual Node Chain Strip */}
-                  <div className="p-3 bg-canvas/60 rounded-xl border border-line">
-                    <span className="block text-[10px] font-mono uppercase text-fg-subtle mb-2">
-                      DAG Execution Pipeline
+                  <div className="p-3 bg-canvas rounded-none border border-border-subtle font-mono">
+                    <span className="block text-[10px] uppercase text-fg-subtle mb-2">
+                      [ DAG Execution Pipeline ]
                     </span>
-                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs font-mono scrollbar-none">
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs scrollbar-none">
                       {template.nodes.map((node, i) => (
                         <React.Fragment key={node.id}>
                           <span
-                            className={`px-2 py-1 rounded-md text-[11px] shrink-0 border ${
+                            className={`px-2 py-1 rounded-none text-[11px] shrink-0 border ${
                               node.type === 'TRIGGER'
-                                ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20'
+                                ? 'bg-surface text-ink border-border-subtle font-bold'
                                 : node.type === 'CONDITION'
-                                  ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+                                  ? 'bg-amber-950/20 text-amber-300 border-amber-800'
                                   : node.type === 'PARALLEL_APPROVAL'
-                                    ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20'
+                                    ? 'bg-accent/15 text-accent-foreground border-accent/40'
                                     : node.type === 'JOIN'
-                                      ? 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20'
+                                      ? 'bg-surface text-ink border-border-subtle'
                                       : node.type === 'END'
-                                        ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
-                                        : 'bg-surface text-fg border-line'
+                                        ? 'bg-emerald-950/20 text-emerald-300 border-emerald-800'
+                                        : 'bg-surface text-ink border-border-subtle'
                             }`}
                           >
                             {node.name.length > 20 ? node.name.slice(0, 18) + '…' : node.name}
@@ -207,11 +206,11 @@ export default function WorkflowTemplatesPage() {
                       {template.inputSchema.fields.map((f) => (
                         <span
                           key={f.name}
-                          className="px-2 py-0.5 rounded text-[11px] font-mono bg-surface border border-line text-fg"
+                          className="px-2 py-0.5 rounded-none text-[11px] font-mono bg-canvas border border-border-subtle text-ink"
                         >
-                          <span className="font-semibold text-fg">{f.name}</span>
+                          <span className="font-semibold text-ink">{f.name}</span>
                           <span className="text-fg-subtle ml-1">({f.type.toLowerCase()})</span>
-                          {f.required && <span className="text-red-500 ml-0.5">*</span>}
+                          {f.required && <span className="text-rose-500 ml-0.5">*</span>}
                         </span>
                       ))}
                     </div>
@@ -221,14 +220,14 @@ export default function WorkflowTemplatesPage() {
                   <div>
                     <button
                       onClick={() => setExpandedPayloadId(isExpanding ? null : template.id)}
-                      className="text-xs font-mono text-accent hover:underline flex items-center gap-1"
+                      className="text-xs font-mono text-accent hover:underline flex items-center gap-1 uppercase tracking-wider"
                     >
                       <Code className="w-3.5 h-3.5" />
-                      {isExpanding ? 'Hide Sample Payload' : 'View Sample JSON Payload'}
+                      {isExpanding ? '[ Hide Sample Payload ]' : '[ View Sample JSON Payload ]'}
                     </button>
 
                     {isExpanding && (
-                      <pre className="mt-2 p-3 bg-canvas rounded-lg border border-line text-[11px] font-mono text-fg-muted overflow-x-auto">
+                      <pre className="mt-2 p-3 bg-canvas rounded-none border border-border-subtle text-[11px] font-mono text-fg-muted overflow-x-auto">
                         {JSON.stringify(template.samplePayload, null, 2)}
                       </pre>
                     )}

@@ -174,7 +174,7 @@ export function NodePropertiesPanel({
             type="text"
             value={name || ''}
             onChange={(e) => onUpdateNode(id, { name: e.target.value })}
-            className="mt-1 block w-full rounded border-slate-200 px-1 py-0.5 text-base font-semibold text-slate-900 hover:border-slate-300 focus:border-indigo-500 focus:outline-none"
+            className="mt-1 block w-full rounded-none border border-border-subtle bg-surface px-2 py-1 text-base font-serif font-bold text-ink hover:border-accent/40 focus:border-accent focus:outline-none"
             placeholder="Node Name"
           />
         </div>
@@ -252,7 +252,7 @@ export function NodePropertiesPanel({
                     type="checkbox"
                     checked={newFieldRequired}
                     onChange={(e) => setNewFieldRequired(e.target.checked)}
-                    className="rounded border-slate-300 text-indigo-600"
+                    className="rounded-none border-border-subtle text-accent focus:ring-0"
                   />
                   <span>Required field</span>
                 </label>
@@ -261,7 +261,7 @@ export function NodePropertiesPanel({
                   type="button"
                   onClick={handleAddSchemaField}
                   disabled={!newFieldName.trim()}
-                  className="flex items-center space-x-1 rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white shadow-xs hover:bg-emerald-700 disabled:opacity-50"
+                  className="flex items-center space-x-1 rounded-none bg-accent hover:bg-accent/90 px-2.5 py-1 text-xs font-mono font-semibold uppercase text-white disabled:opacity-50"
                 >
                   <Plus className="h-3.5 w-3.5" />
                   <span>Add Field</span>
@@ -273,15 +273,15 @@ export function NodePropertiesPanel({
 
         {/* --- APPROVAL STEP CONFIGURATION --- */}
         {(type === 'APPROVAL_STEP' || type === 'APPROVAL') && (
-          <div className="space-y-4">
+          <div className="space-y-4 font-mono">
             <div>
-              <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+              <label className="text-xs font-semibold uppercase tracking-wider text-fg-muted">
                 Assigned Approver Role
               </label>
               <select
                 value={config.role || 'APPROVER'}
                 onChange={(e) => updateConfig({ role: e.target.value as UserRole })}
-                className="mt-1.5 block w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 shadow-xs focus:border-indigo-500 focus:outline-none"
+                className="mt-1.5 block w-full rounded-none border border-border-subtle bg-surface px-3 py-2 text-sm font-medium text-ink focus:border-accent focus:outline-none"
               >
                 {AVAILABLE_ROLES.map((r) => (
                   <option key={r.value} value={r.value}>
@@ -292,7 +292,7 @@ export function NodePropertiesPanel({
             </div>
 
             <div>
-              <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+              <label className="text-xs font-semibold uppercase tracking-wider text-fg-muted">
                 SLA Timeout (Hours)
               </label>
               <input
@@ -309,20 +309,20 @@ export function NodePropertiesPanel({
                     escalationTimeoutMinutes: Math.max(1, Number(e.target.value)) * 60,
                   })
                 }
-                className="mt-1.5 block w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-xs focus:border-indigo-500 focus:outline-none"
+                className="mt-1.5 block w-full rounded-none border border-border-subtle bg-surface px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
               />
-              <p className="mt-1 text-[11px] text-slate-400">
+              <p className="mt-1 text-[11px] text-fg-subtle">
                 Escalation triggers if no decision is logged within this window.
               </p>
             </div>
 
             <div className="pt-2">
-              <label className="flex items-center space-x-2 text-xs font-medium text-slate-700">
+              <label className="flex items-center space-x-2 text-xs font-medium text-fg-muted">
                 <input
                   type="checkbox"
                   checked={config.fastForwardOnResubmit || false}
                   onChange={(e) => updateConfig({ fastForwardOnResubmit: e.target.checked })}
-                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                  className="rounded-none border-border-subtle text-accent focus:ring-0"
                 />
                 <span>Fast-forward on resubmission if approved previously</span>
               </label>

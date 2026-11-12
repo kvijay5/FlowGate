@@ -1,11 +1,11 @@
 import type { Metadata } from 'next';
-import { Inter, JetBrains_Mono } from 'next/font/google';
+import { Playfair_Display, JetBrains_Mono, Inter } from 'next/font/google';
 import { ThemeProvider } from '@/components/theme/ThemeProvider';
 import './globals.css';
 
-const sansFont = Inter({
+const serifFont = Playfair_Display({
   subsets: ['latin'],
-  variable: '--font-sans',
+  variable: '--font-serif',
   display: 'swap',
 });
 
@@ -15,10 +15,16 @@ const monoFont = JetBrains_Mono({
   display: 'swap',
 });
 
+const sansFont = Inter({
+  subsets: ['latin'],
+  variable: '--font-sans',
+  display: 'swap',
+});
+
 export const metadata: Metadata = {
-  title: 'FlowGate | Multi-Tenant Approval Workflow Platform',
+  title: 'FlowGate | Technical HUD Approval Platform',
   description:
-    'Production-grade multi-tenant approval workflow platform with transactional DAG state machines, out-of-office delegations, and cryptographic SHA-256 audit ledgers.',
+    'High-assurance multi-tenant approval workflow platform with transactional DAG state machines, out-of-office delegations, and cryptographic SHA-256 audit ledgers.',
 };
 
 export default function RootLayout({
@@ -30,7 +36,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${sansFont.variable} ${monoFont.variable}`}
+      className={`${serifFont.variable} ${monoFont.variable} ${sansFont.variable}`}
     >
       <head>
         {/* Synchronous No-Flash Theme Initialization Script */}
@@ -41,8 +47,8 @@ export default function RootLayout({
         />
       </head>
       <body className="antialiased font-sans selection:bg-accent selection:text-white bg-canvas text-fg-primary min-h-screen relative overflow-x-hidden">
-        {/* Ambient Subtle Grid Pattern */}
-        <div className="fixed inset-0 pointer-events-none z-0 bg-grid-mesh opacity-50" />
+        {/* Technical HUD Grid Background */}
+        <div className="fixed inset-0 pointer-events-none z-0 bg-grid-hud opacity-60" />
         <ThemeProvider>
           <div className="relative z-10 flex min-h-screen flex-col">{children}</div>
         </ThemeProvider>

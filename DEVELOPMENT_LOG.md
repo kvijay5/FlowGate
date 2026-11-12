@@ -2,6 +2,97 @@
 
 ---
 
+## [Phase 8: "Editorial-Meets-HUD" Technical Aesthetic Overhaul & 3D Radar Integration] - 2026-11-12
+
+### 1. Executive Summary
+
+This milestone executes Phase 8: "Editorial-Meets-HUD" Technical Aesthetic Overhaul, pivoting FlowGate from rounded Apple-HIG glassmorphism into a high-end, brutalist technical HUD mixed with editorial typography:
+
+1. **Aesthetic & Color Palette (Zero Blue/Purple)**:
+   - **Dark Mode**: Pitch black canvas (`#000000` to `#0A0A0A`), crisp stark white text (`#FFFFFF`), and Deep Crimson/Red (`#DC2626` / `#B91C1C`) for primary accents, glowing rings, and active states.
+   - **Light Mode**: Brutalist stark white canvas (`#FFFFFF`), heavy black text (`#000000`), and deep red accents (`#B91C1C`).
+   - Completely stripped all indigo, violet, and electric cyan gradients across all views and modals.
+2. **Typography System**:
+   - **Display & Headings**: Elegant serif (`Playfair Display`) via `next/font/google` for editorial gravity and brand presence.
+   - **Data, Metrics & Telemetry**: Strict monospace (`JetBrains Mono`) for all metric readouts, SHA-256 hashes, quotas, statuses, edge labels, chips, and HUD telemetry strips.
+   - **Body**: High-legibility sans-serif (`Inter`).
+3. **Shape & Borders**:
+   - Hairline borders (`1px solid rgba(255,255,255,0.1)` in dark mode, `1px solid rgba(0,0,0,0.1)` in light mode).
+   - Minimal border radius (`0px` or `2px` max) across all cards, buttons, drawers, modals, and ReactFlow nodes. Zero pill buttons or large rounded corners.
+   - Background 40px technical grid overlay (`.bg-grid-hud`) with layout crosshairs (`+`) at panel intersections.
+4. **3D System Radar Integration**:
+   - Created `apps/web/src/components/3d/WireframeHero.tsx` using `three`, `@react-three/fiber`, and `@react-three/drei`.
+   - Renders a rotating icosahedron wireframe in deep crimson accent (`#DC2626`), an outer dodecahedron telemetry cage, and a constellation point cloud.
+   - Configured with subtle auto-rotating `OrbitControls` and isolated with `next/dynamic` (`ssr: false`) for error-free static generation.
+5. **ReactFlow HUD Nodes & Viewers**:
+   - Replaced all visual nodes (`TriggerNode`, `ApprovalNode`, `ParallelApprovalNode`, `ConditionNode`, `JoinNode`, `EndNode`, `ExecutionNode`) with brutalist rectangles featuring serif titles, monospace state metadata, hairline borders, and square connection handles.
+   - Configured orthogonal step routing (`type: 'step'`) in `RequestExecutionGraphViewer.tsx` and `WorkflowBuilder.tsx` for schematic blueprint appearance with glowing deep crimson active edges.
+6. **Complete Page Polish**:
+   - Overhauled `page.tsx` (unauthenticated hero with 3D canvas, authenticated dashboard with telemetry strip and 4 Bento cards).
+   - Overhauled `requests/[id]/page.tsx`, `ReviewRoundTimeline.tsx`, `AuditChainInspector.tsx`, `ExecutionNodeDetailsModal.tsx`, `workflows/templates/page.tsx`, `insights/page.tsx`, and `workflows/[id]/builder/page.tsx`.
+
+### 2. Summary of Work Completed & Deliverables
+
+- **Dependencies**:
+  - Installed `three`, `@react-three/fiber`, `@react-three/drei`, and `@types/three` in `apps/web`.
+- **Fonts & CSS Tokens**:
+  - `apps/web/src/app/layout.tsx`: Configured `Playfair_Display`, `JetBrains_Mono`, and `Inter` via Next.js Google Fonts.
+  - `apps/web/src/app/globals.css`: Rebuilt semantic variables (`--bg-canvas: 0 0 0`, `--bg-surface: 10 10 10`, `--accent: 220 38 38`, `--border-subtle: rgba(255,255,255,0.1)`). Added `.bg-grid-hud` and `.hud-crosshair`.
+  - `apps/web/tailwind.config.ts`: Set `borderRadius` globally to `0px`/`2px`, mapped `fontFamily.serif`, `mono`, `sans`.
+- **UI Primitives (`apps/web/src/components/ui/`)**:
+  - Updated `Button.tsx`, `Card.tsx`, `Chip.tsx`, `IconButton.tsx`, `Drawer.tsx`, `ConfirmDialog.tsx`, `Toast.tsx` to 0px border radius, hairline borders, uppercase monospace labels, and solid crimson primary variant.
+- **3D Canvas**:
+  - Built `apps/web/src/components/3d/WireframeHero.tsx` with rotating icosahedron wireframe and telemetry constellation point cloud.
+- **Workflow & Execution Graphs**:
+  - Replaced nodes with brutalist HUD components: `TriggerNode`, `ApprovalNode`, `ParallelApprovalNode`, `ConditionNode`, `JoinNode`, `EndNode`, and `ExecutionNode`.
+  - Configured `RequestExecutionGraphViewer.tsx` and `WorkflowBuilder.tsx` with orthogonal step routing (`type: 'step'`) and crimson active edges.
+- **Pages**:
+  - `apps/web/src/app/page.tsx`: Updated landing view, dashboard radar hero, telemetry strip, request cards, and all modals.
+  - `apps/web/src/app/requests/[id]/page.tsx`: Editorial serif headings, monospace metadata, HUD tabs and actions.
+  - `apps/web/src/components/workflow-execution/ReviewRoundTimeline.tsx`: Monospace snapshot navigation.
+  - `apps/web/src/components/workflow-execution/AuditChainInspector.tsx`: Brutalist SHA-256 block ledger inspector.
+  - `apps/web/src/components/workflow-execution/ExecutionNodeDetailsModal.tsx`: Brutalist execution telemetry modal.
+  - `apps/web/src/app/workflows/templates/page.tsx`: Editorial serif headings and brutalist blueprint cards.
+  - `apps/web/src/app/insights/page.tsx`: Brutalist executive SLA insights and cryptographic ledger status.
+  - `apps/web/src/app/workflows/[id]/builder/page.tsx`: Brutalist loading and error states.
+
+### 3. Technical Decisions & Rationale
+
+- **Orthogonal Step Routing (`type: 'step'`)**:
+  - Standard smooth bezier curves look soft and playful. Switching to orthogonal `step` routing creates precise 90-degree corners, evoking military/industrial schematic blueprints.
+- **Client-Side Dynamic Loading for Three.js (`next/dynamic` with `ssr: false`)**:
+  - `@react-three/fiber` and `three` depend on browser globals (`window`, WebGL context, Canvas API) which do not exist during Next.js SSG / page prerendering. Using `next/dynamic` ensures zero hydration mismatches and clean static page export.
+- **High-Contrast Dark Crimson on Stark Black**:
+  - Using crimson (`#DC2626` / `#B91C1C`) creates an immediate high-tech command center aesthetic without falling into generic indigo/violet AI SaaS cliches. Contrast ratios exceed 4.5:1 (WCAG AA).
+
+### 4. Verification & Test Results
+
+1. **Compilation & Type-Check**:
+   - `pnpm check-types`: 0 TypeScript errors across `packages/shared-types`, `apps/api`, and `apps/web`.
+2. **Linting & Formatting**:
+   - `pnpm lint`: 0 ESLint warnings, 0 errors.
+   - `pnpm format`: Prettier formatted all code.
+3. **Automated Unit & E2E Tests**:
+   - `pnpm --filter web test`: 3 test suites, 28 tests passing (100%).
+   - `pnpm --filter api test`: 21 test suites, 230 tests passing (100%).
+   - `pnpm --filter api test:e2e`: 12 test suites, 138 tests passing (100%).
+   - **Total Automated Tests**: 396 passed, 0 failed.
+4. **Production Build**:
+   - `pnpm build`: Both `apps/api` and `apps/web` compiled successfully to production artifacts with zero errors.
+
+### 5. Known Limitations or Environmental Blockers
+
+- None. Docker services (PostgreSQL, Redis), Next.js frontend, and NestJS API run cleanly.
+
+### 6. Next Steps
+
+- Push verified code to `origin/main`.
+- Share live local URL (`http://localhost:3000`) and portfolio highlights with user.
+
+---
+
+---
+
 ## [Product Polish & Freelance Showcase: Apple-HIG Dual-Theme Engine, Shared TopBar, Live DAG Simulator, Global Cmd+K Palette & Industry Templates Gallery] - 2026-11-12
 
 ### 1. Executive Summary

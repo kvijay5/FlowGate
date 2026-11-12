@@ -39,10 +39,12 @@ export default function WorkflowBuilderPage() {
 
   if (loading) {
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-slate-50">
+      <div className="flex h-screen w-full items-center justify-center bg-canvas text-ink font-mono">
         <div className="flex flex-col items-center space-y-3">
-          <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
-          <p className="text-sm font-medium text-slate-600">Loading Workflow Builder...</p>
+          <Loader2 className="h-8 w-8 animate-spin text-accent" />
+          <p className="text-xs uppercase tracking-wider text-fg-muted">
+            [ LOADING WORKFLOW BUILDER HUD... ]
+          </p>
         </div>
       </div>
     );
@@ -50,13 +52,13 @@ export default function WorkflowBuilderPage() {
 
   if (error) {
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-slate-50 p-6">
-        <div className="max-w-md rounded-xl border border-rose-200 bg-white p-6 shadow-sm text-center">
-          <h3 className="text-lg font-bold text-rose-950">Error Loading Workflow</h3>
-          <p className="mt-2 text-sm text-slate-600">{error}</p>
+      <div className="flex h-screen w-full items-center justify-center bg-canvas p-6 font-mono">
+        <div className="max-w-md rounded-none border border-border-subtle bg-surface p-6 shadow-sm text-center space-y-4">
+          <h3 className="text-lg font-serif font-bold text-rose-500">Error Loading Workflow</h3>
+          <p className="text-xs text-fg-muted">{error}</p>
           <button
             onClick={() => router.push('/')}
-            className="mt-4 inline-flex items-center space-x-2 rounded-lg bg-slate-800 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-900"
+            className="inline-flex items-center space-x-2 rounded-none bg-surface hover:bg-canvas border border-border-subtle px-4 py-2 text-xs font-semibold uppercase tracking-wider text-ink transition-colors"
           >
             <ArrowLeft className="h-4 w-4" />
             <span>Return to Dashboard</span>

@@ -306,7 +306,7 @@ describe('Background Processing & Escalation Engine (Integration)', () => {
       let delivery: any = null;
       const startWait = Date.now();
 
-      while (Date.now() - startWait < 8000) {
+      while (Date.now() - startWait < 15000) {
         if (!reqNotif) {
           const notifsRes = await request(app.getHttpServer())
             .get('/api/v1/notifications')

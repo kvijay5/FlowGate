@@ -142,128 +142,148 @@ export function CommandPalette({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-24 px-4 bg-black/40 backdrop-blur-sm animate-fade-in">
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-24 px-4 bg-black/75 backdrop-blur-xs animate-fade-in">
       <div className="fixed inset-0 -z-10" onClick={() => setModalOpen(false)} aria-hidden="true" />
 
-      <div className="w-full max-w-xl bg-surface border border-line rounded-2xl shadow-2xl overflow-hidden glass transition-all">
+      <div className="w-full max-w-xl bg-surface border border-line rounded-none shadow-none overflow-hidden transition-colors">
         <Command className="w-full" loop>
-          <div className="flex items-center gap-3 px-4 py-3.5 border-b border-line bg-canvas/40">
-            <Search className="w-5 h-5 text-fg-muted shrink-0" />
+          <div className="flex items-center gap-3 px-4 py-3.5 border-b border-line bg-canvas">
+            <Search className="w-4 h-4 text-accent shrink-0" />
             <Command.Input
               autoFocus
               placeholder="Type a command, route, persona, or action..."
-              className="w-full bg-transparent text-sm text-fg placeholder:text-fg-subtle outline-none font-sans"
+              className="w-full bg-transparent text-xs text-fg-primary placeholder:text-fg-tertiary outline-none font-mono uppercase tracking-wider"
             />
-            <kbd className="px-2 py-0.5 text-[10px] font-mono font-semibold rounded bg-canvas border border-line text-fg-muted shadow-sm">
+            <kbd className="px-1.5 py-0.5 text-[9px] font-mono font-bold rounded-none bg-canvas border border-line text-fg-secondary">
               ESC
             </kbd>
           </div>
 
-          <Command.List className="max-h-[340px] overflow-y-auto p-2 space-y-1 text-sm font-sans">
-            <Command.Empty className="py-8 text-center text-xs text-fg-muted">
-              No matching commands or actions found.
+          <Command.List className="max-h-[340px] overflow-y-auto p-2 space-y-1 text-xs font-mono">
+            <Command.Empty className="py-8 text-center text-xs text-fg-tertiary font-mono">
+              [ NO MATCHING COMMANDS FOUND ]
             </Command.Empty>
 
             {/* Navigation Group */}
             <Command.Group
-              heading="Navigation"
-              className="px-2 py-1.5 text-[11px] font-mono font-medium text-fg-subtle uppercase tracking-wider"
+              heading="[ NAVIGATION ]"
+              className="px-2 py-1.5 text-[10px] font-mono font-bold text-fg-tertiary uppercase tracking-widest"
             >
               <Command.Item
                 onSelect={() => handleNavigate('/')}
-                className="flex items-center justify-between px-3 py-2 rounded-lg text-fg cursor-pointer hover:bg-raised aria-selected:bg-raised transition-colors"
+                className="flex items-center justify-between px-3 py-2 rounded-none border border-transparent text-fg-primary cursor-pointer hover:bg-raised hover:border-line aria-selected:bg-raised aria-selected:border-accent transition-colors"
               >
                 <div className="flex items-center gap-2.5">
                   <Inbox className="w-4 h-4 text-accent" />
-                  <span className="font-medium">Approval Requests Inbox</span>
+                  <span className="font-serif font-bold text-xs uppercase">
+                    Approval Requests Inbox
+                  </span>
                 </div>
-                <span className="text-[11px] font-mono text-fg-muted">/</span>
+                <span className="text-[10px] font-mono text-fg-secondary">/</span>
               </Command.Item>
 
               <Command.Item
                 onSelect={() => handleNavigate('/workflows/templates')}
-                className="flex items-center justify-between px-3 py-2 rounded-lg text-fg cursor-pointer hover:bg-raised aria-selected:bg-raised transition-colors"
+                className="flex items-center justify-between px-3 py-2 rounded-none border border-transparent text-fg-primary cursor-pointer hover:bg-raised hover:border-line aria-selected:bg-raised aria-selected:border-accent transition-colors"
               >
                 <div className="flex items-center gap-2.5">
-                  <Sparkles className="w-4 h-4 text-amber-500" />
-                  <span className="font-medium">Industry Workflow Templates</span>
+                  <Sparkles className="w-4 h-4 text-accent" />
+                  <span className="font-serif font-bold text-xs uppercase">
+                    Industry Workflow Templates
+                  </span>
                 </div>
-                <span className="text-[11px] font-mono text-fg-muted">/workflows/templates</span>
+                <span className="text-[10px] font-mono text-fg-secondary">
+                  /workflows/templates
+                </span>
               </Command.Item>
 
               <Command.Item
                 onSelect={() => handleNavigate('/workflows')}
-                className="flex items-center justify-between px-3 py-2 rounded-lg text-fg cursor-pointer hover:bg-raised aria-selected:bg-raised transition-colors"
+                className="flex items-center justify-between px-3 py-2 rounded-none border border-transparent text-fg-primary cursor-pointer hover:bg-raised hover:border-line aria-selected:bg-raised aria-selected:border-accent transition-colors"
               >
                 <div className="flex items-center gap-2.5">
                   <Workflow className="w-4 h-4 text-accent" />
-                  <span className="font-medium">Workflow Definitions & Builder</span>
+                  <span className="font-serif font-bold text-xs uppercase">
+                    Workflow Definitions & Builder
+                  </span>
                 </div>
-                <span className="text-[11px] font-mono text-fg-muted">/workflows</span>
+                <span className="text-[10px] font-mono text-fg-secondary">/workflows</span>
               </Command.Item>
 
               <Command.Item
                 onSelect={() => handleNavigate('/insights')}
-                className="flex items-center justify-between px-3 py-2 rounded-lg text-fg cursor-pointer hover:bg-raised aria-selected:bg-raised transition-colors"
+                className="flex items-center justify-between px-3 py-2 rounded-none border border-transparent text-fg-primary cursor-pointer hover:bg-raised hover:border-line aria-selected:bg-raised aria-selected:border-accent transition-colors"
               >
                 <div className="flex items-center gap-2.5">
-                  <BarChart3 className="w-4 h-4 text-emerald-500" />
-                  <span className="font-medium">Executive SLA & Integrity Insights</span>
+                  <BarChart3 className="w-4 h-4 text-accent" />
+                  <span className="font-serif font-bold text-xs uppercase">
+                    Executive SLA & Integrity Insights
+                  </span>
                 </div>
-                <span className="text-[11px] font-mono text-fg-muted">/insights</span>
+                <span className="text-[10px] font-mono text-fg-secondary">/insights</span>
               </Command.Item>
 
               <Command.Item
                 onSelect={() => handleNavigate('http://localhost:4000/api/docs')}
-                className="flex items-center justify-between px-3 py-2 rounded-lg text-fg cursor-pointer hover:bg-raised aria-selected:bg-raised transition-colors"
+                className="flex items-center justify-between px-3 py-2 rounded-none border border-transparent text-fg-primary cursor-pointer hover:bg-raised hover:border-line aria-selected:bg-raised aria-selected:border-accent transition-colors"
               >
                 <div className="flex items-center gap-2.5">
-                  <FileCode2 className="w-4 h-4 text-blue-500" />
-                  <span className="font-medium">Swagger API Documentation</span>
+                  <FileCode2 className="w-4 h-4 text-accent" />
+                  <span className="font-serif font-bold text-xs uppercase">
+                    OpenAPI Swagger Documentation
+                  </span>
                 </div>
-                <span className="text-[11px] font-mono text-fg-muted">/api/docs</span>
+                <span className="text-[10px] font-mono text-fg-secondary">/api/docs</span>
               </Command.Item>
             </Command.Group>
 
             {/* Switch Demo Persona */}
             <Command.Group
-              heading="Switch Demo Persona"
-              className="px-2 py-1.5 text-[11px] font-mono font-medium text-fg-subtle uppercase tracking-wider"
+              heading="[ SWITCH DEMO PERSONA ]"
+              className="px-2 py-1.5 text-[10px] font-mono font-bold text-fg-tertiary uppercase tracking-widest"
             >
               {DEMO_PERSONAS.map((p) => (
                 <Command.Item
                   key={p.id}
                   onSelect={() => handlePersonaClick(p)}
-                  className="flex items-center justify-between px-3 py-2 rounded-lg text-fg cursor-pointer hover:bg-raised aria-selected:bg-raised transition-colors"
+                  className="flex items-center justify-between px-3 py-2 rounded-none border border-transparent text-fg-primary cursor-pointer hover:bg-raised hover:border-line aria-selected:bg-raised aria-selected:border-accent transition-colors"
                 >
                   <div className="flex items-center gap-2.5">
-                    <div className="w-5 h-5 rounded-full bg-accent/15 text-accent text-[10px] font-bold flex items-center justify-center font-mono">
+                    <div className="w-5 h-5 rounded-none border border-accent bg-accent text-white text-[9px] font-bold flex items-center justify-center font-mono">
                       {p.initials}
                     </div>
                     <div>
-                      <span className="font-medium">{p.name}</span>
-                      <span className="ml-2 text-xs text-fg-muted">({p.roleLabel})</span>
+                      <span className="font-serif font-bold text-xs uppercase">{p.name}</span>
+                      <span className="ml-2 font-mono text-[10px] text-accent uppercase">
+                        [{p.roleLabel}]
+                      </span>
                     </div>
                   </div>
-                  <span className="text-[11px] font-mono text-fg-muted">{p.tenantName}</span>
+                  <span className="text-[10px] font-mono text-fg-secondary uppercase">
+                    {p.tenantName}
+                  </span>
                 </Command.Item>
               ))}
             </Command.Group>
 
             {/* Actions & Utilities */}
             <Command.Group
-              heading="Actions & System"
-              className="px-2 py-1.5 text-[11px] font-mono font-medium text-fg-subtle uppercase tracking-wider"
+              heading="[ ACTIONS & SYSTEM ]"
+              className="px-2 py-1.5 text-[10px] font-mono font-bold text-fg-tertiary uppercase tracking-widest"
             >
               <Command.Item
                 onSelect={handleVerifyLedger}
-                className="flex items-center justify-between px-3 py-2 rounded-lg text-fg cursor-pointer hover:bg-raised aria-selected:bg-raised transition-colors"
+                className="flex items-center justify-between px-3 py-2 rounded-none border border-transparent text-fg-primary cursor-pointer hover:bg-raised hover:border-line aria-selected:bg-raised aria-selected:border-accent transition-colors"
               >
                 <div className="flex items-center gap-2.5">
                   <ShieldCheck className="w-4 h-4 text-emerald-500" />
-                  <span className="font-medium">Verify SHA-256 Audit Chain Ledger</span>
+                  <span className="font-serif font-bold text-xs uppercase">
+                    Verify SHA-256 Audit Chain Ledger
+                  </span>
                 </div>
-                <span className="text-[11px] font-mono text-fg-muted">Cryptographic Check</span>
+                <span className="text-[10px] font-mono text-fg-secondary uppercase">
+                  [ CRYPTO VERIFY ]
+                </span>
               </Command.Item>
 
               <Command.Item
@@ -271,13 +291,17 @@ export function CommandPalette({
                   setTheme('light');
                   setModalOpen(false);
                 }}
-                className="flex items-center justify-between px-3 py-2 rounded-lg text-fg cursor-pointer hover:bg-raised aria-selected:bg-raised transition-colors"
+                className="flex items-center justify-between px-3 py-2 rounded-none border border-transparent text-fg-primary cursor-pointer hover:bg-raised hover:border-line aria-selected:bg-raised aria-selected:border-accent transition-colors"
               >
                 <div className="flex items-center gap-2.5">
-                  <Sun className="w-4 h-4 text-amber-500" />
-                  <span className="font-medium">Set Theme: Alabaster Light</span>
+                  <Sun className="w-4 h-4 text-accent" />
+                  <span className="font-serif font-bold text-xs uppercase">
+                    Set Theme: Stark White
+                  </span>
                 </div>
-                {theme === 'light' && <span className="text-xs text-accent">Active</span>}
+                {theme === 'light' && (
+                  <span className="text-[10px] font-mono text-accent uppercase">[ ACTIVE ]</span>
+                )}
               </Command.Item>
 
               <Command.Item
@@ -285,13 +309,17 @@ export function CommandPalette({
                   setTheme('dark');
                   setModalOpen(false);
                 }}
-                className="flex items-center justify-between px-3 py-2 rounded-lg text-fg cursor-pointer hover:bg-raised aria-selected:bg-raised transition-colors"
+                className="flex items-center justify-between px-3 py-2 rounded-none border border-transparent text-fg-primary cursor-pointer hover:bg-raised hover:border-line aria-selected:bg-raised aria-selected:border-accent transition-colors"
               >
                 <div className="flex items-center gap-2.5">
-                  <Moon className="w-4 h-4 text-indigo-400" />
-                  <span className="font-medium">Set Theme: Obsidian Dark</span>
+                  <Moon className="w-4 h-4 text-accent" />
+                  <span className="font-serif font-bold text-xs uppercase">
+                    Set Theme: Pitch Black HUD
+                  </span>
                 </div>
-                {theme === 'dark' && <span className="text-xs text-accent">Active</span>}
+                {theme === 'dark' && (
+                  <span className="text-[10px] font-mono text-accent uppercase">[ ACTIVE ]</span>
+                )}
               </Command.Item>
 
               <Command.Item
@@ -299,13 +327,17 @@ export function CommandPalette({
                   setTheme('system');
                   setModalOpen(false);
                 }}
-                className="flex items-center justify-between px-3 py-2 rounded-lg text-fg cursor-pointer hover:bg-raised aria-selected:bg-raised transition-colors"
+                className="flex items-center justify-between px-3 py-2 rounded-none border border-transparent text-fg-primary cursor-pointer hover:bg-raised hover:border-line aria-selected:bg-raised aria-selected:border-accent transition-colors"
               >
                 <div className="flex items-center gap-2.5">
-                  <Laptop className="w-4 h-4 text-fg-muted" />
-                  <span className="font-medium">Set Theme: System Preference</span>
+                  <Laptop className="w-4 h-4 text-accent" />
+                  <span className="font-serif font-bold text-xs uppercase">
+                    Set Theme: System Preference
+                  </span>
                 </div>
-                {theme === 'system' && <span className="text-xs text-accent">Active</span>}
+                {theme === 'system' && (
+                  <span className="text-[10px] font-mono text-accent uppercase">[ ACTIVE ]</span>
+                )}
               </Command.Item>
             </Command.Group>
           </Command.List>

@@ -81,10 +81,10 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             return (
               <motion.div
                 key={toast.id}
-                initial={{ opacity: 0, y: 15, scale: 0.95 }}
+                initial={{ opacity: 0, y: 15, scale: 0.98 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                className={`pointer-events-auto flex items-start justify-between gap-3 p-3.5 rounded-xl bg-surface/95 border ${borderColors} shadow-lg backdrop-blur-md text-sm text-fg`}
+                exit={{ opacity: 0, y: 10, scale: 0.98 }}
+                className={`pointer-events-auto flex items-start justify-between gap-3 p-3.5 rounded-none bg-surface border ${borderColors} shadow-none text-sm text-fg-primary`}
               >
                 <div className="flex items-start gap-2.5 min-w-0">
                   <Icon className="h-4 w-4 shrink-0 mt-0.5" />

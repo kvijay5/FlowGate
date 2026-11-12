@@ -17,74 +17,72 @@ export function ParallelApprovalNode({ data, selected }: NodeProps) {
 
   return (
     <div
-      className={`relative min-w-[250px] max-w-[290px] rounded-xl border-2 bg-white p-4 shadow-sm transition-all ${
-        selected
-          ? 'border-purple-500 shadow-md ring-2 ring-purple-200'
-          : 'border-purple-200 hover:border-purple-300 hover:shadow'
+      className={`relative min-w-[250px] max-w-[290px] rounded-none border bg-surface p-3.5 transition-colors shadow-none text-fg-primary ${
+        selected ? 'border-accent ring-1 ring-accent' : 'border-line hover:border-fg-secondary'
       }`}
     >
       {/* Incoming connection handle */}
       <Handle
         type="target"
         position={Position.Top}
-        className="!h-3 !w-3 !rounded-full !border-2 !border-white !bg-purple-500 hover:!scale-125"
+        className="!h-2.5 !w-2.5 !rounded-none !border !border-surface !bg-accent -top-1.5"
       />
 
-      <div className="flex items-center space-x-3">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-purple-100 text-purple-700">
-          <Users className="h-5 w-5" />
+      <div className="flex items-center space-x-2.5">
+        <div className="flex h-7 w-7 items-center justify-center rounded-none border border-line bg-raised text-accent">
+          <Users className="h-3.5 w-3.5" />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center space-x-1.5">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-purple-600">
-              Parallel Stage
+            <span className="font-mono text-[9px] uppercase tracking-widest text-fg-secondary">
+              [ PARALLEL STAGE ]
             </span>
-            <span className="rounded bg-purple-100 px-1.5 py-0.2 text-[9px] font-bold text-purple-800">
+            <span className="border border-line bg-raised px-1 py-0.2 font-mono text-[9px] font-bold text-accent uppercase">
               {isOr ? 'QUORUM' : 'UNANIMOUS'}
             </span>
           </div>
-          <h4 className="truncate text-sm font-semibold text-slate-800">
+          <h4 className="font-serif font-bold text-xs text-fg-primary truncate tracking-tight">
             {nodeData.label || 'Parallel Approvals'}
           </h4>
         </div>
       </div>
 
-      <div className="mt-3 space-y-2 border-t border-slate-100 pt-2.5">
+      <div className="mt-2.5 space-y-1.5 border-t border-line pt-2 font-mono text-[10px]">
         {/* Quorum Badge */}
-        <div className="flex items-center justify-between text-xs">
-          <span className="text-slate-500">Threshold:</span>
-          <span className="inline-flex items-center font-semibold text-purple-700">
-            <CheckCheck className="mr-1 h-3.5 w-3.5 text-purple-600" />
-            {isOr ? `${required} of ${assignees.length} required` : 'All must approve'}
+        <div className="flex items-center justify-between text-fg-secondary">
+          <span className="uppercase">QUORUM</span>
+          <span className="inline-flex items-center font-bold text-fg-primary uppercase">
+            <CheckCheck className="mr-1 h-3 w-3 text-accent" />
+            {isOr ? `${required} OF ${assignees.length} REQ` : 'UNANIMOUS REQ'}
           </span>
         </div>
 
-        {/* Rejection Policy Flag */}
-        <div className="flex items-center justify-between text-[11px] text-slate-500">
-          <span className="text-slate-400">Rejection:</span>
+        {/* Rejection Policy */}
+        <div className="flex items-center justify-between text-fg-secondary">
+          <span className="uppercase">VETO POLICY</span>
           <span
-            className={`font-medium ${
-              rejectionPolicy === 'STRICT_VETO' ? 'text-amber-600' : 'text-slate-600'
+            className={`font-bold uppercase ${
+              rejectionPolicy === 'STRICT_VETO' ? 'text-danger' : 'text-fg-primary'
             }`}
           >
-            {rejectionPolicy === 'STRICT_VETO' ? 'Strict Veto (1 veto fails)' : 'Soft Rejection'}
+            {rejectionPolicy === 'STRICT_VETO' ? 'STRICT VETO' : 'SOFT REJECT'}
           </span>
         </div>
 
         {/* Approver Badges */}
-        <div className="flex flex-wrap gap-1 pt-1">
+        <div className="flex flex-wrap gap-1 pt-1 font-mono text-[9px]">
           {assignees.map((a, idx) => (
             <span
               key={idx}
-              className="inline-flex items-center rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-700"
+              className="border border-line bg-raised px-1.5 py-0.5 text-fg-secondary uppercase font-medium"
             >
-              {a.role || a.userId || 'Approver'}
+              {a.role || a.userId || 'APPROVER'}
             </span>
           ))}
           {assignees.length === 0 && (
-            <span className="flex items-center text-[10px] text-amber-600">
+            <span className="flex items-center text-danger">
               <AlertTriangle className="mr-1 h-3 w-3" />
-              No approvers configured
+              NO VOTERS CONFIGURED
             </span>
           )}
         </div>
@@ -94,7 +92,7 @@ export function ParallelApprovalNode({ data, selected }: NodeProps) {
       <Handle
         type="source"
         position={Position.Bottom}
-        className="!h-3 !w-3 !rounded-full !border-2 !border-white !bg-purple-500 hover:!scale-125"
+        className="!h-2.5 !w-2.5 !rounded-none !border !border-surface !bg-accent -bottom-1.5"
       />
     </div>
   );

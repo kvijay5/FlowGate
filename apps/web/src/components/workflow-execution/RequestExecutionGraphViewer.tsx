@@ -18,12 +18,11 @@ import {
   RequestExecutionGraph,
   WorkflowNode,
   WorkflowEdge,
-  NodeExecutionStatus,
   StepStatus,
 } from '@flowgate/shared-types';
 import { ExecutionNode, ExecutionNodeData } from './ExecutionNode';
 import { ExecutionNodeDetailsModal } from './ExecutionNodeDetailsModal';
-import { RefreshCw, Maximize2, ShieldCheck, Activity } from 'lucide-react';
+import { RefreshCw, Activity } from 'lucide-react';
 import { useTheme } from '../theme/ThemeProvider';
 import { useThemeColors } from '../../lib/useThemeColors';
 
@@ -46,6 +45,7 @@ export const RequestExecutionGraphViewer: React.FC<RequestExecutionGraphViewerPr
 }) => {
   const { resolvedTheme } = useTheme();
   const themeColors = useThemeColors();
+  const isDark = resolvedTheme === 'dark';
   const [selectedNodeData, setSelectedNodeData] = useState<ExecutionNodeData | null>(null);
 
   const activeRound = selectedRound ?? executionGraph.currentReviewRound ?? 1;
@@ -103,55 +103,43 @@ export const RequestExecutionGraphViewer: React.FC<RequestExecutionGraphViewerPr
       // Construct sequential edges
       for (let i = 0; i < rawNodes.length - 1; i++) {
         rawEdges.push({
-          id: `e-${rawNodes[i].id}-${rawNodes[i + 1].id}`,
+          id: `edge-${rawNodes[i].id}-${rawNodes[i + 1].id}`,
           sourceNodeId: rawNodes[i].id,
           targetNodeId: rawNodes[i + 1].id,
         });
       }
     }
 
-    // Filter node and branch executions for the selected review round
-    const roundNodeExecs = (executionGraph.nodeExecutions || []).filter(
-      (ne) => ne.reviewRound === activeRound,
+    // 2. Filter node executions and branch executions for active review round
+    const roundExecs = (executionGraph.nodeExecutions || []).filter(
+      (ne) => (ne.reviewRound ?? 1) === activeRound,
     );
+
     const roundBranchExecs = (executionGraph.branchExecutions || []).filter(
-      (be) => be.reviewRound === activeRound,
-    );
-    const roundSteps = (executionGraph.steps || []).filter(
-      (s) => (s.reviewRound || 1) === activeRound,
+      (be) => (be.reviewRound ?? 1) === activeRound,
     );
 
-    // Map raw nodes into ReactFlow nodes with live execution state
+    // Map nodes with real-time execution status
     const nodes: Node[] = rawNodes.map((n, idx) => {
-      // Find matching node execution record
-      const exec = roundNodeExecs.find((e) => e.nodeId === n.id);
+      const exec = roundExecs.find((e) => e.nodeId === n.id);
+      const matchingStep = (executionGraph.steps || []).find(
+        (s) => s.nodeId === n.id || `step-${s.id}` === n.id,
+      );
 
-      // Derive status
-      let nodeStatus: NodeExecutionStatus | 'ACTIVE' | 'PRUNED_SKIPPED' | 'REJECTED' = 'PENDING';
-      if (exec) {
-        nodeStatus = exec.status;
-      } else if (executionGraph.currentNodeId === n.id && executionGraph.status === 'IN_PROGRESS') {
-        nodeStatus = 'IN_REVIEW';
-      } else if (n.type === 'TRIGGER') {
+      let nodeStatus = exec?.status || (matchingStep ? matchingStep.status : 'PENDING');
+      if (n.type === 'TRIGGER' && !exec) {
         nodeStatus = 'COMPLETED';
-      } else if (executionGraph.status === 'APPROVED' && n.type === 'END') {
-        nodeStatus = 'COMPLETED';
-      } else if (executionGraph.status === 'REJECTED' && executionGraph.currentNodeId === n.id) {
-        nodeStatus = 'REJECTED';
       }
-
-      // Find matching step details and assignees
-      const matchingStep = roundSteps.find((s) => s.nodeId === n.id || s.id === n.id);
 
       const assignees =
         matchingStep?.assignees?.map((a) => ({
           id: a.id,
-          name: a.assignedTo?.name || a.actionedBy?.name,
+          name: a.assignedTo?.name,
           role: a.assignedRole || a.assignedTo?.role,
           status: a.status as StepStatus,
           isDelegated: Boolean(a.delegatedFromUserId),
           delegatedFrom: a.delegatedFromUser?.name,
-          comments: a.comments,
+          comments: (a as any).comments,
         })) ||
         (matchingStep?.assignedTo
           ? [
@@ -196,12 +184,11 @@ export const RequestExecutionGraphViewer: React.FC<RequestExecutionGraphViewerPr
       };
     });
 
-    // Map edges with real-time branch status styling
+    // Map edges with sharp orthogonal routing and HUD Crimson accents
     const edges: Edge[] = rawEdges.map((e) => {
       const sourceId = e.sourceNodeId || (e as any).source || '';
       const targetId = e.targetNodeId || (e as any).target || '';
 
-      // Check if branch was executed or pruned in this round
       const branchExec = roundBranchExecs.find(
         (b) =>
           (b.sourceNodeId === sourceId && b.targetNodeId === targetId) ||
@@ -212,45 +199,56 @@ export const RequestExecutionGraphViewer: React.FC<RequestExecutionGraphViewerPr
       const isCompleted = branchExec?.status === 'COMPLETED';
       const isActive = branchExec?.status === 'ACTIVE';
 
-      let strokeColor = '#1e293b'; // default subtle slate
+      let strokeColor = isDark ? '#4B5563' : '#9CA3AF'; // Default subtle hairline
       let strokeDasharray = undefined;
-      let strokeWidth = 2;
+      let strokeWidth = 1.5;
       let animated = false;
 
       if (isCompleted) {
-        strokeColor = '#10b981'; // emerald-500
-        strokeWidth = 2.5;
+        strokeColor = isDark ? '#22C55E' : '#16A34A';
+        strokeWidth = 2;
       } else if (isActive) {
-        strokeColor = '#06b6d4'; // electric cyan
-        strokeWidth = 3;
+        strokeColor = isDark ? '#DC2626' : '#B91C1C'; // Deep Crimson
+        strokeWidth = 2.5;
         animated = true;
       } else if (isPruned) {
-        strokeColor = '#334155'; // muted slate
-        strokeDasharray = '5 5';
-        strokeWidth = 1.5;
+        strokeColor = isDark ? '#374151' : '#D1D5DB';
+        strokeDasharray = '4 4';
+        strokeWidth = 1;
       }
 
       return {
         id: e.id,
         source: sourceId,
         target: targetId,
+        type: 'step', // Strict orthogonal step routing
         sourceHandle: e.sourceHandle,
-        label: e.label || (branchExec?.branchKey ? `Branch: ${branchExec.branchKey}` : undefined),
+        label:
+          e.label || (branchExec?.branchKey ? `[ BRANCH: ${branchExec.branchKey} ]` : undefined),
         animated,
         style: {
           stroke: strokeColor,
           strokeWidth,
           strokeDasharray,
         },
+        labelStyle: {
+          fill: isDark ? '#D1D5DB' : '#374151',
+          fontFamily: 'var(--font-mono), monospace',
+          fontSize: 10,
+          fontWeight: 600,
+          letterSpacing: '0.05em',
+        },
         markerEnd: {
           type: MarkerType.ArrowClosed,
           color: strokeColor,
+          width: 14,
+          height: 14,
         },
       };
     });
 
     return { initialNodes: nodes, initialEdges: edges };
-  }, [executionGraph, activeRound]);
+  }, [executionGraph, activeRound, isDark]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
@@ -266,42 +264,44 @@ export const RequestExecutionGraphViewer: React.FC<RequestExecutionGraphViewerPr
   }, []);
 
   return (
-    <div className="relative w-full h-[620px] rounded-2xl border border-white/10 bg-[#05050A] overflow-hidden shadow-2xl flex flex-col">
+    <div className="relative w-full h-[620px] rounded-none border border-line bg-canvas overflow-hidden shadow-none flex flex-col">
       {/* HUD Header */}
-      <div className="p-3 bg-[#0B0D19]/80 border-b border-white/[0.06] flex items-center justify-between text-xs backdrop-blur-md z-10">
+      <div className="p-3 bg-surface border-b border-line flex items-center justify-between text-xs z-10">
         <div className="flex items-center space-x-3">
-          <div className="flex items-center space-x-1.5 font-bold text-white">
-            <Activity className="h-4 w-4 text-cyan-400" />
-            <span>Live DAG Execution Visualizer</span>
+          <div className="flex items-center space-x-1.5 font-bold text-fg-primary">
+            <Activity className="h-4 w-4 text-accent" />
+            <span className="font-serif font-bold text-sm tracking-tight">
+              Live DAG Execution Visualizer
+            </span>
           </div>
-          <span className="text-slate-600">•</span>
-          <span className="text-slate-400 text-[11px]">
-            Review Round <span className="font-bold text-cyan-300">#{activeRound}</span>
+          <span className="text-fg-tertiary">•</span>
+          <span className="font-mono text-[11px] text-fg-secondary uppercase tracking-wider">
+            ROUND <span className="font-bold text-accent">#{activeRound}</span>
           </span>
-          <span className="text-slate-600">•</span>
-          <span className="text-slate-400 text-[11px]">
-            {nodes.length} Nodes, {edges.length} Transitions
+          <span className="text-fg-tertiary">•</span>
+          <span className="font-mono text-[11px] text-fg-secondary uppercase tracking-wider">
+            {nodes.length} NODES / {edges.length} EDGES
           </span>
         </div>
 
         {/* Legend & Refresh Action */}
         <div className="flex items-center space-x-4">
-          <div className="hidden sm:flex items-center space-x-3 text-[10px] font-semibold uppercase tracking-wider">
-            <span className="flex items-center space-x-1 text-emerald-400">
-              <span className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
-              <span>Completed</span>
+          <div className="hidden sm:flex items-center space-x-3 font-mono text-[10px] uppercase tracking-wider">
+            <span className="flex items-center space-x-1 text-emerald-500">
+              <span className="h-2 w-2 rounded-none bg-emerald-500" />
+              <span>COMPLETED</span>
             </span>
-            <span className="flex items-center space-x-1 text-cyan-400">
-              <span className="h-2 w-2 rounded-full bg-cyan-400 animate-ping shadow-[0_0_8px_rgba(6,182,212,0.8)]" />
-              <span>Active</span>
+            <span className="flex items-center space-x-1 text-accent">
+              <span className="h-2 w-2 rounded-none bg-accent animate-pulse" />
+              <span>ACTIVE</span>
             </span>
-            <span className="flex items-center space-x-1 text-slate-500">
-              <span className="h-2 w-2 rounded-full bg-slate-600" />
-              <span>Pruned</span>
+            <span className="flex items-center space-x-1 text-fg-tertiary">
+              <span className="h-2 w-2 rounded-none bg-fg-tertiary" />
+              <span>PRUNED</span>
             </span>
-            <span className="flex items-center space-x-1 text-slate-400">
-              <span className="h-2 w-2 rounded-full bg-slate-700" />
-              <span>Pending</span>
+            <span className="flex items-center space-x-1 text-fg-secondary">
+              <span className="h-2 w-2 rounded-none bg-line" />
+              <span>STANDBY</span>
             </span>
           </div>
 
@@ -309,10 +309,10 @@ export const RequestExecutionGraphViewer: React.FC<RequestExecutionGraphViewerPr
             <button
               onClick={onRefresh}
               disabled={isRefreshing}
-              className="px-2.5 py-1.5 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] text-slate-200 border border-white/10 text-xs font-medium flex items-center space-x-1 transition-colors disabled:opacity-50"
+              className="px-2.5 py-1.5 rounded-none bg-surface hover:bg-raised text-fg-primary border border-line font-mono text-xs uppercase tracking-wider flex items-center space-x-1 transition-colors disabled:opacity-50"
             >
               <RefreshCw className={`h-3 w-3 ${isRefreshing ? 'animate-spin' : ''}`} />
-              <span>Refresh</span>
+              <span>REFRESH</span>
             </button>
           )}
         </div>
@@ -329,7 +329,7 @@ export const RequestExecutionGraphViewer: React.FC<RequestExecutionGraphViewerPr
           nodeTypes={nodeTypes}
           colorMode={resolvedTheme}
           fitView
-          fitViewOptions={{ padding: 0.3 }}
+          fitViewOptions={{ padding: 0.25 }}
           nodesDraggable={false}
           nodesConnectable={false}
           elementsSelectable={true}
@@ -341,22 +341,25 @@ export const RequestExecutionGraphViewer: React.FC<RequestExecutionGraphViewerPr
         >
           <Background
             color={themeColors.gridDot}
-            gap={20}
+            gap={24}
             size={1}
-            variant={BackgroundVariant.Dots}
+            variant={BackgroundVariant.Lines}
           />
-          <Controls showInteractive={false} className="!bg-surface !border-line !text-fg" />
+          <Controls
+            showInteractive={false}
+            className="!bg-surface !border-line !text-fg-primary !rounded-none"
+          />
           <MiniMap
             nodeColor={(node) => {
               const status = (node.data as any)?.status;
-              if (status === 'COMPLETED') return '#10b981';
-              if (status === 'IN_REVIEW' || status === 'ACTIVE') return '#6366f1';
-              if (status === 'REJECTED') return '#ef4444';
-              if (status === 'PRUNED_SKIPPED' || status === 'SKIPPED') return '#475569';
-              return '#1e293b';
+              if (status === 'COMPLETED') return '#22C55E';
+              if (status === 'IN_REVIEW' || status === 'ACTIVE') return '#DC2626';
+              if (status === 'REJECTED') return '#DC2626';
+              if (status === 'PRUNED_SKIPPED' || status === 'SKIPPED') return '#4B5563';
+              return '#1F2937';
             }}
-            maskColor={resolvedTheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.7)'}
-            className="!bg-surface !border !border-line !rounded-xl"
+            maskColor={isDark ? 'rgba(0, 0, 0, 0.8)' : 'rgba(255, 255, 255, 0.8)'}
+            className="!bg-surface !border !border-line !rounded-none"
           />
         </ReactFlow>
       </div>

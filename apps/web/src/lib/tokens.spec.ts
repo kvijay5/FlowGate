@@ -1,5 +1,5 @@
 /**
- * WCAG 2.1 AA Contrast Ratio Verification for Apple-HIG Tokens
+ * WCAG 2.1 AA Contrast Ratio Verification for Editorial-Meets-HUD Tokens
  * Requires contrast ratio >= 4.5:1 for standard body text against background surfaces.
  */
 
@@ -21,18 +21,18 @@ function getContrastRatio(rgb1: [number, number, number], rgb2: [number, number,
   return (brighter + 0.05) / (darker + 0.05);
 }
 
-describe('Apple-HIG Design Tokens WCAG AA Contrast Compliance', () => {
-  describe('Alabaster Light Theme Tokens', () => {
-    const lightCanvas: [number, number, number] = [245, 245, 247]; // #F5F5F7
-    const lightSurface: [number, number, number] = [255, 255, 255]; // #FFFFFF
-    const lightTextPrimary: [number, number, number] = [29, 29, 31]; // #1D1D1F
-    const lightAccentText: [number, number, number] = [0, 102, 204]; // #0066CC
-    const lightSuccess: [number, number, number] = [0, 120, 44]; // #00782C
+describe('Editorial-Meets-HUD Design Tokens WCAG AA Contrast Compliance', () => {
+  describe('Stark White Light Theme Tokens', () => {
+    const lightCanvas: [number, number, number] = [255, 255, 255]; // #FFFFFF
+    const lightSurface: [number, number, number] = [250, 250, 250]; // #FAFAFA
+    const lightTextPrimary: [number, number, number] = [0, 0, 0]; // #000000
+    const lightAccentText: [number, number, number] = [185, 28, 28]; // #B91C1C
+    const lightSuccess: [number, number, number] = [0, 120, 44]; // #00782C Dark Forest Green for AA on white
 
     it('ensures primary text meets WCAG AA (>= 4.5:1) on light canvas', () => {
       const ratio = getContrastRatio(lightTextPrimary, lightCanvas);
       expect(ratio).toBeGreaterThanOrEqual(4.5);
-      expect(ratio).toBeGreaterThan(10); // Typically ~16:1
+      expect(ratio).toBeGreaterThan(15); // Exactly 21:1
     });
 
     it('ensures primary text meets WCAG AA (>= 4.5:1) on light surface', () => {
@@ -41,9 +41,11 @@ describe('Apple-HIG Design Tokens WCAG AA Contrast Compliance', () => {
       expect(ratio).toBeGreaterThan(15);
     });
 
-    it('ensures accent text meets WCAG AA (>= 4.5:1) on white surface', () => {
-      const ratio = getContrastRatio(lightAccentText, lightSurface);
-      expect(ratio).toBeGreaterThanOrEqual(4.5);
+    it('ensures accent text meets WCAG AA (>= 4.5:1) on white canvas & surface', () => {
+      const ratioCanvas = getContrastRatio(lightAccentText, lightCanvas);
+      const ratioSurface = getContrastRatio(lightAccentText, lightSurface);
+      expect(ratioCanvas).toBeGreaterThanOrEqual(4.5);
+      expect(ratioSurface).toBeGreaterThanOrEqual(4.5);
     });
 
     it('ensures success text meets WCAG AA (>= 4.5:1) on white surface', () => {
@@ -52,23 +54,23 @@ describe('Apple-HIG Design Tokens WCAG AA Contrast Compliance', () => {
     });
   });
 
-  describe('Obsidian Dark Theme Tokens', () => {
+  describe('Pitch Black Obsidian Dark Theme Tokens', () => {
     const darkCanvas: [number, number, number] = [0, 0, 0]; // #000000
-    const darkSurface: [number, number, number] = [28, 28, 30]; // #1C1C1E
-    const darkTextPrimary: [number, number, number] = [245, 245, 247]; // #F5F5F7
-    const darkAccentText: [number, number, number] = [41, 151, 255]; // #2997FF
-    const darkSuccess: [number, number, number] = [48, 209, 88]; // #30D158
+    const darkSurface: [number, number, number] = [10, 10, 10]; // #0A0A0A
+    const darkTextPrimary: [number, number, number] = [255, 255, 255]; // #FFFFFF
+    const darkAccentText: [number, number, number] = [239, 68, 68]; // #EF4444
+    const darkSuccess: [number, number, number] = [34, 197, 94]; // #22C55E
 
     it('ensures primary text meets WCAG AA (>= 4.5:1) on dark canvas', () => {
       const ratio = getContrastRatio(darkTextPrimary, darkCanvas);
       expect(ratio).toBeGreaterThanOrEqual(4.5);
-      expect(ratio).toBeGreaterThan(18); // ~18.8:1
+      expect(ratio).toBeGreaterThan(18); // Exactly 21:1
     });
 
     it('ensures primary text meets WCAG AA (>= 4.5:1) on dark surface', () => {
       const ratio = getContrastRatio(darkTextPrimary, darkSurface);
       expect(ratio).toBeGreaterThanOrEqual(4.5);
-      expect(ratio).toBeGreaterThan(14);
+      expect(ratio).toBeGreaterThan(15);
     });
 
     it('ensures accent text meets WCAG AA (>= 4.5:1) on dark canvas & surface', () => {

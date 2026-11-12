@@ -147,17 +147,19 @@ export function WorkflowBuilder({ initialWorkflow, onBack, onSaved }: WorkflowBu
         id: 'edge_trig_appr',
         source: triggerId,
         target: approvalId,
+        type: 'step',
         animated: true,
-        style: { strokeWidth: 2, stroke: '#94a3b8' },
-        markerEnd: { type: MarkerType.ArrowClosed, color: '#94a3b8' },
+        style: { strokeWidth: 1.5, stroke: '#DC2626' },
+        markerEnd: { type: MarkerType.ArrowClosed, color: '#DC2626' },
       },
       {
         id: 'edge_appr_end',
         source: approvalId,
         target: endId,
+        type: 'step',
         animated: true,
-        style: { strokeWidth: 2, stroke: '#94a3b8' },
-        markerEnd: { type: MarkerType.ArrowClosed, color: '#94a3b8' },
+        style: { strokeWidth: 1.5, stroke: '#DC2626' },
+        markerEnd: { type: MarkerType.ArrowClosed, color: '#DC2626' },
       },
     ];
 
@@ -179,9 +181,10 @@ export function WorkflowBuilder({ initialWorkflow, onBack, onSaved }: WorkflowBu
         addEdge(
           {
             ...params,
+            type: 'step',
             animated: true,
-            style: { strokeWidth: 2, stroke: '#6366f1' },
-            markerEnd: { type: MarkerType.ArrowClosed, color: '#6366f1' },
+            style: { strokeWidth: 1.5, stroke: '#DC2626' },
+            markerEnd: { type: MarkerType.ArrowClosed, color: '#DC2626' },
           },
           eds,
         ),
@@ -505,14 +508,14 @@ export function WorkflowBuilder({ initialWorkflow, onBack, onSaved }: WorkflowBu
                 type="text"
                 value={workflowName}
                 onChange={(e) => setWorkflowName(e.target.value)}
-                className="rounded border-transparent px-1 py-0.5 text-base font-bold text-slate-900 hover:border-slate-300 focus:border-indigo-500 focus:outline-none"
+                className="rounded-none border border-transparent bg-transparent px-2 py-0.5 text-base font-serif font-bold text-ink hover:border-border-subtle focus:border-accent focus:outline-none"
                 placeholder="Workflow Name"
               />
               <span
-                className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                className={`rounded-none px-2 py-0.5 text-[10px] font-mono font-bold uppercase border ${
                   workflowStatus === 'ACTIVE'
-                    ? 'bg-emerald-100 text-emerald-800'
-                    : 'bg-amber-100 text-amber-800'
+                    ? 'bg-emerald-950/80 text-emerald-300 border-emerald-800'
+                    : 'bg-amber-950/80 text-amber-300 border-amber-800'
                 }`}
               >
                 {workflowStatus} (v{workflowVersion})
@@ -643,9 +646,9 @@ export function WorkflowBuilder({ initialWorkflow, onBack, onSaved }: WorkflowBu
               e.dataTransfer.effectAllowed = 'move';
             }}
             onClick={() => handleAddNode('APPROVAL_STEP')}
-            className="flex items-center space-x-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-fg transition hover:bg-indigo-500/10 hover:text-indigo-600 cursor-grab active:cursor-grabbing"
+            className="flex items-center space-x-2 rounded-none px-2.5 py-1.5 text-xs font-mono font-medium text-ink transition hover:bg-accent/15 hover:text-accent cursor-grab active:cursor-grabbing border border-transparent hover:border-border-subtle"
           >
-            <UserCheck className="h-4 w-4 text-indigo-500" />
+            <UserCheck className="h-4 w-4 text-accent" />
             <span>Approval</span>
           </button>
 
@@ -735,33 +738,33 @@ export function WorkflowBuilder({ initialWorkflow, onBack, onSaved }: WorkflowBu
             snapToGrid
             snapGrid={[15, 15]}
           >
-            <Controls className="!border-line !bg-surface !shadow-md !text-fg" />
+            <Controls className="!border-line !bg-surface !shadow-none !text-fg-primary !rounded-none" />
             <MiniMap
-              className="!border-line !bg-surface/90 !shadow-md"
+              className="!border-line !bg-surface !shadow-none !rounded-none"
               nodeColor={(n) => {
                 switch (n.type) {
                   case 'TRIGGER':
-                    return '#10b981';
+                    return '#22c55e';
                   case 'APPROVAL_STEP':
                   case 'APPROVAL':
-                    return '#6366f1';
+                    return '#dc2626';
                   case 'PARALLEL_APPROVAL':
                   case 'PARALLEL':
-                    return '#a855f7';
+                    return '#dc2626';
                   case 'CONDITION':
                     return '#f59e0b';
                   case 'JOIN':
-                    return '#06b6d4';
+                    return '#9ca3af';
                   case 'END':
-                    return '#ef4444';
+                    return '#dc2626';
                   default:
-                    return '#94a3b8';
+                    return '#4b5563';
                 }
               }}
             />
             <Background
-              variant={BackgroundVariant.Dots}
-              gap={16}
+              variant={BackgroundVariant.Lines}
+              gap={24}
               size={1}
               color={themeColors.gridDot}
             />

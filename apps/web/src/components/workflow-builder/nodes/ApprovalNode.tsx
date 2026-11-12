@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Handle, Position, NodeProps } from '@xyflow/react';
-import { UserCheck, Clock, FastForward, Shield } from 'lucide-react';
+import { UserCheck, Clock, Shield } from 'lucide-react';
 import { WorkflowBuilderNodeData } from '../types';
 
 export function ApprovalNode({ data, selected }: NodeProps) {
@@ -15,56 +15,47 @@ export function ApprovalNode({ data, selected }: NodeProps) {
 
   return (
     <div
-      className={`relative min-w-[240px] max-w-[280px] rounded-xl border-2 bg-white p-4 shadow-sm transition-all ${
-        selected
-          ? 'border-indigo-500 shadow-md ring-2 ring-indigo-200'
-          : 'border-indigo-200 hover:border-indigo-300 hover:shadow'
+      className={`relative min-w-[250px] max-w-[290px] rounded-none border bg-surface p-3.5 transition-colors shadow-none text-fg-primary ${
+        selected ? 'border-accent ring-1 ring-accent' : 'border-line hover:border-fg-secondary'
       }`}
     >
       {/* Incoming connection handle */}
       <Handle
         type="target"
         position={Position.Top}
-        className="!h-3 !w-3 !rounded-full !border-2 !border-white !bg-indigo-500 hover:!scale-125"
+        className="!h-2.5 !w-2.5 !rounded-none !border !border-surface !bg-accent -top-1.5"
       />
 
-      <div className="flex items-center space-x-3">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-100 text-indigo-700">
-          <UserCheck className="h-5 w-5" />
+      <div className="flex items-center space-x-2.5">
+        <div className="flex h-7 w-7 items-center justify-center rounded-none border border-line bg-raised text-accent">
+          <UserCheck className="h-3.5 w-3.5" />
         </div>
         <div className="min-w-0 flex-1">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-indigo-600">
-            Approval Step
+          <span className="font-mono text-[9px] uppercase tracking-widest text-fg-secondary block">
+            [ APPROVAL STEP ]
           </span>
-          <h4 className="truncate text-sm font-semibold text-slate-800">
+          <h4 className="font-serif font-bold text-xs text-fg-primary truncate tracking-tight">
             {nodeData.label || 'Approval Step'}
           </h4>
         </div>
       </div>
 
-      <div className="mt-3 space-y-1.5 border-t border-slate-100 pt-2.5">
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-slate-500">Assigned:</span>
-          <span className="inline-flex items-center rounded-md bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold text-indigo-700 ring-1 ring-inset ring-indigo-600/20">
-            <Shield className="mr-1 h-3 w-3 text-indigo-500" />
+      <div className="mt-2.5 space-y-1.5 border-t border-line pt-2 font-mono text-[10px]">
+        <div className="flex items-center justify-between text-fg-secondary">
+          <span className="uppercase">ROLE</span>
+          <span className="inline-flex items-center border border-line bg-raised px-1.5 py-0.5 text-fg-primary uppercase font-bold">
+            <Shield className="mr-1 h-2.5 w-2.5 text-accent" />
             {role}
           </span>
         </div>
 
         {timeoutHours !== null && (
-          <div className="flex items-center justify-between text-[11px] text-slate-500">
-            <span className="flex items-center text-slate-400">
-              <Clock className="mr-1 h-3 w-3" />
-              SLA Timeout:
+          <div className="flex items-center justify-between text-fg-secondary">
+            <span className="flex items-center uppercase">
+              <Clock className="mr-1 h-2.5 w-2.5 text-fg-tertiary" />
+              SLA
             </span>
-            <span className="font-medium text-slate-700">{timeoutHours}h</span>
-          </div>
-        )}
-
-        {config.fastForwardOnResubmit && (
-          <div className="flex items-center text-[10px] font-medium text-emerald-600">
-            <FastForward className="mr-1 h-3 w-3" />
-            Fast-forwards on resubmit
+            <span className="font-bold text-fg-primary">{timeoutHours}H TIMEOUT</span>
           </div>
         )}
       </div>
@@ -73,7 +64,7 @@ export function ApprovalNode({ data, selected }: NodeProps) {
       <Handle
         type="source"
         position={Position.Bottom}
-        className="!h-3 !w-3 !rounded-full !border-2 !border-white !bg-indigo-500 hover:!scale-125"
+        className="!h-2.5 !w-2.5 !rounded-none !border !border-surface !bg-accent -bottom-1.5"
       />
     </div>
   );

@@ -13,101 +13,91 @@ export function ConditionNode({ data, selected }: NodeProps) {
 
   return (
     <div
-      className={`relative min-w-[260px] max-w-[300px] rounded-xl border-2 bg-white p-4 shadow-sm transition-all ${
-        selected
-          ? 'border-amber-500 shadow-md ring-2 ring-amber-200'
-          : 'border-amber-200 hover:border-amber-300 hover:shadow'
+      className={`relative min-w-[260px] max-w-[300px] rounded-none border bg-surface p-3.5 transition-colors shadow-none text-fg-primary ${
+        selected ? 'border-accent ring-1 ring-accent' : 'border-line hover:border-fg-secondary'
       }`}
     >
       {/* Incoming connection handle */}
       <Handle
         type="target"
         position={Position.Top}
-        className="!h-3 !w-3 !rounded-full !border-2 !border-white !bg-amber-500 hover:!scale-125"
+        className="!h-2.5 !w-2.5 !rounded-none !border !border-surface !bg-accent -top-1.5"
       />
 
-      <div className="flex items-center space-x-3">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-100 text-amber-700">
-          <GitBranch className="h-5 w-5" />
+      <div className="flex items-center space-x-2.5">
+        <div className="flex h-7 w-7 items-center justify-center rounded-none border border-line bg-raised text-accent">
+          <GitBranch className="h-3.5 w-3.5" />
         </div>
         <div className="min-w-0 flex-1">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-600">
-            Condition Router
+          <span className="font-mono text-[9px] uppercase tracking-widest text-fg-secondary block">
+            [ CONDITION ROUTER ]
           </span>
-          <h4 className="truncate text-sm font-semibold text-slate-800">
+          <h4 className="font-serif font-bold text-xs text-fg-primary truncate tracking-tight">
             {nodeData.label || 'Condition'}
           </h4>
         </div>
       </div>
 
-      <div className="mt-3 space-y-2 border-t border-slate-100 pt-2.5">
-        <div className="text-xs font-medium text-slate-600">Branching Rules:</div>
+      <div className="mt-2.5 space-y-1.5 border-t border-line pt-2 font-mono text-[10px]">
+        <div className="text-fg-secondary uppercase">EVALUATION RULES:</div>
 
         {rules.length > 0 ? (
-          <div className="space-y-1.5">
+          <div className="space-y-1">
             {rules.map((rule, idx) => {
               const expr = rule.expression as AstComparisonNode;
               const ruleText = expr
                 ? `${expr.field} ${expr.operator} ${JSON.stringify(expr.value)}`
-                : rule.description || `Rule #${idx + 1}`;
+                : rule.description || `RULE #${idx + 1}`;
 
               return (
                 <div
                   key={rule.id || idx}
-                  className="flex items-center justify-between rounded bg-amber-50/70 px-2 py-1 text-[11px] text-amber-900 ring-1 ring-inset ring-amber-600/10"
+                  className="flex items-center justify-between border border-line bg-raised px-1.5 py-0.5 text-[9px] text-fg-primary"
                 >
-                  <span className="truncate font-mono font-medium">{ruleText}</span>
-                  <span className="ml-1 text-[10px] text-amber-600 font-semibold">IF</span>
+                  <span className="truncate font-mono">{ruleText}</span>
+                  <span className="ml-1 text-accent font-bold">IF</span>
                 </div>
               );
             })}
           </div>
         ) : (
-          <p className="text-[11px] italic text-slate-400">No condition rules added yet</p>
+          <p className="font-mono text-[9px] text-fg-tertiary uppercase">NO RULES CONFIGURED</p>
         )}
 
-        <div className="flex items-center justify-between rounded bg-slate-50 px-2 py-1 text-[11px] text-slate-600">
+        <div className="flex items-center justify-between border border-line bg-raised px-1.5 py-0.5 text-[9px] text-fg-secondary">
           <span className="flex items-center">
-            <CornerDownRight className="mr-1 h-3 w-3 text-slate-400" />
-            Default Fallback
+            <CornerDownRight className="mr-1 h-2.5 w-2.5 text-accent" />
+            DEFAULT FALLBACK
           </span>
-          <span className="text-[10px] font-semibold text-slate-500">ELSE</span>
+          <span className="font-bold text-fg-primary">ELSE</span>
         </div>
       </div>
 
-      {/* Multiple Outgoing Connection Handles along the bottom */}
-      <div className="mt-4 flex justify-between px-2 pt-2 border-t border-dashed border-slate-200 text-[10px] text-slate-400">
-        {rules.map((rule, idx) => {
-          const totalHandles = rules.length + 1;
-          const leftPercent = ((idx + 1) / (totalHandles + 1)) * 100;
-          const handleId = rule.branchKey || rule.id || `rule_${idx}`;
-
-          return (
-            <div key={handleId} className="flex flex-col items-center">
-              <span className="text-[9px] font-bold text-amber-700">R{idx + 1}</span>
-              <Handle
-                type="source"
-                id={handleId}
-                position={Position.Bottom}
-                style={{ left: `${leftPercent}%` }}
-                className="!h-3 !w-3 !rounded-full !border-2 !border-white !bg-amber-500 hover:!scale-125"
-              />
-            </div>
-          );
-        })}
-
-        {/* Default fallback handle */}
-        <div className="flex flex-col items-center">
-          <span className="text-[9px] font-bold text-slate-600">Default</span>
+      {/* Multiple source handles for branching */}
+      {rules.map((rule, idx) => {
+        const leftPercent = ((idx + 1) / (rules.length + 2)) * 100;
+        return (
           <Handle
+            key={rule.id || idx}
             type="source"
-            id="default"
             position={Position.Bottom}
-            style={{ left: `${((rules.length + 1) / (rules.length + 2)) * 100}%` }}
-            className="!h-3 !w-3 !rounded-full !border-2 !border-white !bg-slate-600 hover:!scale-125"
+            id={rule.targetNodeId || `rule-${idx}`}
+            style={{ left: `${leftPercent}%` }}
+            className="!h-2.5 !w-2.5 !rounded-none !border !border-surface !bg-accent -bottom-1.5"
+            title={`Branch: ${rule.branchKey || `Rule ${idx + 1}`}`}
           />
-        </div>
-      </div>
+        );
+      })}
+
+      {/* Default fallback branch handle */}
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        id="default"
+        style={{ left: `${((rules.length + 1) / (rules.length + 2)) * 100}%` }}
+        className="!h-2.5 !w-2.5 !rounded-none !border !border-surface !bg-fg-secondary -bottom-1.5"
+        title="Default Fallback Branch"
+      />
     </div>
   );
 }

@@ -42,10 +42,19 @@ import {
   ThumbsUp,
   ThumbsDown,
 } from 'lucide-react';
+import dynamic from 'next/dynamic';
 import { api, ApiError, getStoredAuth, setStoredAuth } from '../lib/api';
 import { CommandPalette } from '@/components/command/CommandPalette';
 import { ThemeToggle } from '@/components/theme/ThemeToggle';
 import { useToast } from '@/components/ui/Toast';
+
+const WireframeHero = dynamic(
+  () => import('@/components/3d/WireframeHero').then((m) => m.WireframeHero),
+  {
+    ssr: false,
+    loading: () => <div className="w-full h-full bg-canvas/20" />,
+  },
+);
 import {
   AuthResponse,
   WorkflowDefinitionSummary,
@@ -92,10 +101,10 @@ const DEMO_PERSONAS: DemoPersona[] = [
     role: 'TENANT_ADMIN',
     title: 'Acme Administrator',
     badge: 'TENANT_ADMIN',
-    badgeColor: 'bg-violet-950/80 text-violet-300 border-violet-700/80',
+    badgeColor: 'bg-surface text-fg-primary border border-line',
     avatar: '⚡',
-    gradient: 'from-violet-600 via-indigo-600 to-purple-700',
-    borderHover: 'hover:border-violet-500/70 hover:shadow-violet-500/25',
+    gradient: 'border border-line bg-raised',
+    borderHover: 'hover:border-accent hover:bg-raised',
     description:
       'Full workspace authority, visual workflow designer, webhook manager, queue monitor',
     powers: [
@@ -114,10 +123,10 @@ const DEMO_PERSONAS: DemoPersona[] = [
     role: 'APPROVER',
     title: 'Chief Financial Officer',
     badge: 'APPROVER (DELEGATOR)',
-    badgeColor: 'bg-cyan-950/80 text-cyan-300 border-cyan-700/80',
+    badgeColor: 'bg-surface text-fg-primary border border-line',
     avatar: '💼',
-    gradient: 'from-cyan-600 via-blue-600 to-indigo-700',
-    borderHover: 'hover:border-cyan-500/70 hover:shadow-cyan-500/25',
+    gradient: 'border border-line bg-raised',
+    borderHover: 'hover:border-accent hover:bg-raised',
     description:
       'Executive capex reviewer with active Out-of-Office delegation delegated to Linda Legal',
     powers: ['Parallel Quorum 2-of-3 Vote', 'Out-of-Office Delegation', 'Budget Sign-off'],
@@ -131,10 +140,10 @@ const DEMO_PERSONAS: DemoPersona[] = [
     role: 'APPROVER',
     title: 'General Counsel & Delegatee',
     badge: 'DELEGATEE / APPROVER',
-    badgeColor: 'bg-emerald-950/80 text-emerald-300 border-emerald-700/80',
+    badgeColor: 'bg-surface text-fg-primary border border-line',
     avatar: '⚖️',
-    gradient: 'from-emerald-600 via-teal-600 to-cyan-700',
-    borderHover: 'hover:border-emerald-500/70 hover:shadow-emerald-500/25',
+    gradient: 'border border-line bg-raised',
+    borderHover: 'hover:border-accent hover:bg-raised',
     description:
       'Acme legal counsel & active stand-in delegatee casting decisive votes on Bob’s behalf',
     powers: [
@@ -152,10 +161,10 @@ const DEMO_PERSONAS: DemoPersona[] = [
     role: 'REQUESTER',
     title: 'Principal AI Engineer',
     badge: 'REQUESTER',
-    badgeColor: 'bg-amber-950/80 text-amber-300 border-amber-700/80',
+    badgeColor: 'bg-surface text-fg-primary border border-line',
     avatar: '🚀',
-    gradient: 'from-amber-600 via-orange-600 to-rose-700',
-    borderHover: 'hover:border-amber-500/70 hover:shadow-amber-500/25',
+    gradient: 'border border-line bg-raised',
+    borderHover: 'hover:border-accent hover:bg-raised',
     description:
       'Submits capex purchase requests with structured runtime condition parameters ($145k AI Cluster)',
     powers: [
@@ -173,10 +182,10 @@ const DEMO_PERSONAS: DemoPersona[] = [
     role: 'TENANT_ADMIN',
     title: 'Globex Administrator',
     badge: 'ISOLATED REALM',
-    badgeColor: 'bg-rose-950/80 text-rose-300 border-rose-700/80',
+    badgeColor: 'bg-surface text-accent border border-accent/40',
     avatar: '🌐',
-    gradient: 'from-rose-600 via-pink-600 to-purple-700',
-    borderHover: 'hover:border-rose-500/70 hover:shadow-rose-500/25',
+    gradient: 'border border-accent/30 bg-raised',
+    borderHover: 'hover:border-accent hover:bg-raised',
     description:
       'Demonstrates physical multi-tenant isolation — zero visibility into Acme workflows or data',
     powers: ['Tenant Boundary Isolation', 'Separate Workflow Catalog', 'Isolated Audit Ledger'],
@@ -776,15 +785,12 @@ export default function FlowGateApp() {
   // Loading spinner during initial auth read
   if (authLoading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-6 space-y-4">
+      <div className="min-h-screen flex flex-col items-center justify-center p-6 space-y-4 bg-canvas text-ink">
         <div className="relative">
-          <div className="h-14 w-14 rounded-2xl bg-gradient-to-tr from-aurora-violet to-aurora-cyan p-0.5 animate-spin">
-            <div className="h-full w-full bg-obsidian-950 rounded-2xl" />
-          </div>
-          <Sparkles className="h-6 w-6 text-aurora-cyan absolute inset-0 m-auto" />
+          <div className="h-12 w-12 border-2 border-accent border-t-transparent animate-spin" />
         </div>
-        <p className="text-xs uppercase tracking-widest text-slate-400 font-mono">
-          Initializing FlowGate...
+        <p className="text-xs uppercase tracking-widest text-fg-muted font-mono">
+          [ INITIALIZING FLOWGATE HUD... ]
         </p>
       </div>
     );
@@ -797,21 +803,21 @@ export default function FlowGateApp() {
     return (
       <main className="min-h-screen w-full flex flex-col justify-between p-4 sm:p-8 lg:p-12 relative">
         {/* Top Navbar */}
-        <header className="max-w-7xl mx-auto w-full flex items-center justify-between pb-6 border-b border-white/[0.08]">
+        <header className="max-w-7xl mx-auto w-full flex items-center justify-between pb-4 border-b border-line">
           <div className="flex items-center space-x-3">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-aurora-violet via-indigo-600 to-aurora-cyan p-0.5 shadow-lg shadow-violet-500/20">
-              <div className="h-full w-full bg-obsidian-950 rounded-[10px] flex items-center justify-center">
-                <GitBranch className="h-5 w-5 text-aurora-cyan" />
-              </div>
+            <div className="h-8 w-8 rounded-none border border-accent bg-accent text-white flex items-center justify-center">
+              <GitBranch className="h-4 w-4" />
             </div>
             <div>
-              <span className="font-extrabold text-xl tracking-tight text-white flex items-center space-x-1.5">
+              <span className="font-serif font-bold text-lg tracking-tight text-fg-primary flex items-center space-x-2">
                 <span>FlowGate</span>
-                <span className="text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider font-mono font-bold bg-violet-950/80 text-violet-300 border border-violet-700/60">
-                  Enterprise v7.0
+                <span className="text-[9px] px-1.5 py-0.2 rounded-none uppercase tracking-widest font-mono font-bold bg-raised text-accent border border-line">
+                  [ HUD V8.0 ]
                 </span>
               </span>
-              <p className="text-[11px] text-slate-400">High-Assurance Approval DAG Engine</p>
+              <p className="text-[10px] font-mono text-fg-secondary uppercase tracking-wider">
+                High-Assurance Approval DAG Engine
+              </p>
             </div>
           </div>
 
@@ -821,144 +827,155 @@ export default function FlowGateApp() {
               href="http://localhost:4000/health"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs font-mono font-medium text-emerald-400 bg-emerald-950/40 border border-emerald-800/60 px-3.5 py-1.5 rounded-full flex items-center space-x-2 hover:bg-emerald-950/80 transition-colors shadow-sm"
+              className="text-xs font-mono font-medium text-emerald-500 bg-surface border border-line px-3 py-1 rounded-none flex items-center space-x-2 hover:border-emerald-600 transition-colors"
             >
-              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span>API Engine :4000 Online</span>
+              <span className="h-1.5 w-1.5 rounded-none bg-emerald-500 animate-pulse" />
+              <span>[ API :4000 ONLINE ]</span>
             </a>
           </div>
         </header>
 
         {/* Hero & Interactive Launchpad Grid */}
-        <section className="max-w-7xl mx-auto w-full py-10 lg:py-16 grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
+        <section className="relative max-w-7xl mx-auto w-full py-8 lg:py-12 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          {/* Background 3D Radar Wireframe */}
+          <div className="absolute inset-0 -z-10 opacity-30 pointer-events-none">
+            <WireframeHero />
+          </div>
+
           {/* Left Column: Vision, Architecture Live Preview */}
           <div className="lg:col-span-6 space-y-6">
-            <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-white/[0.04] border border-white/[0.08] text-xs font-medium text-slate-300 backdrop-blur-md">
-              <Sparkles className="h-3.5 w-3.5 text-aurora-cyan" />
-              <span>Obsidian & Electric Aurora Design System</span>
+            <div className="inline-flex items-center space-x-2 px-2.5 py-1 rounded-none bg-surface border border-line text-xs font-mono uppercase tracking-widest text-accent">
+              <span className="h-1.5 w-1.5 rounded-none bg-accent animate-ping" />
+              <span>[ TELEMETRY: HIGH-ASSURANCE HUD ]</span>
             </div>
 
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-[1.1]">
-              Autonomous DAG Approvals,{' '}
-              <span className="bg-gradient-to-r from-violet-400 via-cyan-300 to-emerald-400 bg-clip-text text-transparent">
-                Enforced at the Database.
-              </span>
+            <h1 className="font-serif text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight text-fg-primary leading-[1.05]">
+              Production, in steady hands.
             </h1>
 
-            <p className="text-slate-300 text-sm sm:text-base leading-relaxed max-w-xl">
-              FlowGate provides enterprise organizations with automated multi-step DAG approval
-              routing, AST condition evaluations, parallel quorum consensus, and append-only SHA-256
-              cryptographic audit trails.
+            <p className="font-sans text-fg-secondary text-sm sm:text-base leading-relaxed max-w-xl">
+              High-assurance multi-tenant approval workflow platform with transactional DAG state
+              machines, runtime AST condition branching, out-of-office delegations, and
+              cryptographic SHA-256 audit ledgers.
             </p>
 
             {/* Live Interactive DAG Preview Card */}
-            <div className="glass-card p-5 rounded-2xl border border-white/[0.1] space-y-4">
-              <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
+            <div className="hud-card p-5 border border-line space-y-4">
+              <div className="flex items-center justify-between border-b border-line pb-3">
                 <div className="flex items-center space-x-2">
-                  <Activity className="h-4 w-4 text-aurora-cyan animate-pulse" />
-                  <span className="text-xs font-bold uppercase tracking-wider text-white">
+                  <Activity className="h-4 w-4 text-accent animate-pulse" />
+                  <span className="font-serif font-bold text-xs uppercase tracking-wider text-fg-primary">
                     Live Flagship DAG Execution Flow
                   </span>
                 </div>
-                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-950 text-emerald-300 border border-emerald-800">
-                  ALL_INCOMING JOIN
+                <span className="px-1.5 py-0.5 rounded-none text-[9px] font-mono font-bold bg-raised text-emerald-500 border border-line">
+                  [ ALL_INCOMING JOIN ]
                 </span>
               </div>
 
               {/* Node Sequence Mini Flow */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono">
-                <div className="p-2.5 rounded-xl bg-obsidian-900 border border-cyan-800/80 text-cyan-200 flex flex-col justify-between">
-                  <span className="text-[10px] text-slate-500">TRIGGER</span>
-                  <span className="font-semibold text-white truncate">Capex Intake</span>
-                  <span className="text-[10px] text-emerald-400">✓ Validated</span>
+                <div className="p-2.5 rounded-none bg-surface border border-line flex flex-col justify-between">
+                  <span className="text-[9px] text-fg-tertiary uppercase">[ TRIGGER ]</span>
+                  <span className="font-serif font-bold text-xs text-fg-primary truncate">
+                    Capex Intake
+                  </span>
+                  <span className="text-[9px] text-emerald-500 font-bold">✓ VALIDATED</span>
                 </div>
-                <div className="p-2.5 rounded-xl bg-obsidian-900 border border-amber-800/80 text-amber-200 flex flex-col justify-between">
-                  <span className="text-[10px] text-slate-500">AST CONDITION</span>
-                  <span className="font-semibold text-white truncate">&gt; $10k Capex</span>
-                  <span className="text-[10px] text-cyan-400">✓ True ($145k)</span>
+                <div className="p-2.5 rounded-none bg-surface border border-line flex flex-col justify-between">
+                  <span className="text-[9px] text-fg-tertiary uppercase">[ AST COND ]</span>
+                  <span className="font-serif font-bold text-xs text-fg-primary truncate">
+                    &gt; $10k Capex
+                  </span>
+                  <span className="text-[9px] text-accent font-bold">✓ TRUE ($145k)</span>
                 </div>
-                <div className="p-2.5 rounded-xl bg-obsidian-900 border border-violet-800/80 text-violet-200 flex flex-col justify-between">
-                  <span className="text-[10px] text-slate-500">PARALLEL QUORUM</span>
-                  <span className="font-semibold text-white truncate">2 of 3 Required</span>
-                  <span className="text-[10px] text-amber-400 animate-pulse">● 1 / 2 Votes</span>
+                <div className="p-2.5 rounded-none bg-surface border border-line flex flex-col justify-between">
+                  <span className="text-[9px] text-fg-tertiary uppercase">[ QUORUM ]</span>
+                  <span className="font-serif font-bold text-xs text-fg-primary truncate">
+                    2 of 3 Req
+                  </span>
+                  <span className="text-[9px] text-accent animate-pulse font-bold">
+                    ● 1 / 2 VOTES
+                  </span>
                 </div>
-                <div className="p-2.5 rounded-xl bg-obsidian-900 border border-emerald-800/80 text-emerald-200 flex flex-col justify-between">
-                  <span className="text-[10px] text-slate-500">SYNCHRONIZED JOIN</span>
-                  <span className="font-semibold text-white truncate">Final Approval</span>
-                  <span className="text-[10px] text-slate-400">Awaiting Quorum</span>
+                <div className="p-2.5 rounded-none bg-surface border border-line flex flex-col justify-between">
+                  <span className="text-[9px] text-fg-tertiary uppercase">[ JOIN ]</span>
+                  <span className="font-serif font-bold text-xs text-fg-primary truncate">
+                    Final Gate
+                  </span>
+                  <span className="text-[9px] text-fg-tertiary">STANDBY</span>
                 </div>
               </div>
 
               {/* Cryptographic Hash Ticker */}
-              <div className="p-2.5 rounded-xl bg-obsidian-950 border border-white/[0.06] flex items-center justify-between text-[11px] font-mono">
+              <div className="p-2.5 rounded-none bg-surface border border-line flex items-center justify-between text-[11px] font-mono">
                 <div className="flex items-center space-x-2 truncate">
-                  <Lock className="h-3.5 w-3.5 text-violet-400 flex-shrink-0" />
-                  <span className="text-slate-400">Ledger Hash:</span>
-                  <span className="text-violet-300 truncate">7e51c890...4f2a (Block #4)</span>
+                  <Lock className="h-3.5 w-3.5 text-accent flex-shrink-0" />
+                  <span className="text-fg-secondary">LEDGER HASH:</span>
+                  <span className="text-fg-primary font-bold truncate">
+                    7e51c890...4f2a [BLOCK #4]
+                  </span>
                 </div>
-                <span className="text-emerald-400 font-semibold flex items-center space-x-1 flex-shrink-0">
+                <span className="text-emerald-500 font-bold flex items-center space-x-1 flex-shrink-0">
                   <CheckCircle2 className="h-3 w-3" />
-                  <span>Tamper-Free</span>
+                  <span>[ TAMPER-FREE ]</span>
                 </span>
               </div>
             </div>
 
             {/* Architecture Pills */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-2">
-              <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.06] text-center">
-                <span className="text-lg font-extrabold text-white">367</span>
-                <span className="block text-[10px] text-slate-400 uppercase tracking-wider">
-                  Automated Tests
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 font-mono">
+              <div className="p-3 rounded-none bg-surface border border-line text-center">
+                <span className="text-xl font-bold text-fg-primary block">396</span>
+                <span className="block text-[9px] text-fg-secondary uppercase tracking-widest">
+                  AUTOMATED TESTS
                 </span>
               </div>
-              <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.06] text-center">
-                <span className="text-lg font-extrabold text-aurora-cyan">Zero</span>
-                <span className="block text-[10px] text-slate-400 uppercase tracking-wider">
-                  Eval AST Safety
+              <div className="p-3 rounded-none bg-surface border border-line text-center">
+                <span className="text-xl font-bold text-accent block">ZERO</span>
+                <span className="block text-[9px] text-fg-secondary uppercase tracking-widest">
+                  EVAL SAFETY
                 </span>
               </div>
-              <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.06] text-center">
-                <span className="text-lg font-extrabold text-aurora-violet">SHA-256</span>
-                <span className="block text-[10px] text-slate-400 uppercase tracking-wider">
-                  Audit Ledger
+              <div className="p-3 rounded-none bg-surface border border-line text-center">
+                <span className="text-xl font-bold text-fg-primary block">SHA-256</span>
+                <span className="block text-[9px] text-fg-secondary uppercase tracking-widest">
+                  AUDIT LEDGER
                 </span>
               </div>
-              <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.06] text-center">
-                <span className="text-lg font-extrabold text-aurora-emerald">Strict</span>
-                <span className="block text-[10px] text-slate-400 uppercase tracking-wider">
-                  Tenant Isolation
+              <div className="p-3 rounded-none bg-surface border border-line text-center">
+                <span className="text-xl font-bold text-emerald-500 block">STRICT</span>
+                <span className="block text-[9px] text-fg-secondary uppercase tracking-widest">
+                  TENANT ISOLATION
                 </span>
               </div>
             </div>
           </div>
 
           {/* Right Column: Instant Persona Launchpad */}
-          <div className="lg:col-span-6 space-y-5">
-            <div className="glass-panel p-6 sm:p-8 rounded-3xl border border-white/[0.1] shadow-2xl relative overflow-hidden">
-              <div className="absolute top-0 right-0 -mr-16 -mt-16 w-48 h-48 rounded-full bg-aurora-violet/20 blur-3xl pointer-events-none" />
-
-              <div className="flex items-center justify-between pb-4 border-b border-white/[0.08]">
+          <div className="lg:col-span-6 space-y-4">
+            <div className="hud-card p-6 sm:p-7 border border-line shadow-none relative overflow-hidden">
+              <div className="flex items-center justify-between pb-3 border-b border-line">
                 <div>
-                  <h2 className="text-xl font-bold text-white flex items-center space-x-2">
-                    <Sparkles className="h-5 w-5 text-aurora-cyan" />
+                  <h2 className="font-serif text-lg font-bold text-fg-primary flex items-center space-x-2">
+                    <Sparkles className="h-4 w-4 text-accent" />
                     <span>Instant Persona Launchpad</span>
                   </h2>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    Click any enterprise role card below to authenticate and enter workspace
-                    immediately.
+                  <p className="font-mono text-[10px] text-fg-secondary uppercase tracking-wider mt-0.5">
+                    Click any enterprise role card to authenticate and enter workspace
                   </p>
                 </div>
               </div>
 
               {loginError && (
-                <div className="my-4 p-3 rounded-xl bg-rose-950/70 border border-rose-800 text-xs text-rose-200 flex items-center space-x-2">
-                  <AlertCircle className="h-4 w-4 text-rose-400 flex-shrink-0" />
+                <div className="my-3 p-2.5 rounded-none bg-danger/10 border border-danger text-xs text-danger font-mono flex items-center space-x-2">
+                  <AlertCircle className="h-4 w-4 text-danger flex-shrink-0" />
                   <span>{loginError}</span>
                 </div>
               )}
 
               {/* Persona Cards Grid */}
-              <div className="grid grid-cols-1 gap-2.5 pt-4">
+              <div className="grid grid-cols-1 gap-2 pt-3 font-mono">
                 {DEMO_PERSONAS.map((persona) => {
                   const isLaunching = launchingPersonaId === persona.id;
 
@@ -967,40 +984,33 @@ export default function FlowGateApp() {
                       key={persona.id}
                       onClick={() => handleLaunchPersona(persona)}
                       disabled={isLaunching || isSubmittingLogin}
-                      className={`w-full text-left p-3.5 rounded-2xl glass-card-interactive border flex items-center justify-between group transition-all ${persona.borderHover} disabled:opacity-50`}
+                      className="w-full text-left p-3 rounded-none border border-line bg-surface hover:border-accent hover:bg-raised flex items-center justify-between group transition-colors disabled:opacity-50"
                     >
-                      <div className="flex items-center space-x-3.5 min-w-0">
-                        <div
-                          className={`h-11 w-11 rounded-xl bg-gradient-to-tr ${persona.gradient} flex items-center justify-center text-xl flex-shrink-0 shadow-md group-hover:scale-105 transition-transform`}
-                        >
+                      <div className="flex items-center space-x-3 min-w-0">
+                        <div className="h-8 w-8 rounded-none border border-line bg-raised flex items-center justify-center text-sm flex-shrink-0">
                           {persona.avatar}
                         </div>
                         <div className="min-w-0">
                           <div className="flex items-center space-x-2">
-                            <h4 className="font-bold text-white text-sm truncate group-hover:text-aurora-cyan transition-colors">
+                            <h4 className="font-serif font-bold text-fg-primary text-xs truncate group-hover:text-accent transition-colors">
                               {persona.name}
                             </h4>
-                            <span
-                              className={`px-2 py-0.5 rounded-full text-[9px] font-mono font-bold uppercase tracking-wider border ${persona.badgeColor}`}
-                            >
-                              {persona.badge}
+                            <span className="px-1.5 py-0.2 rounded-none text-[8px] font-mono font-bold uppercase tracking-widest border border-line bg-raised text-fg-secondary">
+                              [ {persona.badge} ]
                             </span>
                           </div>
-                          <p className="text-[11px] text-slate-300 font-medium truncate mt-0.5">
+                          <p className="text-[10px] text-fg-secondary truncate mt-0.5 font-sans">
                             {persona.title} •{' '}
-                            <span className="font-mono text-slate-400">{persona.email}</span>
-                          </p>
-                          <p className="text-[10px] text-slate-400 truncate mt-0.5">
-                            {persona.description}
+                            <span className="font-mono text-fg-tertiary">{persona.email}</span>
                           </p>
                         </div>
                       </div>
 
-                      <div className="pl-3 flex-shrink-0 flex items-center space-x-1.5 text-slate-400 group-hover:text-white transition-colors">
+                      <div className="pl-3 flex-shrink-0 flex items-center space-x-1.5 text-fg-tertiary group-hover:text-accent transition-colors">
                         {isLaunching ? (
-                          <RefreshCw className="h-4 w-4 animate-spin text-aurora-cyan" />
+                          <RefreshCw className="h-3.5 w-3.5 animate-spin text-accent" />
                         ) : (
-                          <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform text-aurora-cyan" />
+                          <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
                         )}
                       </div>
                     </button>
@@ -1008,48 +1018,46 @@ export default function FlowGateApp() {
                 })}
               </div>
 
-              {/* Manual Login Drawer / Form */}
-              <div className="mt-6 pt-5 border-t border-white/[0.08] space-y-3">
-                <div className="flex items-center justify-between text-xs text-slate-400">
-                  <span className="font-semibold uppercase tracking-wider text-[10px]">
-                    Or Sign In with Custom Credentials
+              {/* Manual Login Form */}
+              <div className="mt-5 pt-4 border-t border-line space-y-3 font-mono">
+                <div className="flex items-center justify-between text-xs text-fg-secondary">
+                  <span className="font-bold uppercase tracking-widest text-[9px]">
+                    [ CUSTOM CREDENTIAL SIGN-IN ]
                   </span>
-                  <span className="text-[10px] font-mono text-slate-400">
-                    Default: FlowGatePass123!
-                  </span>
+                  <span className="text-[9px] text-fg-tertiary">DEFAULT: FlowGatePass123!</span>
                 </div>
 
-                <form onSubmit={handleLogin} className="space-y-3">
+                <form onSubmit={handleLogin} className="space-y-2.5">
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     <div>
-                      <label className="block text-[11px] font-medium text-slate-300 mb-1">
-                        Tenant Slug
+                      <label className="block text-[10px] text-fg-secondary uppercase mb-1">
+                        TENANT SLUG
                       </label>
                       <input
                         type="text"
                         value={loginSlug}
                         onChange={(e) => setLoginSlug(e.target.value)}
                         required
-                        className="w-full bg-obsidian-900 border border-white/[0.1] rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-aurora-violet font-mono"
+                        className="w-full bg-surface border border-line rounded-none px-2.5 py-1.5 text-xs text-fg-primary focus:outline-none focus:border-accent font-mono"
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] font-medium text-slate-300 mb-1">
-                        Email
+                      <label className="block text-[10px] text-fg-secondary uppercase mb-1">
+                        EMAIL
                       </label>
                       <input
                         type="email"
                         value={loginEmail}
                         onChange={(e) => setLoginEmail(e.target.value)}
                         required
-                        className="w-full bg-obsidian-900 border border-white/[0.1] rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-aurora-violet font-mono"
+                        className="w-full bg-surface border border-line rounded-none px-2.5 py-1.5 text-xs text-fg-primary focus:outline-none focus:border-accent font-mono"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-medium text-slate-300 mb-1">
-                      Password
+                    <label className="block text-[10px] text-fg-secondary uppercase mb-1">
+                      PASSWORD
                     </label>
                     <input
                       type="password"
@@ -1057,20 +1065,20 @@ export default function FlowGateApp() {
                       onChange={(e) => setLoginPassword(e.target.value)}
                       required
                       placeholder="FlowGatePass123!"
-                      className="w-full bg-obsidian-900 border border-white/[0.1] rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-aurora-violet font-mono"
+                      className="w-full bg-surface border border-line rounded-none px-2.5 py-1.5 text-xs text-fg-primary focus:outline-none focus:border-accent font-mono"
                     />
                   </div>
 
                   <button
                     type="submit"
                     disabled={isSubmittingLogin}
-                    className="w-full py-2 px-4 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-semibold text-xs transition-all shadow-md shadow-violet-600/30 flex items-center justify-center space-x-1.5 disabled:opacity-50"
+                    className="w-full py-2 px-4 rounded-none bg-accent hover:bg-accent-pressed text-white font-mono font-bold uppercase tracking-wider text-xs transition-colors flex items-center justify-center space-x-2 disabled:opacity-50"
                   >
                     {isSubmittingLogin ? (
                       <RefreshCw className="h-3.5 w-3.5 animate-spin" />
                     ) : (
                       <>
-                        <span>Enter Workspace</span>
+                        <span>ENTER WORKSPACE</span>
                         <ArrowRight className="h-3.5 w-3.5" />
                       </>
                     )}
@@ -1082,10 +1090,10 @@ export default function FlowGateApp() {
         </section>
 
         {/* Footer */}
-        <footer className="max-w-7xl mx-auto w-full pt-6 border-t border-white/[0.08] flex flex-col sm:flex-row items-center justify-between text-xs text-slate-400 gap-2">
+        <footer className="max-w-7xl mx-auto w-full pt-6 border-t border-line flex flex-col sm:flex-row items-center justify-between text-[11px] font-mono text-fg-secondary uppercase tracking-wider gap-2">
           <span>FlowGate Enterprise SaaS Monorepo • MIT License</span>
           <div className="flex items-center space-x-4">
-            <span className="font-mono">NestJS 10 • Next.js 14 • PostgreSQL 16 • Redis 7</span>
+            <span>NestJS 10 • Next.js 14 • PostgreSQL 16 • Redis 7</span>
           </div>
         </footer>
       </main>
@@ -1096,32 +1104,32 @@ export default function FlowGateApp() {
   // AUTHENTICATED: BENTO COMMAND CENTER DASHBOARD
   // ===========================================================================
   return (
-    <div className="min-h-screen text-slate-100 flex flex-col selection:bg-violet-600 selection:text-white">
-      {/* Top Floating Command Dock Header */}
-      <header className="border-b border-white/[0.08] glass-panel sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-4">
+    <div className="min-h-screen text-fg-primary bg-canvas flex flex-col selection:bg-accent selection:text-white">
+      {/* Top HUD Dock Header */}
+      <header className="border-b border-line bg-surface sticky top-0 z-40 transition-colors">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5 flex items-center justify-between gap-4">
           {/* Logo & Tenant Context */}
           <div className="flex items-center space-x-3 flex-shrink-0">
-            <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-aurora-violet via-indigo-600 to-aurora-cyan p-0.5 shadow-md shadow-violet-500/20">
-              <div className="h-full w-full bg-obsidian-950 rounded-[10px] flex items-center justify-center">
-                <GitBranch className="h-4 w-4 text-aurora-cyan" />
-              </div>
+            <div className="h-8 w-8 rounded-none border border-accent bg-accent text-white flex items-center justify-center">
+              <GitBranch className="h-4 w-4" />
             </div>
             <div>
-              <span className="font-bold text-sm text-white flex items-center space-x-2">
+              <span className="font-serif font-bold text-sm text-fg-primary flex items-center space-x-2">
                 <span>FlowGate</span>
-                <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-white/[0.06] border border-white/[0.1] text-aurora-cyan">
-                  {auth.tenant.slug}
+                <span className="px-1.5 py-0.2 rounded-none text-[9px] font-mono font-bold bg-raised border border-line text-accent uppercase">
+                  [ {auth.tenant.slug} ]
                 </span>
               </span>
-              <span className="text-[11px] text-slate-400 block truncate">{auth.tenant.name}</span>
+              <span className="text-[10px] font-mono text-fg-secondary block truncate uppercase">
+                {auth.tenant.name}
+              </span>
             </div>
           </div>
 
           {/* Instant One-Click Persona Switcher Bar */}
-          <div className="hidden xl:flex items-center space-x-1.5 p-1 rounded-xl bg-white/[0.03] border border-white/[0.08] text-xs">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-2">
-              Switch Persona:
+          <div className="hidden xl:flex items-center space-x-1 p-1 rounded-none bg-surface border border-line text-xs font-mono">
+            <span className="text-[9px] font-bold uppercase tracking-widest text-fg-tertiary px-2">
+              [ PERSONA ]:
             </span>
             {DEMO_PERSONAS.map((persona) => {
               const isActive = auth.user.email === persona.email;
@@ -1132,47 +1140,47 @@ export default function FlowGateApp() {
                   key={persona.id}
                   onClick={() => handleLaunchPersona(persona)}
                   disabled={isActive || isSwitching}
-                  className={`px-2.5 py-1 rounded-lg font-medium text-xs flex items-center space-x-1.5 transition-all ${
+                  className={`px-2 py-0.5 rounded-none font-bold text-[10px] uppercase tracking-wider flex items-center space-x-1.5 transition-colors ${
                     isActive
-                      ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-md shadow-violet-600/30'
-                      : 'text-slate-300 hover:text-white hover:bg-white/[0.06]'
+                      ? 'bg-accent text-white border border-accent'
+                      : 'text-fg-secondary hover:text-fg-primary hover:bg-raised'
                   }`}
                   title={`Switch context to ${persona.name} (${persona.title})`}
                 >
                   <span>{persona.avatar}</span>
                   <span>{persona.title.split(' ')[0]}</span>
-                  {isSwitching && <RefreshCw className="h-3 w-3 animate-spin" />}
+                  {isSwitching && <RefreshCw className="h-2.5 w-2.5 animate-spin" />}
                 </button>
               );
             })}
           </div>
 
           {/* Right Action Icons & Profile */}
-          <div className="flex items-center space-x-2.5 flex-shrink-0">
+          <div className="flex items-center space-x-2 flex-shrink-0 font-mono">
             {/* Quick Links */}
             <a
               href="/workflows/templates"
-              className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-white/[0.08] hover:bg-white/[0.06] text-xs font-medium text-slate-300 hover:text-white transition-colors"
+              className="hidden lg:flex items-center gap-1.5 px-2 py-1 rounded-none border border-line hover:border-accent text-xs uppercase tracking-wider text-fg-secondary hover:text-fg-primary transition-colors"
             >
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              <span>Templates</span>
+              <Sparkles className="w-3.5 h-3.5 text-accent" />
+              <span>TEMPLATES</span>
             </a>
             <a
               href="/insights"
-              className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-white/[0.08] hover:bg-white/[0.06] text-xs font-medium text-slate-300 hover:text-white transition-colors"
+              className="hidden lg:flex items-center gap-1.5 px-2 py-1 rounded-none border border-line hover:border-accent text-xs uppercase tracking-wider text-fg-secondary hover:text-fg-primary transition-colors"
             >
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Insights</span>
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+              <span>INSIGHTS</span>
             </a>
 
             {/* Command Palette Trigger */}
             <button
               onClick={() => setCommandPaletteOpen(true)}
-              className="hidden sm:flex items-center gap-2 px-2.5 py-1.5 rounded-xl border border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.06] text-xs text-slate-300 font-mono transition-colors"
+              className="hidden sm:flex items-center gap-2 px-2 py-1 rounded-none border border-line bg-surface hover:border-accent text-xs text-fg-secondary hover:text-fg-primary font-mono transition-colors"
               title="Open Command Palette (Cmd+K)"
             >
-              <Search className="h-3.5 w-3.5 text-slate-400" />
-              <span className="text-[11px]">⌘K</span>
+              <Search className="h-3 w-3 text-accent" />
+              <span className="text-[10px]">⌘K</span>
             </button>
 
             {/* Dual Theme Toggle */}
@@ -1182,11 +1190,11 @@ export default function FlowGateApp() {
             <button
               onClick={handleOpenNotifications}
               title="Recent Outbound Notifications"
-              className="relative p-2 rounded-xl glass-card hover:bg-white/[0.08] text-slate-300 hover:text-white transition-colors"
+              className="relative p-1.5 rounded-none border border-line bg-surface hover:border-accent text-fg-secondary hover:text-fg-primary transition-colors"
             >
-              <Bell className="h-4 w-4" />
+              <Bell className="h-3.5 w-3.5" />
               {notifStats && notifStats.total > 0 && (
-                <span className="absolute -top-1 -right-1 h-4 w-4 bg-violet-600 text-white rounded-full text-[9px] flex items-center justify-center font-bold">
+                <span className="absolute -top-1 -right-1 h-3.5 w-3.5 bg-accent text-white rounded-none text-[8px] flex items-center justify-center font-bold">
                   {notifStats.sent > 9 ? '9+' : notifStats.sent}
                 </span>
               )}
@@ -1195,52 +1203,52 @@ export default function FlowGateApp() {
             {/* User Profile Pill */}
             <div className="flex items-center space-x-2 pl-1 text-xs">
               <div className="text-right hidden sm:block">
-                <span className="font-semibold text-white block leading-tight">
+                <span className="font-serif font-bold text-fg-primary block leading-tight text-xs">
                   {auth.user.name}
                 </span>
-                <span className="text-[10px] text-slate-400 font-mono">{auth.user.email}</span>
+                <span className="text-[9px] text-fg-tertiary font-mono">{auth.user.email}</span>
               </div>
-              <span className="px-2.5 py-1 rounded-lg font-mono font-bold text-[10px] uppercase bg-violet-950/80 text-violet-300 border border-violet-800">
-                {auth.user.role}
+              <span className="px-1.5 py-0.5 rounded-none font-mono font-bold text-[9px] uppercase bg-raised text-accent border border-line">
+                [ {auth.user.role} ]
               </span>
             </div>
 
             {/* Logout */}
             <button
               onClick={handleLogout}
-              className="p-2 rounded-xl glass-card hover:bg-rose-950/60 hover:text-rose-300 text-slate-400 transition-colors"
+              className="p-1.5 rounded-none border border-line bg-surface hover:border-danger hover:text-danger text-fg-tertiary transition-colors"
               title="Sign Out"
             >
-              <LogOut className="h-4 w-4" />
+              <LogOut className="h-3.5 w-3.5" />
             </button>
           </div>
         </div>
       </header>
 
       {/* Main Container */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full flex-1 space-y-6">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full flex-1 space-y-6">
         {/* Global Notifications */}
         {actionError && (
-          <div className="p-3.5 rounded-2xl bg-rose-950/70 border border-rose-800 text-rose-200 text-xs flex items-center justify-between shadow-xl">
-            <div className="flex items-center space-x-2.5">
-              <AlertCircle className="h-4 w-4 text-rose-400 flex-shrink-0" />
+          <div className="p-3 rounded-none bg-danger/10 border border-danger text-danger text-xs font-mono flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <AlertCircle className="h-4 w-4 text-danger flex-shrink-0" />
               <span>{actionError}</span>
             </div>
-            <button onClick={() => setActionError(null)} className="text-rose-400 hover:text-white">
+            <button onClick={() => setActionError(null)} className="text-danger hover:opacity-75">
               <X className="h-4 w-4" />
             </button>
           </div>
         )}
 
         {actionSuccess && (
-          <div className="p-3.5 rounded-2xl bg-emerald-950/70 border border-emerald-800 text-emerald-200 text-xs flex items-center justify-between shadow-xl">
-            <div className="flex items-center space-x-2.5">
-              <CheckCircle2 className="h-4 w-4 text-emerald-400 flex-shrink-0" />
+          <div className="p-3 rounded-none bg-emerald-950/20 border border-emerald-600/40 text-emerald-500 text-xs font-mono flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0" />
               <span>{actionSuccess}</span>
             </div>
             <button
               onClick={() => setActionSuccess(null)}
-              className="text-emerald-400 hover:text-white"
+              className="text-emerald-500 hover:opacity-75"
             >
               <X className="h-4 w-4" />
             </button>
@@ -1249,16 +1257,18 @@ export default function FlowGateApp() {
 
         {/* Active Out-of-Office Delegation Notice Banners */}
         {activeOutgoingDelegation && (
-          <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-950/60 via-obsidian-900 to-obsidian-900 border border-amber-800 text-amber-200 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xl">
+          <div className="p-3.5 rounded-none bg-surface border border-line text-fg-primary text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 font-mono">
             <div className="flex items-center space-x-3">
-              <div className="h-8 w-8 rounded-lg bg-amber-900/60 border border-amber-700/80 flex items-center justify-center flex-shrink-0">
-                <Plane className="h-4 w-4 text-amber-400" />
+              <div className="h-7 w-7 rounded-none border border-line bg-raised flex items-center justify-center flex-shrink-0 text-accent">
+                <Plane className="h-3.5 w-3.5" />
               </div>
               <div>
-                <strong className="text-white block">Out-of-Office Delegation Active</strong>
-                <span>
-                  Your review and sign-off authority is currently delegated to{' '}
-                  <strong className="text-amber-300">
+                <strong className="text-fg-primary block font-serif uppercase tracking-wider text-xs">
+                  [ OUT-OF-OFFICE DELEGATION ACTIVE ]
+                </strong>
+                <span className="text-fg-secondary text-[11px]">
+                  Sign-off authority delegated to{' '}
+                  <strong className="text-accent">
                     {activeOutgoingDelegation.delegatee?.name ||
                       activeOutgoingDelegation.delegateeId}
                   </strong>{' '}
@@ -1268,184 +1278,238 @@ export default function FlowGateApp() {
             </div>
             <button
               onClick={() => setActiveTab('delegations')}
-              className="px-3 py-1.5 rounded-lg bg-amber-900/80 hover:bg-amber-800 text-amber-200 border border-amber-700 text-xs font-semibold self-start sm:self-center transition-colors"
+              className="px-2.5 py-1 rounded-none bg-surface hover:bg-raised text-fg-primary border border-line text-xs uppercase tracking-wider self-start sm:self-center transition-colors"
             >
-              Manage Delegations
+              MANAGE DELEGATIONS
             </button>
           </div>
         )}
 
         {activeIncomingDelegation && (
-          <div className="p-4 rounded-2xl bg-gradient-to-r from-cyan-950/60 via-obsidian-900 to-obsidian-900 border border-cyan-800 text-cyan-200 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xl">
+          <div className="p-3.5 rounded-none bg-surface border border-line text-fg-primary text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 font-mono">
             <div className="flex items-center space-x-3">
-              <div className="h-8 w-8 rounded-lg bg-cyan-900/60 border border-cyan-700/80 flex items-center justify-center flex-shrink-0">
-                <UserCheck className="h-4 w-4 text-cyan-400" />
+              <div className="h-7 w-7 rounded-none border border-line bg-raised flex items-center justify-center flex-shrink-0 text-emerald-500">
+                <UserCheck className="h-3.5 w-3.5" />
               </div>
               <div>
-                <strong className="text-white block">Acting as Authorized Delegatee</strong>
-                <span>
-                  You hold delegated approval authority for{' '}
-                  <strong className="text-cyan-300">
+                <strong className="text-fg-primary block font-serif uppercase tracking-wider text-xs">
+                  [ AUTHORIZED STAND-IN DELEGATEE ]
+                </strong>
+                <span className="text-fg-secondary text-[11px]">
+                  Acting on behalf of{' '}
+                  <strong className="text-emerald-500">
                     {activeIncomingDelegation.delegator?.name ||
                       activeIncomingDelegation.delegatorId}
                   </strong>{' '}
-                  until {new Date(activeIncomingDelegation.endDate).toLocaleDateString()}. Your
-                  decisions carry full quorum weight.
+                  until {new Date(activeIncomingDelegation.endDate).toLocaleDateString()}. Decisions
+                  carry full quorum weight.
                 </span>
               </div>
             </div>
             <button
               onClick={() => setActiveTab('delegations')}
-              className="px-3 py-1.5 rounded-lg bg-cyan-900/80 hover:bg-cyan-800 text-cyan-200 border border-cyan-700 text-xs font-semibold self-start sm:self-center transition-colors"
+              className="px-2.5 py-1 rounded-none bg-surface hover:bg-raised text-fg-primary border border-line text-xs uppercase tracking-wider self-start sm:self-center transition-colors"
             >
-              View Delegated Authority
+              VIEW AUTHORITY
             </button>
           </div>
         )}
 
         {/* =================================================================== */}
-        {/* INTERACTIVE BENTO KPI CARDS */}
+        {/* 3D HUD HERO & BENTO METRICS COMMAND CENTER */}
         {/* =================================================================== */}
-        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Card 1: Pending Approvals */}
-          <div
-            onClick={() => {
-              setActiveTab('requests');
-              setRequestFilter('pending_approval');
-            }}
-            className="p-5 rounded-2xl glass-card-interactive border border-white/[0.08] cursor-pointer space-y-3 group"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                Awaiting My Review
-              </span>
-              <div className="h-8 w-8 rounded-xl bg-amber-950/60 border border-amber-800/80 flex items-center justify-center text-amber-400 group-hover:scale-110 transition-transform">
-                <Clock className="h-4 w-4" />
-              </div>
-            </div>
-            <div className="flex items-baseline space-x-2">
-              <span className="text-3xl font-extrabold text-white">
-                {
-                  requests.filter((r) => r.status === 'IN_PROGRESS' || r.status === 'PENDING')
-                    .length
-                }
-              </span>
-              <span className="text-xs text-amber-400 font-medium">Action Required</span>
-            </div>
-            <p className="text-[11px] text-slate-400 line-clamp-1">
-              Active DAG requests sitting at an approval node
-            </p>
+        <section className="relative w-full rounded-none border border-line bg-surface overflow-hidden p-6 sm:p-8 space-y-6">
+          {/* 3D Wireframe HUD Hero Radar */}
+          <div className="absolute inset-0 z-0 opacity-40 pointer-events-none">
+            <WireframeHero />
           </div>
 
-          {/* Card 2: Workflows */}
-          <div
-            onClick={() => setActiveTab('workflows')}
-            className="p-5 rounded-2xl glass-card-interactive border border-white/[0.08] cursor-pointer space-y-3 group"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                Active Workflows
+          {/* Telemetry Bar & Headline */}
+          <div className="relative z-10 space-y-3">
+            <div className="flex flex-wrap items-center gap-3 font-mono text-[10px] text-fg-secondary uppercase tracking-widest border-b border-line pb-3">
+              <span className="text-accent font-bold flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-none bg-accent animate-ping" />[ TELEMETRY:
+                ACTIVE ]
               </span>
-              <div className="h-8 w-8 rounded-xl bg-violet-950/60 border border-violet-800/80 flex items-center justify-center text-aurora-violet group-hover:scale-110 transition-transform">
-                <GitBranch className="h-4 w-4" />
+              <span>•</span>
+              <span>TENANT: {auth.tenant.slug}</span>
+              <span>•</span>
+              <span>YAW: 033° / PITCH: 035°</span>
+              <span>•</span>
+              <span>QUORUM: 2/3 REQ</span>
+              <span>•</span>
+              <span className="text-emerald-500 font-bold">[ LEDGER: SHA-256 INTACT ]</span>
+            </div>
+
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+              <div>
+                <span className="font-mono text-[10px] uppercase tracking-widest text-accent font-bold block mb-1">
+                  [ ARCHITECTURAL ENGINE ]
+                </span>
+                <h1 className="font-serif text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-fg-primary leading-[1.1]">
+                  Production, in steady hands.
+                </h1>
+                <p className="font-sans text-xs sm:text-sm text-fg-secondary max-w-2xl mt-1.5 leading-relaxed">
+                  Transactional DAG state machines, runtime AST condition branching, and
+                  tamper-evident audit trails.
+                </p>
+              </div>
+
+              <div className="font-mono text-right text-xs shrink-0">
+                <span className="text-fg-tertiary block text-[9px] uppercase tracking-wider">
+                  OPERATIONAL STATE
+                </span>
+                <span className="font-bold text-fg-primary uppercase text-sm">
+                  [ STEADY_STATE ]
+                </span>
               </div>
             </div>
-            <div className="flex items-baseline space-x-2">
-              <span className="text-3xl font-extrabold text-white">{workflows.length}</span>
-              <span className="text-xs text-violet-400 font-medium">Catalogs Ready</span>
-            </div>
-            <p className="text-[11px] text-slate-400 line-clamp-1">
-              DAG definitions with AST condition routing
-            </p>
           </div>
 
-          {/* Card 3: Out-of-Office Delegations */}
-          <div
-            onClick={() => setActiveTab('delegations')}
-            className="p-5 rounded-2xl glass-card-interactive border border-white/[0.08] cursor-pointer space-y-3 group"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                Delegation Status
-              </span>
-              <div className="h-8 w-8 rounded-xl bg-cyan-950/60 border border-cyan-800/80 flex items-center justify-center text-aurora-cyan group-hover:scale-110 transition-transform">
-                <UserCheck className="h-4 w-4" />
+          {/* OVERLAY BENTO METRICS GRID */}
+          <div className="relative z-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Card 1: Pending Approvals */}
+            <div
+              onClick={() => {
+                setActiveTab('requests');
+                setRequestFilter('pending_approval');
+              }}
+              className="p-5 rounded-none border border-line bg-surface/90 backdrop-blur-md cursor-pointer space-y-2.5 hover:border-accent transition-colors hud-crosshair group"
+            >
+              <div className="flex items-center justify-between font-mono">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-fg-secondary">
+                  AWAITING REVIEW
+                </span>
+                <div className="h-6 w-6 rounded-none border border-line bg-raised flex items-center justify-center text-accent group-hover:scale-105 transition-transform">
+                  <Clock className="h-3 w-3" />
+                </div>
               </div>
+              <div className="flex items-baseline space-x-2 font-mono">
+                <span className="text-3xl font-bold text-fg-primary">
+                  {
+                    requests.filter((r) => r.status === 'IN_PROGRESS' || r.status === 'PENDING')
+                      .length
+                  }
+                </span>
+                <span className="text-[10px] text-accent font-bold uppercase">[ ACTION REQ ]</span>
+              </div>
+              <p className="text-[11px] text-fg-secondary line-clamp-1 font-mono uppercase">
+                ACTIVE REQUESTS AT APPROVAL NODE
+              </p>
             </div>
-            <div className="flex items-baseline space-x-2">
-              <span className="text-3xl font-extrabold text-white">
-                {delegations.filter((d) => d.status === 'ACTIVE').length}
-              </span>
-              <span className="text-xs text-cyan-400 font-medium">Active Windows</span>
-            </div>
-            <p className="text-[11px] text-slate-400 line-clamp-1">
-              {activeOutgoingDelegation
-                ? 'You have an active outgoing stand-in'
-                : 'Manage travel & leave coverage'}
-            </p>
-          </div>
 
-          {/* Card 4: SHA-256 Audit Ledger */}
-          <div
-            onClick={handleVerifyAuditChain}
-            className="p-5 rounded-2xl glass-card-interactive border border-white/[0.08] cursor-pointer space-y-3 group"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                Cryptographic Ledger
-              </span>
-              <div className="h-8 w-8 rounded-xl bg-emerald-950/60 border border-emerald-800/80 flex items-center justify-center text-emerald-400 group-hover:scale-110 transition-transform">
-                <ShieldCheck className="h-4 w-4" />
+            {/* Card 2: Workflows */}
+            <div
+              onClick={() => setActiveTab('workflows')}
+              className="p-5 rounded-none border border-line bg-surface/90 backdrop-blur-md cursor-pointer space-y-2.5 hover:border-accent transition-colors hud-crosshair group"
+            >
+              <div className="flex items-center justify-between font-mono">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-fg-secondary">
+                  ACTIVE WORKFLOWS
+                </span>
+                <div className="h-6 w-6 rounded-none border border-line bg-raised flex items-center justify-center text-accent group-hover:scale-105 transition-transform">
+                  <GitBranch className="h-3 w-3" />
+                </div>
               </div>
+              <div className="flex items-baseline space-x-2 font-mono">
+                <span className="text-3xl font-bold text-fg-primary">{workflows.length}</span>
+                <span className="text-[10px] text-fg-secondary font-bold uppercase">
+                  [ CATALOGS ]
+                </span>
+              </div>
+              <p className="text-[11px] text-fg-secondary line-clamp-1 font-mono uppercase">
+                DAG DEFINITIONS WITH AST GATES
+              </p>
             </div>
-            <div className="flex items-baseline space-x-2">
-              <span className="text-xl font-extrabold text-emerald-400 flex items-center space-x-1">
-                {verifyingChain ? (
-                  <RefreshCw className="h-4 w-4 animate-spin text-emerald-400" />
-                ) : (
-                  <span>Verified ✓</span>
-                )}
-              </span>
-              <span className="text-xs text-slate-400 font-mono">SHA-256</span>
+
+            {/* Card 3: Out-of-Office Delegations */}
+            <div
+              onClick={() => setActiveTab('delegations')}
+              className="p-5 rounded-none border border-line bg-surface/90 backdrop-blur-md cursor-pointer space-y-2.5 hover:border-accent transition-colors hud-crosshair group"
+            >
+              <div className="flex items-center justify-between font-mono">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-fg-secondary">
+                  DELEGATION STATUS
+                </span>
+                <div className="h-6 w-6 rounded-none border border-line bg-raised flex items-center justify-center text-accent group-hover:scale-105 transition-transform">
+                  <UserCheck className="h-3 w-3" />
+                </div>
+              </div>
+              <div className="flex items-baseline space-x-2 font-mono">
+                <span className="text-3xl font-bold text-fg-primary">
+                  {delegations.filter((d) => d.status === 'ACTIVE').length}
+                </span>
+                <span className="text-[10px] text-fg-secondary font-bold uppercase">
+                  [ ACTIVE ]
+                </span>
+              </div>
+              <p className="text-[11px] text-fg-secondary line-clamp-1 font-mono uppercase">
+                {activeOutgoingDelegation ? 'STAND-IN DELEGATE ACTIVE' : 'COVERAGE STANDBY'}
+              </p>
             </div>
-            <p className="text-[11px] text-slate-400 line-clamp-1">
-              Click to recalculate hash chain integrity
-            </p>
+
+            {/* Card 4: SHA-256 Audit Ledger */}
+            <div
+              onClick={handleVerifyAuditChain}
+              className="p-5 rounded-none border border-line bg-surface/90 backdrop-blur-md cursor-pointer space-y-2.5 hover:border-accent transition-colors hud-crosshair group"
+            >
+              <div className="flex items-center justify-between font-mono">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-fg-secondary">
+                  CRYPTOGRAPHIC LEDGER
+                </span>
+                <div className="h-6 w-6 rounded-none border border-line bg-raised flex items-center justify-center text-emerald-500 group-hover:scale-105 transition-transform">
+                  <ShieldCheck className="h-3 w-3" />
+                </div>
+              </div>
+              <div className="flex items-baseline space-x-2 font-mono">
+                <span className="text-lg font-bold text-emerald-500 flex items-center space-x-1">
+                  {verifyingChain ? (
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin text-emerald-500" />
+                  ) : (
+                    <span>[ VERIFIED ✓ ]</span>
+                  )}
+                </span>
+                <span className="text-[10px] text-fg-tertiary">SHA-256</span>
+              </div>
+              <p className="text-[11px] text-fg-secondary line-clamp-1 font-mono uppercase">
+                RECALCULATE TAMPER INTEGRITY
+              </p>
+            </div>
           </div>
         </section>
 
         {/* Tab Controls & Primary Action Buttons */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-white/[0.08]">
-          <div className="flex items-center space-x-1.5 p-1 rounded-xl bg-white/[0.03] border border-white/[0.08] text-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-line font-mono">
+          <div className="flex items-center space-x-1 p-0.5 rounded-none bg-surface border border-line text-xs uppercase tracking-wider">
             <button
               onClick={() => setActiveTab('requests')}
-              className={`px-3.5 py-1.5 rounded-lg font-semibold transition-all ${
+              className={`px-3 py-1 rounded-none font-bold transition-colors ${
                 activeTab === 'requests'
-                  ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-md shadow-violet-600/30'
-                  : 'text-slate-400 hover:text-white hover:bg-white/[0.05]'
+                  ? 'bg-accent text-white'
+                  : 'text-fg-secondary hover:text-fg-primary hover:bg-raised'
               }`}
             >
-              Approval Requests ({requests.length})
+              Requests ({requests.length})
             </button>
             <button
               onClick={() => setActiveTab('workflows')}
-              className={`px-3.5 py-1.5 rounded-lg font-semibold transition-all ${
+              className={`px-3 py-1 rounded-none font-bold transition-colors ${
                 activeTab === 'workflows'
-                  ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-md shadow-violet-600/30'
-                  : 'text-slate-400 hover:text-white hover:bg-white/[0.05]'
+                  ? 'bg-accent text-white'
+                  : 'text-fg-secondary hover:text-fg-primary hover:bg-raised'
               }`}
             >
               Workflows ({workflows.length})
             </button>
             <button
               onClick={() => setActiveTab('delegations')}
-              className={`px-3.5 py-1.5 rounded-lg font-semibold transition-all flex items-center space-x-1.5 ${
+              className={`px-3 py-1 rounded-none font-bold transition-colors flex items-center space-x-1.5 ${
                 activeTab === 'delegations'
-                  ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-md shadow-violet-600/30'
-                  : 'text-slate-400 hover:text-white hover:bg-white/[0.05]'
+                  ? 'bg-accent text-white'
+                  : 'text-fg-secondary hover:text-fg-primary hover:bg-raised'
               }`}
             >
-              <UserCheck className="h-3.5 w-3.5" />
+              <UserCheck className="h-3 w-3" />
               <span>Delegations ({delegations.length})</span>
             </button>
             {(auth.user.role === 'TENANT_ADMIN' || auth.user.role === 'SUPER_ADMIN') && (
@@ -1454,31 +1518,31 @@ export default function FlowGateApp() {
                   setActiveTab('webhooks');
                   fetchDeliveries();
                 }}
-                className={`px-3.5 py-1.5 rounded-lg font-semibold transition-all flex items-center space-x-1.5 ${
+                className={`px-3 py-1 rounded-none font-bold transition-colors flex items-center space-x-1.5 ${
                   activeTab === 'webhooks'
-                    ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-md shadow-violet-600/30'
-                    : 'text-slate-400 hover:text-white hover:bg-white/[0.05]'
+                    ? 'bg-accent text-white'
+                    : 'text-fg-secondary hover:text-fg-primary hover:bg-raised'
                 }`}
               >
-                <Zap className="h-3.5 w-3.5" />
+                <Zap className="h-3 w-3" />
                 <span>Webhooks ({webhooks.length})</span>
               </button>
             )}
           </div>
 
           {/* Action Buttons */}
-          <div className="flex items-center space-x-2.5">
+          <div className="flex items-center space-x-2 font-mono">
             <button
               onClick={() => {
                 fetchData();
                 if (activeTab === 'webhooks') fetchDeliveries(selectedSubForDeliveries?.id);
               }}
               disabled={dataLoading || deliveriesLoading}
-              className="p-2 rounded-xl glass-card hover:bg-white/[0.08] text-slate-300 text-xs flex items-center space-x-1.5 transition-colors"
+              className="p-1.5 rounded-none border border-line bg-surface hover:border-accent text-fg-secondary hover:text-fg-primary text-xs flex items-center space-x-1 transition-colors uppercase tracking-wider disabled:opacity-50"
               title="Refresh Data"
             >
               <RefreshCw
-                className={`h-3.5 w-3.5 ${dataLoading || deliveriesLoading ? 'animate-spin' : ''}`}
+                className={`h-3 w-3 ${dataLoading || deliveriesLoading ? 'animate-spin' : ''}`}
               />
               <span className="hidden sm:inline">Refresh</span>
             </button>
@@ -1486,9 +1550,9 @@ export default function FlowGateApp() {
             {activeTab === 'requests' && (
               <button
                 onClick={() => setShowCreateRequestModal(true)}
-                className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white text-xs font-semibold flex items-center space-x-1.5 shadow-md shadow-violet-600/30 transition-all"
+                className="px-3 py-1.5 rounded-none bg-accent hover:bg-accent-pressed text-white text-xs font-bold uppercase tracking-wider flex items-center space-x-1 transition-colors"
               >
-                <Plus className="h-4 w-4" />
+                <Plus className="h-3.5 w-3.5" />
                 <span>New Request</span>
               </button>
             )}
@@ -1498,16 +1562,16 @@ export default function FlowGateApp() {
                 <div className="flex items-center space-x-2">
                   <a
                     href="/workflows/new/builder"
-                    className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-semibold flex items-center space-x-1.5 shadow-md shadow-emerald-600/30 transition-all"
+                    className="px-3 py-1.5 rounded-none bg-accent hover:bg-accent-pressed text-white text-xs font-bold uppercase tracking-wider flex items-center space-x-1 transition-colors"
                   >
-                    <GitBranch className="h-4 w-4" />
+                    <GitBranch className="h-3.5 w-3.5" />
                     <span>Visual Workflow Builder</span>
                   </a>
                   <button
                     onClick={() => setShowCreateWorkflowModal(true)}
-                    className="px-3 py-2 rounded-xl glass-card hover:bg-white/[0.08] text-slate-200 text-xs font-semibold flex items-center space-x-1.5 transition-colors"
+                    className="px-2.5 py-1.5 rounded-none border border-line bg-surface hover:border-accent text-fg-primary text-xs font-bold uppercase tracking-wider flex items-center space-x-1 transition-colors"
                   >
-                    <Plus className="h-4 w-4" />
+                    <Plus className="h-3.5 w-3.5" />
                     <span>Quick Workflow</span>
                   </button>
                 </div>
@@ -1516,9 +1580,9 @@ export default function FlowGateApp() {
             {activeTab === 'delegations' && (
               <button
                 onClick={openCreateDelegation}
-                className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-semibold flex items-center space-x-1.5 shadow-md shadow-cyan-600/30 transition-all"
+                className="px-3 py-1.5 rounded-none bg-accent hover:bg-accent-pressed text-white text-xs font-bold uppercase tracking-wider flex items-center space-x-1 transition-colors"
               >
-                <Plus className="h-4 w-4" />
+                <Plus className="h-3.5 w-3.5" />
                 <span>New Delegation</span>
               </button>
             )}
@@ -1527,9 +1591,9 @@ export default function FlowGateApp() {
               (auth.user.role === 'TENANT_ADMIN' || auth.user.role === 'SUPER_ADMIN') && (
                 <button
                   onClick={() => setShowCreateWebhookModal(true)}
-                  className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white text-xs font-semibold flex items-center space-x-1.5 shadow-md shadow-violet-600/30 transition-all"
+                  className="px-3 py-1.5 rounded-none bg-accent hover:bg-accent-pressed text-white text-xs font-bold uppercase tracking-wider flex items-center space-x-1 transition-colors"
                 >
-                  <Plus className="h-4 w-4" />
+                  <Plus className="h-3.5 w-3.5" />
                   <span>New Webhook</span>
                 </button>
               )}
@@ -1543,74 +1607,76 @@ export default function FlowGateApp() {
           <div className="space-y-4">
             {/* Filter Sub-Tabs & Search Bar */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-center space-x-1.5 p-1 rounded-xl bg-white/[0.03] border border-white/[0.08] text-xs">
+              <div className="flex items-center space-x-1 p-1 rounded-none bg-surface border border-border-subtle text-xs font-mono">
                 <button
                   onClick={() => setRequestFilter('pending_approval')}
-                  className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
+                  className={`px-3 py-1.5 rounded-none uppercase tracking-wider text-[11px] font-semibold transition-all ${
                     requestFilter === 'pending_approval'
                       ? 'bg-amber-950/80 text-amber-300 border border-amber-700/80'
-                      : 'text-slate-400 hover:text-white'
+                      : 'text-fg-muted hover:text-ink'
                   }`}
                 >
-                  Awaiting My Review
+                  [ REVIEW PENDING ]
                 </button>
                 <button
                   onClick={() => setRequestFilter('mine')}
-                  className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
+                  className={`px-3 py-1.5 rounded-none uppercase tracking-wider text-[11px] font-semibold transition-all ${
                     requestFilter === 'mine'
-                      ? 'bg-violet-950/80 text-violet-300 border border-violet-700/80'
-                      : 'text-slate-400 hover:text-white'
+                      ? 'bg-accent/20 text-accent-foreground border border-accent/40'
+                      : 'text-fg-muted hover:text-ink'
                   }`}
                 >
-                  My Submissions
+                  [ MY SUBMISSIONS ]
                 </button>
                 <button
                   onClick={() => setRequestFilter('all')}
-                  className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
+                  className={`px-3 py-1.5 rounded-none uppercase tracking-wider text-[11px] font-semibold transition-all ${
                     requestFilter === 'all'
-                      ? 'bg-white/[0.08] text-white border border-white/[0.15]'
-                      : 'text-slate-400 hover:text-white'
+                      ? 'bg-canvas text-ink border border-border-subtle'
+                      : 'text-fg-muted hover:text-ink'
                   }`}
                 >
-                  All Organization
+                  [ ALL ORG ]
                 </button>
               </div>
 
               {/* Search Box */}
               <div className="relative w-full sm:w-72">
-                <Search className="h-4 w-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <Search className="h-4 w-4 text-fg-muted absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Filter requests by title, user..."
-                  className="w-full bg-obsidian-900 border border-white/[0.08] rounded-xl pl-9 pr-3 py-1.5 text-xs text-white focus:outline-none focus:border-violet-500 font-mono placeholder:text-slate-500"
+                  placeholder="FILTER TITLE, USER, ID..."
+                  className="w-full bg-surface border border-border-subtle rounded-none pl-9 pr-3 py-1.5 text-xs text-ink focus:outline-none focus:border-accent font-mono placeholder:text-fg-subtle"
                 />
               </div>
             </div>
 
             {/* Requests List */}
             {dataLoading ? (
-              <div className="py-20 text-center text-slate-400 space-y-3">
-                <RefreshCw className="h-8 w-8 animate-spin mx-auto text-aurora-cyan" />
-                <p className="text-xs font-mono uppercase tracking-wider">
-                  Loading approval requests...
+              <div className="py-20 text-center text-fg-muted space-y-3 font-mono">
+                <RefreshCw className="h-8 w-8 animate-spin mx-auto text-accent" />
+                <p className="text-xs uppercase tracking-wider">
+                  [ SCANNING REQUEST TELEMETRY... ]
                 </p>
               </div>
             ) : filteredRequests.length === 0 ? (
-              <div className="p-16 text-center glass-panel rounded-3xl border border-white/[0.08] space-y-4">
-                <FileText className="h-12 w-12 mx-auto text-slate-600" />
-                <h3 className="font-bold text-lg text-white">No approval requests found</h3>
-                <p className="text-xs text-slate-400 max-w-sm mx-auto">
+              <div className="p-16 text-center bg-surface rounded-none border border-border-subtle space-y-4">
+                <FileText className="h-12 w-12 mx-auto text-fg-muted" />
+                <h3 className="font-serif font-bold text-lg text-ink">
+                  No approval requests found
+                </h3>
+                <p className="text-xs text-fg-muted max-w-sm mx-auto font-mono">
                   {requestFilter === 'pending_approval'
                     ? 'Zero pending approval actions awaiting your review.'
                     : 'No requests match the selected view. Submit your first approval request.'}
                 </p>
                 <button
                   onClick={() => setShowCreateRequestModal(true)}
-                  className="px-4 py-2 bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-xs font-semibold rounded-xl hover:from-violet-500 hover:to-indigo-500 transition-all shadow-md shadow-violet-600/30"
+                  className="px-4 py-2 bg-accent hover:bg-accent/90 text-white text-xs font-mono font-semibold uppercase tracking-wider rounded-none transition-colors"
                 >
-                  Create Request
+                  + Create Request
                 </button>
               </div>
             ) : (
@@ -1631,49 +1697,46 @@ export default function FlowGateApp() {
                     <div
                       key={req.id}
                       onClick={() => setSelectedRequestId(req.id)}
-                      className="p-5 rounded-2xl glass-card-interactive border flex flex-col md:flex-row md:items-center justify-between gap-4 cursor-pointer group"
+                      className="p-5 rounded-none bg-surface hover:bg-canvas border border-border-subtle hover:border-accent/50 flex flex-col md:flex-row md:items-center justify-between gap-4 cursor-pointer group transition-colors"
                     >
                       {/* Left: Metadata, Title, Requester */}
                       <div className="space-y-2 flex-1 min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <span
-                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
-                              statusColors[req.status] || 'bg-slate-800 text-slate-300'
+                            className={`px-2 py-0.5 rounded-none text-[10px] font-mono font-bold uppercase tracking-wider border ${
+                              statusColors[req.status] || 'bg-surface text-ink border-border-subtle'
                             }`}
                           >
-                            {req.status.replace('_', ' ')}
+                            [ {req.status.replace('_', ' ')} ]
                           </span>
-                          <span className="text-xs text-aurora-cyan font-semibold flex items-center space-x-1">
+                          <span className="text-xs text-accent font-mono font-semibold flex items-center space-x-1">
                             <GitBranch className="h-3 w-3" />
                             <span>{req.workflowName}</span>
                           </span>
-                          <span className="text-slate-500">•</span>
-                          <span className="text-[11px] text-slate-400 font-mono">
+                          <span className="text-fg-subtle">•</span>
+                          <span className="text-[11px] text-fg-muted font-mono">
                             {req.currentStep
                               ? `Stage ${req.currentStep} of ${req.totalSteps}`
                               : `Completed (${req.totalSteps} steps)`}
                           </span>
                         </div>
 
-                        <h4 className="font-bold text-white text-base group-hover:text-aurora-cyan transition-colors">
+                        <h4 className="font-serif font-bold text-ink text-base group-hover:text-accent transition-colors">
                           {req.title}
                         </h4>
 
                         {req.description && (
-                          <p className="text-xs text-slate-300 line-clamp-1">{req.description}</p>
+                          <p className="text-xs text-fg-muted line-clamp-1">{req.description}</p>
                         )}
 
-                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-400 pt-0.5">
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-fg-muted pt-0.5 font-mono">
                           <span>
-                            Requester:{' '}
-                            <strong className="text-slate-200">{req.requesterName}</strong>
+                            Requester: <strong className="text-ink">{req.requesterName}</strong>
                           </span>
                           <span>•</span>
                           <span>Submitted: {new Date(req.createdAt).toLocaleDateString()}</span>
                           <span>•</span>
-                          <span className="font-mono text-slate-500">
-                            ID: {req.id.slice(0, 8)}...
-                          </span>
+                          <span className="text-fg-subtle">ID: {req.id.slice(0, 8)}...</span>
                         </div>
                       </div>
 
@@ -1689,7 +1752,7 @@ export default function FlowGateApp() {
                               onClick={() => handleAction('APPROVE', req.id)}
                               disabled={isExecutingAction}
                               title="1-Click Approve"
-                              className="px-2.5 py-1.5 rounded-lg bg-emerald-950/70 hover:bg-emerald-900/90 text-emerald-300 border border-emerald-800 text-xs font-semibold flex items-center space-x-1 transition-all"
+                              className="px-2.5 py-1.5 rounded-none bg-emerald-950/70 hover:bg-emerald-900/90 text-emerald-300 border border-emerald-800 text-xs font-mono font-semibold uppercase flex items-center space-x-1 transition-all"
                             >
                               <ThumbsUp className="h-3 w-3" />
                               <span className="hidden sm:inline">Approve</span>
@@ -1698,7 +1761,7 @@ export default function FlowGateApp() {
                               onClick={() => handleAction('REJECT', req.id)}
                               disabled={isExecutingAction}
                               title="1-Click Reject"
-                              className="px-2.5 py-1.5 rounded-lg bg-rose-950/70 hover:bg-rose-900/90 text-rose-300 border border-rose-800 text-xs font-semibold flex items-center space-x-1 transition-all"
+                              className="px-2.5 py-1.5 rounded-none bg-rose-950/70 hover:bg-rose-900/90 text-rose-300 border border-rose-800 text-xs font-mono font-semibold uppercase flex items-center space-x-1 transition-all"
                             >
                               <ThumbsDown className="h-3 w-3" />
                               <span className="hidden sm:inline">Reject</span>
@@ -1709,18 +1772,18 @@ export default function FlowGateApp() {
                         <a
                           href={`/requests/${req.id}`}
                           onClick={(e) => e.stopPropagation()}
-                          className="px-3.5 py-1.5 rounded-xl bg-violet-600/20 hover:bg-violet-600/30 text-violet-300 border border-violet-700/60 text-xs font-semibold flex items-center space-x-1.5 transition-colors shadow-sm"
+                          className="px-3.5 py-1.5 rounded-none bg-surface hover:bg-canvas text-accent border border-accent/40 hover:border-accent text-xs font-mono font-semibold uppercase tracking-wider flex items-center space-x-1.5 transition-colors"
                         >
-                          <Activity className="h-3.5 w-3.5 text-aurora-cyan" />
+                          <Activity className="h-3.5 w-3.5 text-accent" />
                           <span>Live DAG</span>
                         </a>
 
                         <button
                           onClick={() => setSelectedRequestId(req.id)}
-                          className="px-3 py-1.5 rounded-xl glass-card hover:bg-white/[0.08] text-slate-200 text-xs font-medium flex items-center space-x-1 transition-colors"
+                          className="px-3 py-1.5 rounded-none bg-surface hover:bg-canvas text-ink border border-border-subtle text-xs font-mono font-medium uppercase tracking-wider flex items-center space-x-1 transition-colors"
                         >
                           <span>Review</span>
-                          <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
+                          <ChevronRight className="h-3.5 w-3.5 text-fg-muted" />
                         </button>
                       </div>
                     </div>
@@ -1742,7 +1805,7 @@ export default function FlowGateApp() {
               return (
                 <div
                   key={wf.id}
-                  className="p-5 rounded-2xl glass-card border border-white/[0.08] space-y-4 flex flex-col justify-between"
+                  className="p-5 rounded-none bg-surface border border-border-subtle space-y-4 flex flex-col justify-between"
                 >
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
@@ -1820,15 +1883,15 @@ export default function FlowGateApp() {
         {/* =================================================================== */}
         {activeTab === 'delegations' && (
           <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-5 rounded-2xl glass-panel border border-white/[0.08]">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-5 rounded-none bg-surface border border-border-subtle">
               <div className="space-y-1">
                 <div className="flex items-center space-x-2">
-                  <UserCheck className="h-5 w-5 text-aurora-cyan" />
-                  <h3 className="font-bold text-white text-base">
+                  <UserCheck className="h-5 w-5 text-accent" />
+                  <h3 className="font-serif font-bold text-ink text-base">
                     Out-of-Office Approver Delegations
                   </h3>
                 </div>
-                <p className="text-xs text-slate-400 max-w-2xl">
+                <p className="text-xs text-fg-muted max-w-2xl font-mono">
                   Temporarily assign your review and sign-off authority to an eligible colleague
                   when traveling or on leave. All delegated votes are cryptographically attested and
                   chained in the immutable audit log.
@@ -1836,24 +1899,24 @@ export default function FlowGateApp() {
               </div>
               <button
                 onClick={openCreateDelegation}
-                className="px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-semibold flex items-center space-x-1.5 shadow-md shadow-cyan-600/30 transition-all self-start sm:self-center"
+                className="px-4 py-2 rounded-none bg-accent hover:bg-accent/90 text-white text-xs font-mono font-semibold uppercase tracking-wider flex items-center space-x-1.5 transition-colors self-start sm:self-center"
               >
                 <Plus className="h-4 w-4" />
-                <span>New Delegation</span>
+                <span>+ New Delegation</span>
               </button>
             </div>
 
             {delegations.length === 0 ? (
-              <div className="p-16 text-center glass-panel rounded-3xl border border-white/[0.08] space-y-3">
-                <UserCheck className="h-10 w-10 mx-auto text-slate-600" />
-                <h3 className="font-bold text-slate-200">No delegations configured</h3>
-                <p className="text-xs text-slate-400 max-w-sm mx-auto">
+              <div className="p-16 text-center bg-surface rounded-none border border-border-subtle space-y-3 font-mono">
+                <UserCheck className="h-10 w-10 mx-auto text-fg-muted" />
+                <h3 className="font-serif font-bold text-ink">No delegations configured</h3>
+                <p className="text-xs text-fg-muted max-w-sm mx-auto">
                   There are no active or historical out-of-office delegations configured in your
                   tenant.
                 </p>
                 <button
                   onClick={openCreateDelegation}
-                  className="px-4 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 text-white text-xs font-semibold rounded-xl hover:from-cyan-500 hover:to-blue-500 transition-all shadow-md shadow-cyan-600/30"
+                  className="px-4 py-2 bg-accent hover:bg-accent/90 text-white text-xs font-mono font-semibold uppercase tracking-wider rounded-none transition-colors"
                 >
                   Create Out-of-Office Delegation
                 </button>
@@ -1871,10 +1934,10 @@ export default function FlowGateApp() {
                   const statusBadgeClass = isCurrentActive
                     ? 'bg-emerald-950/80 text-emerald-300 border-emerald-800'
                     : isPendingStart
-                      ? 'bg-blue-950/80 text-blue-300 border-blue-800'
+                      ? 'bg-canvas text-ink border-border-subtle'
                       : isRevoked
                         ? 'bg-rose-950/80 text-rose-300 border-rose-800'
-                        : 'bg-slate-800 text-slate-400 border-slate-700';
+                        : 'bg-surface text-fg-muted border-border-subtle';
 
                   const statusLabel = isCurrentActive
                     ? 'ACTIVE NOW'
@@ -1889,20 +1952,20 @@ export default function FlowGateApp() {
                   return (
                     <div
                       key={del.id}
-                      className="p-5 rounded-2xl glass-card border border-white/[0.08] space-y-4 shadow-sm"
+                      className="p-5 rounded-none bg-surface border border-border-subtle space-y-4"
                     >
-                      <div className="flex items-start justify-between">
+                      <div className="flex items-start justify-between font-mono">
                         <span
-                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${statusBadgeClass}`}
+                          className={`px-2.5 py-0.5 rounded-none text-[10px] font-bold uppercase tracking-wider border ${statusBadgeClass}`}
                         >
-                          {statusLabel}
+                          [ {statusLabel} ]
                         </span>
 
                         {del.status === 'ACTIVE' && (
                           <button
                             onClick={() => handleRevokeDelegation(del.id)}
                             disabled={isRevoking}
-                            className="px-2.5 py-1 rounded-lg bg-rose-950/60 hover:bg-rose-900/60 text-rose-300 border border-rose-800/80 text-xs font-medium transition-colors flex items-center space-x-1"
+                            className="px-2.5 py-1 rounded-none bg-canvas hover:bg-surface text-rose-400 border border-border-subtle text-xs font-mono font-medium uppercase tracking-wider transition-colors flex items-center space-x-1"
                           >
                             <X className={`h-3 w-3 ${isRevoking ? 'animate-spin' : ''}`} />
                             <span>{isRevoking ? 'Revoking...' : 'Revoke Early'}</span>
@@ -1973,13 +2036,15 @@ export default function FlowGateApp() {
         {/* =================================================================== */}
         {activeTab === 'webhooks' && (
           <div className="space-y-6">
-            <div className="p-5 rounded-2xl glass-panel border border-white/[0.08] flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="p-5 rounded-none bg-surface border border-border-subtle flex flex-col md:flex-row md:items-center justify-between gap-4 font-mono">
               <div className="space-y-1">
                 <div className="flex items-center space-x-2">
-                  <Zap className="h-5 w-5 text-aurora-cyan" />
-                  <h3 className="font-bold text-white text-base">SSRF-Guarded Outbound Webhooks</h3>
+                  <Zap className="h-5 w-5 text-accent" />
+                  <h3 className="font-serif font-bold text-ink text-base">
+                    SSRF-Guarded Outbound Webhooks
+                  </h3>
                 </div>
-                <p className="text-xs text-slate-400 max-w-2xl">
+                <p className="text-xs text-fg-muted max-w-2xl font-mono">
                   Dispatches HMAC-SHA256 signed event payloads on workflow lifecycle state
                   transitions. Outbound HTTP requests undergo pre-flight DNS socket verification to
                   block private networks (RFC 1918) and cloud metadata targets.
@@ -1987,18 +2052,18 @@ export default function FlowGateApp() {
               </div>
               <button
                 onClick={() => setShowCreateWebhookModal(true)}
-                className="px-4 py-2 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white text-xs font-semibold flex items-center space-x-1.5 shadow-md shadow-violet-600/30 transition-all self-start md:self-center"
+                className="px-4 py-2 rounded-none bg-accent hover:bg-accent/90 text-white text-xs font-mono font-semibold uppercase tracking-wider flex items-center space-x-1.5 transition-colors self-start md:self-center"
               >
                 <Plus className="h-4 w-4" />
-                <span>New Webhook</span>
+                <span>+ Register Webhook</span>
               </button>
             </div>
 
             {webhooks.length === 0 ? (
-              <div className="p-16 text-center glass-panel rounded-3xl border border-white/[0.08] space-y-3">
-                <Zap className="h-10 w-10 mx-auto text-slate-600" />
-                <h3 className="font-bold text-slate-200">No Webhook Subscriptions</h3>
-                <p className="text-xs text-slate-400 max-w-sm mx-auto">
+              <div className="p-16 text-center bg-surface rounded-none border border-border-subtle space-y-3">
+                <Zap className="h-10 w-10 mx-auto text-fg-muted" />
+                <h3 className="font-serif font-bold text-ink">No Webhook Subscriptions</h3>
+                <p className="text-xs text-fg-muted max-w-sm mx-auto font-mono">
                   Subscribe third-party services, Slack bots, or internal APIs to approval events.
                 </p>
               </div>
@@ -2007,34 +2072,34 @@ export default function FlowGateApp() {
                 {webhooks.map((sub) => (
                   <div
                     key={sub.id}
-                    className="p-5 rounded-2xl glass-card border border-white/[0.08] space-y-3"
+                    className="p-5 rounded-none bg-surface border border-border-subtle space-y-3"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="font-bold text-white text-sm">{sub.name}</span>
+                      <span className="font-mono font-bold text-ink text-sm">{sub.name}</span>
                       <div className="flex items-center space-x-1">
                         <button
                           onClick={() => handleTestPing(sub.id, sub.name)}
                           disabled={testingWebhookId === sub.id}
-                          className="px-2.5 py-1 rounded-lg glass-card hover:bg-white/[0.08] text-xs text-aurora-cyan font-mono transition-colors"
+                          className="px-2.5 py-1 rounded-none bg-canvas hover:bg-surface border border-border-subtle text-xs text-accent font-mono transition-colors"
                         >
                           Ping
                         </button>
                         <button
                           onClick={() => handleDeleteWebhook(sub.id, sub.name)}
-                          className="p-1.5 rounded-lg glass-card hover:bg-rose-950/60 hover:text-rose-400 text-slate-400 transition-colors"
+                          className="p-1.5 rounded-none hover:bg-rose-950/60 hover:text-rose-400 text-fg-muted transition-colors"
                         >
                           <X className="h-3.5 w-3.5" />
                         </button>
                       </div>
                     </div>
-                    <div className="p-2 rounded-lg bg-obsidian-950 border border-white/[0.06] font-mono text-xs text-slate-300 truncate">
+                    <div className="p-2 rounded-none bg-canvas border border-border-subtle font-mono text-xs text-ink truncate">
                       {sub.url}
                     </div>
                     <div className="flex flex-wrap gap-1">
                       {sub.eventTypes.map((ev) => (
                         <span
                           key={ev}
-                          className="px-2 py-0.5 rounded text-[10px] font-mono bg-violet-950/60 text-violet-300 border border-violet-800"
+                          className="px-2 py-0.5 rounded-none text-[10px] font-mono bg-canvas text-ink border border-border-subtle uppercase"
                         >
                           {ev}
                         </span>
@@ -2053,37 +2118,39 @@ export default function FlowGateApp() {
       {/* =================================================================== */}
       {selectedRequestId && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="glass-panel border border-white/[0.1] rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl p-6 space-y-6">
+          <div className="bg-surface border border-border-subtle rounded-none w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl p-6 space-y-6">
             {!selectedRequestDetail ? (
-              <div className="py-12 text-center text-slate-400 space-y-2">
-                <RefreshCw className="h-6 w-6 animate-spin mx-auto text-aurora-cyan" />
-                <p className="text-xs font-mono">Loading request details...</p>
+              <div className="py-12 text-center text-fg-muted space-y-2 font-mono">
+                <RefreshCw className="h-6 w-6 animate-spin mx-auto text-accent" />
+                <p className="text-xs">[ LOADING REQUEST TELEMETRY... ]</p>
               </div>
             ) : (
               <>
-                <div className="flex items-start justify-between border-b border-white/[0.08] pb-4">
+                <div className="flex items-start justify-between border-b border-border-subtle pb-4">
                   <div className="space-y-1">
                     <div className="flex items-center space-x-2">
-                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-violet-950 text-violet-300 border border-violet-800">
-                        {selectedRequestDetail.workflowName}
+                      <span className="px-2 py-0.5 rounded-none text-[10px] font-mono font-bold uppercase tracking-wider bg-canvas text-accent border border-accent/40">
+                        [ {selectedRequestDetail.workflowName} ]
                       </span>
-                      <span className="text-xs text-slate-400 font-mono">
+                      <span className="text-xs text-fg-muted font-mono">
                         {new Date(selectedRequestDetail.createdAt).toLocaleString()}
                       </span>
                     </div>
-                    <h3 className="text-lg font-bold text-white">{selectedRequestDetail.title}</h3>
+                    <h3 className="text-lg font-serif font-bold text-ink">
+                      {selectedRequestDetail.title}
+                    </h3>
                   </div>
                   <div className="flex items-center space-x-2">
                     <a
                       href={`/requests/${selectedRequestDetail.id}`}
-                      className="px-3 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold flex items-center space-x-1.5 transition-colors shadow-md shadow-violet-600/30"
+                      className="px-3 py-1.5 rounded-none bg-accent hover:bg-accent/90 text-white text-xs font-mono font-semibold uppercase tracking-wider flex items-center space-x-1.5 transition-colors"
                     >
                       <Activity className="h-3.5 w-3.5" />
                       <span>Full Live DAG</span>
                     </a>
                     <button
                       onClick={() => setSelectedRequestId(null)}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/[0.08]"
+                      className="p-1.5 rounded-none text-fg-muted hover:text-ink hover:bg-canvas"
                     >
                       <X className="h-5 w-5" />
                     </button>
@@ -2141,22 +2208,22 @@ export default function FlowGateApp() {
                     {selectedRequestDetail.steps.map((step) => (
                       <div
                         key={step.id}
-                        className="p-3 rounded-xl bg-obsidian-950 border border-white/[0.08] flex items-center justify-between text-xs"
+                        className="p-3 rounded-none bg-canvas border border-border-subtle flex items-center justify-between text-xs font-mono"
                       >
                         <div className="flex items-center space-x-3">
-                          <span className="h-6 w-6 rounded-full bg-violet-950 text-violet-300 border border-violet-800 flex items-center justify-center font-bold text-[11px]">
+                          <span className="h-6 w-6 rounded-none bg-surface text-ink border border-border-subtle flex items-center justify-center font-bold text-[11px]">
                             {step.stepOrder}
                           </span>
                           <div>
-                            <span className="font-semibold text-white block">{step.stepName}</span>
-                            <span className="text-[11px] text-slate-400">
+                            <span className="font-semibold text-ink block">{step.stepName}</span>
+                            <span className="text-[11px] text-fg-muted">
                               Assigned:{' '}
                               {step.assignedRole || step.assignedTo?.name || 'Authorized Approver'}
                             </span>
                           </div>
                         </div>
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-white/[0.06] border border-white/[0.1] text-slate-300">
-                          {step.status}
+                        <span className="px-2 py-0.5 rounded-none text-[10px] font-mono font-bold bg-surface border border-border-subtle text-ink uppercase">
+                          [ {step.status} ]
                         </span>
                       </div>
                     ))}
@@ -2166,35 +2233,35 @@ export default function FlowGateApp() {
                 {/* Approver Action Panel */}
                 {(selectedRequestDetail.status === 'IN_PROGRESS' ||
                   selectedRequestDetail.status === 'PENDING') && (
-                  <div className="p-4 rounded-2xl bg-obsidian-950 border border-white/[0.08] space-y-3">
-                    <label className="block text-xs font-semibold text-slate-300">
-                      Sign-off Decision & Review Comments
+                  <div className="p-4 rounded-none bg-canvas border border-border-subtle space-y-3 font-mono">
+                    <label className="block text-xs font-semibold text-ink uppercase tracking-wider">
+                      [ SIGN-OFF DECISION & REVIEW COMMENTS ]
                     </label>
                     <textarea
                       value={actionComments}
                       onChange={(e) => setActionComments(e.target.value)}
                       placeholder="Add review feedback, compliance attestations, or rationale..."
-                      className="w-full bg-obsidian-900 border border-white/[0.1] rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-violet-500 h-20"
+                      className="w-full bg-surface border border-border-subtle rounded-none p-2.5 text-xs text-ink focus:outline-none focus:border-accent h-20 placeholder:text-fg-subtle"
                     />
                     <div className="flex items-center justify-end space-x-2 pt-1">
                       <button
                         onClick={() => handleAction('REQUEST_CHANGES')}
                         disabled={isExecutingAction}
-                        className="px-3.5 py-2 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-700/60 rounded-xl text-xs font-semibold transition-colors"
+                        className="px-3.5 py-2 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-700/60 rounded-none text-xs font-semibold uppercase tracking-wider transition-colors"
                       >
                         Request Changes
                       </button>
                       <button
                         onClick={() => handleAction('REJECT')}
                         disabled={isExecutingAction}
-                        className="px-3.5 py-2 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-700/60 rounded-xl text-xs font-semibold transition-colors"
+                        className="px-3.5 py-2 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-700/60 rounded-none text-xs font-semibold uppercase tracking-wider transition-colors"
                       >
                         Reject
                       </button>
                       <button
                         onClick={() => handleAction('APPROVE')}
                         disabled={isExecutingAction}
-                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold shadow-md shadow-emerald-600/30 transition-all flex items-center space-x-1"
+                        className="px-4 py-2 bg-accent hover:bg-accent/90 text-white rounded-none text-xs font-semibold uppercase tracking-wider transition-all flex items-center space-x-1"
                       >
                         <Check className="h-3.5 w-3.5" />
                         <span>Authorize Approval</span>
@@ -2213,12 +2280,12 @@ export default function FlowGateApp() {
       {/* =================================================================== */}
       {showCreateRequestModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="glass-panel border border-white/[0.1] rounded-3xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl p-6 space-y-5">
-            <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
-              <h3 className="font-bold text-base text-white">Create Approval Request</h3>
+          <div className="bg-surface border border-border-subtle rounded-none w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl p-6 space-y-5">
+            <div className="flex items-center justify-between border-b border-border-subtle pb-3">
+              <h3 className="font-serif font-bold text-base text-ink">Create Approval Request</h3>
               <button
                 onClick={() => setShowCreateRequestModal(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white"
+                className="p-1 rounded-none text-fg-muted hover:text-ink"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -2226,13 +2293,13 @@ export default function FlowGateApp() {
 
             <form onSubmit={handleCreateRequest} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                <label className="block text-xs font-mono font-semibold text-ink uppercase tracking-wider mb-1">
                   Workflow Definition
                 </label>
                 <select
                   value={newRequestWorkflowId}
                   onChange={(e) => setNewRequestWorkflowId(e.target.value)}
-                  className="w-full bg-obsidian-900 border border-white/[0.1] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-violet-500"
+                  className="w-full bg-canvas border border-border-subtle rounded-none px-3 py-2 text-xs text-ink focus:outline-none focus:border-accent font-mono"
                 >
                   {workflows
                     .filter((w) => w.status === 'ACTIVE')
@@ -2245,7 +2312,7 @@ export default function FlowGateApp() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                <label className="block text-xs font-mono font-semibold text-ink uppercase tracking-wider mb-1">
                   Request Title
                 </label>
                 <input
@@ -2254,32 +2321,32 @@ export default function FlowGateApp() {
                   onChange={(e) => setNewRequestTitle(e.target.value)}
                   required
                   placeholder="e.g. Purchase 4x H100 GPUs for AI cluster"
-                  className="w-full bg-obsidian-900 border border-white/[0.1] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-violet-500 font-medium"
+                  className="w-full bg-canvas border border-border-subtle rounded-none px-3 py-2 text-xs text-ink focus:outline-none focus:border-accent font-sans"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                <label className="block text-xs font-mono font-semibold text-ink uppercase tracking-wider mb-1">
                   Description / Justification
                 </label>
                 <textarea
                   value={newRequestDesc}
                   onChange={(e) => setNewRequestDesc(e.target.value)}
                   placeholder="Detailed business context and ROI..."
-                  className="w-full bg-obsidian-900 border border-white/[0.1] rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-violet-500 h-20"
+                  className="w-full bg-canvas border border-border-subtle rounded-none p-2.5 text-xs text-ink focus:outline-none focus:border-accent h-20"
                 />
               </div>
 
               {/* Dynamic DAG Input Schema Parameters */}
               {inputSchema?.fields && inputSchema.fields.length > 0 && (
-                <div className="p-4 rounded-2xl bg-obsidian-950 border border-white/[0.08] space-y-3">
+                <div className="p-4 rounded-none bg-canvas border border-border-subtle space-y-3 font-mono">
                   <div className="flex items-center space-x-2">
-                    <GitBranch className="h-4 w-4 text-aurora-cyan" />
-                    <span className="text-xs font-bold text-white uppercase tracking-wider">
+                    <GitBranch className="h-4 w-4 text-accent" />
+                    <span className="text-xs font-bold text-ink uppercase tracking-wider">
                       Workflow Input Parameters
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-400">
+                  <p className="text-[11px] text-fg-muted">
                     This workflow evaluates runtime condition expressions. Values provided below
                     drive DAG branch selection.
                   </p>
@@ -2287,11 +2354,11 @@ export default function FlowGateApp() {
                     {inputSchema.fields.map((field) => (
                       <div key={field.name}>
                         <div className="flex items-center justify-between mb-1">
-                          <label className="text-xs font-medium text-slate-300">
+                          <label className="text-xs font-medium text-ink">
                             {field.label}{' '}
                             {field.required && <span className="text-rose-400">*</span>}
                           </label>
-                          <span className="text-[10px] text-slate-400 font-mono">
+                          <span className="text-[10px] text-fg-muted font-mono">
                             {field.name} ({field.type})
                           </span>
                         </div>
@@ -2309,7 +2376,7 @@ export default function FlowGateApp() {
                               }))
                             }
                             required={field.required}
-                            className="w-full bg-obsidian-900 border border-white/[0.1] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-violet-500 font-mono"
+                            className="w-full bg-surface border border-border-subtle rounded-none px-3 py-2 text-xs text-ink focus:outline-none focus:border-accent font-mono"
                           />
                         ) : field.type === 'STRING' &&
                           field.allowedValues &&
@@ -2322,7 +2389,7 @@ export default function FlowGateApp() {
                                 [field.name]: e.target.value,
                               }))
                             }
-                            className="w-full bg-obsidian-900 border border-white/[0.1] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-violet-500"
+                            className="w-full bg-surface border border-border-subtle rounded-none px-3 py-2 text-xs text-ink focus:outline-none focus:border-accent font-mono"
                           >
                             {field.allowedValues.map((opt) => (
                               <option key={opt} value={opt}>
@@ -2331,7 +2398,7 @@ export default function FlowGateApp() {
                             ))}
                           </select>
                         ) : field.type === 'BOOLEAN' ? (
-                          <label className="flex items-center space-x-2 cursor-pointer mt-1 bg-obsidian-900 border border-white/[0.08] p-2.5 rounded-xl">
+                          <label className="flex items-center space-x-2 cursor-pointer mt-1 bg-surface border border-border-subtle p-2.5 rounded-none font-mono">
                             <input
                               type="checkbox"
                               checked={!!newRequestData[field.name]}
@@ -2341,9 +2408,9 @@ export default function FlowGateApp() {
                                   [field.name]: e.target.checked,
                                 }))
                               }
-                              className="rounded bg-obsidian-950 border-white/[0.2] text-violet-600 focus:ring-0"
+                              className="rounded-none bg-canvas border-border-subtle text-accent focus:ring-0"
                             />
-                            <span className="text-xs text-slate-300">
+                            <span className="text-xs text-ink">
                               {newRequestData[field.name] ? 'Enabled / Yes' : 'Disabled / No'}
                             </span>
                           </label>
@@ -2358,7 +2425,7 @@ export default function FlowGateApp() {
                               }))
                             }
                             required={field.required}
-                            className="w-full bg-obsidian-900 border border-white/[0.1] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-violet-500"
+                            className="w-full bg-surface border border-border-subtle rounded-none px-3 py-2 text-xs text-ink focus:outline-none focus:border-accent font-mono"
                           />
                         )}
                       </div>
@@ -2367,17 +2434,17 @@ export default function FlowGateApp() {
                 </div>
               )}
 
-              <div className="flex items-center justify-end space-x-2 pt-2">
+              <div className="flex items-center justify-end space-x-2 pt-2 font-mono">
                 <button
                   type="button"
                   onClick={() => setShowCreateRequestModal(false)}
-                  className="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white"
+                  className="px-3.5 py-2 rounded-none text-xs font-semibold uppercase tracking-wider text-fg-muted hover:text-ink"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-xl text-xs font-semibold shadow-md shadow-violet-600/30 hover:from-violet-500 hover:to-indigo-500 transition-all"
+                  className="px-4 py-2 bg-accent hover:bg-accent/90 text-white rounded-none text-xs font-semibold uppercase tracking-wider transition-colors"
                 >
                   Submit for Approval
                 </button>
@@ -2392,15 +2459,17 @@ export default function FlowGateApp() {
       {/* =================================================================== */}
       {showCreateDelegationModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="glass-panel border border-white/[0.1] rounded-3xl w-full max-w-md shadow-2xl p-6 space-y-5">
-            <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
+          <div className="bg-surface border border-border-subtle rounded-none w-full max-w-md shadow-2xl p-6 space-y-5 font-mono">
+            <div className="flex items-center justify-between border-b border-border-subtle pb-3">
               <div className="flex items-center space-x-2">
-                <UserCheck className="h-5 w-5 text-aurora-cyan" />
-                <h3 className="font-bold text-base text-white">New Out-of-Office Delegation</h3>
+                <UserCheck className="h-5 w-5 text-accent" />
+                <h3 className="font-serif font-bold text-base text-ink">
+                  New Out-of-Office Delegation
+                </h3>
               </div>
               <button
                 onClick={() => setShowCreateDelegationModal(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white"
+                className="p-1 rounded-none text-fg-muted hover:text-ink"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -2408,14 +2477,14 @@ export default function FlowGateApp() {
 
             <form onSubmit={handleCreateDelegation} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                <label className="block text-xs font-mono font-semibold text-ink uppercase tracking-wider mb-1">
                   Designated Colleague (Delegatee) *
                 </label>
                 <select
                   value={newDelegateeId}
                   onChange={(e) => setNewDelegateeId(e.target.value)}
                   required
-                  className="w-full bg-obsidian-900 border border-white/[0.1] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+                  className="w-full bg-canvas border border-border-subtle rounded-none px-3 py-2 text-xs text-ink focus:outline-none focus:border-accent font-mono"
                 >
                   {colleagues.map((c) => (
                     <option key={c.id} value={c.id}>
@@ -2426,13 +2495,13 @@ export default function FlowGateApp() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                <label className="block text-xs font-mono font-semibold text-ink uppercase tracking-wider mb-1">
                   Workflow Scope
                 </label>
                 <select
                   value={newDelegationWorkflowId}
                   onChange={(e) => setNewDelegationWorkflowId(e.target.value)}
-                  className="w-full bg-obsidian-900 border border-white/[0.1] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+                  className="w-full bg-canvas border border-border-subtle rounded-none px-3 py-2 text-xs text-ink focus:outline-none focus:border-accent font-mono"
                 >
                   <option value="">All Organization Workflows (Universal)</option>
                   {workflows
@@ -2447,7 +2516,7 @@ export default function FlowGateApp() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  <label className="block text-xs font-mono font-semibold text-ink uppercase tracking-wider mb-1">
                     Start Date & Time *
                   </label>
                   <input
@@ -2455,11 +2524,11 @@ export default function FlowGateApp() {
                     value={newDelegationStartDate}
                     onChange={(e) => setNewDelegationStartDate(e.target.value)}
                     required
-                    className="w-full bg-obsidian-900 border border-white/[0.1] rounded-xl px-2.5 py-2 text-xs text-white focus:outline-none focus:border-cyan-500 font-mono"
+                    className="w-full bg-canvas border border-border-subtle rounded-none px-2.5 py-2 text-xs text-ink focus:outline-none focus:border-accent font-mono"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  <label className="block text-xs font-mono font-semibold text-ink uppercase tracking-wider mb-1">
                     End Date & Time *
                   </label>
                   <input
@@ -2467,35 +2536,35 @@ export default function FlowGateApp() {
                     value={newDelegationEndDate}
                     onChange={(e) => setNewDelegationEndDate(e.target.value)}
                     required
-                    className="w-full bg-obsidian-900 border border-white/[0.1] rounded-xl px-2.5 py-2 text-xs text-white focus:outline-none focus:border-cyan-500 font-mono"
+                    className="w-full bg-canvas border border-border-subtle rounded-none px-2.5 py-2 text-xs text-ink focus:outline-none focus:border-accent font-mono"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                <label className="block text-xs font-mono font-semibold text-ink uppercase tracking-wider mb-1">
                   Reason / Context
                 </label>
                 <textarea
                   value={newDelegationReason}
                   onChange={(e) => setNewDelegationReason(e.target.value)}
-                  placeholder="e.g. Attending AWS re:Invent conference, PTO..."
-                  className="w-full bg-obsidian-900 border border-white/[0.1] rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-cyan-500 h-20"
+                  placeholder="e.g. Attending conference, PTO..."
+                  className="w-full bg-canvas border border-border-subtle rounded-none p-2.5 text-xs text-ink focus:outline-none focus:border-accent h-20"
                 />
               </div>
 
-              <div className="flex items-center justify-end space-x-2 pt-2">
+              <div className="flex items-center justify-end space-x-2 pt-2 font-mono">
                 <button
                   type="button"
                   onClick={() => setShowCreateDelegationModal(false)}
-                  className="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white"
+                  className="px-3.5 py-2 rounded-none text-xs font-semibold uppercase tracking-wider text-fg-muted hover:text-ink"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmittingDelegation}
-                  className="px-4 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-xl text-xs font-semibold shadow-md shadow-cyan-600/30 transition-all disabled:opacity-50"
+                  className="px-4 py-2 bg-accent hover:bg-accent/90 text-white rounded-none text-xs font-semibold uppercase tracking-wider transition-colors disabled:opacity-50"
                 >
                   {isSubmittingDelegation ? 'Saving...' : 'Authorize Delegation'}
                 </button>
@@ -2510,12 +2579,12 @@ export default function FlowGateApp() {
       {/* =================================================================== */}
       {showCreateWorkflowModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="glass-panel border border-white/[0.1] rounded-3xl w-full max-w-lg shadow-2xl p-6 space-y-5">
-            <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
-              <h3 className="font-bold text-base text-white">Create Quick Workflow</h3>
+          <div className="bg-surface border border-border-subtle rounded-none w-full max-w-lg shadow-2xl p-6 space-y-5">
+            <div className="flex items-center justify-between border-b border-border-subtle pb-3">
+              <h3 className="font-serif font-bold text-base text-ink">Create Quick Workflow</h3>
               <button
                 onClick={() => setShowCreateWorkflowModal(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white"
+                className="p-1 rounded-none text-fg-muted hover:text-ink"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -2523,7 +2592,7 @@ export default function FlowGateApp() {
 
             <form onSubmit={handleCreateWorkflow} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                <label className="block text-xs font-mono font-semibold text-ink uppercase tracking-wider mb-1">
                   Workflow Name
                 </label>
                 <input
@@ -2532,33 +2601,33 @@ export default function FlowGateApp() {
                   onChange={(e) => setNewWorkflowName(e.target.value)}
                   required
                   placeholder="e.g. Cloud Infrastructure Provisioning"
-                  className="w-full bg-obsidian-900 border border-white/[0.1] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-violet-500"
+                  className="w-full bg-canvas border border-border-subtle rounded-none px-3 py-2 text-xs text-ink focus:outline-none focus:border-accent font-sans"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                <label className="block text-xs font-mono font-semibold text-ink uppercase tracking-wider mb-1">
                   Description
                 </label>
                 <textarea
                   value={newWorkflowDesc}
                   onChange={(e) => setNewWorkflowDesc(e.target.value)}
                   placeholder="Purpose and SLA expectations..."
-                  className="w-full bg-obsidian-900 border border-white/[0.1] rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-violet-500 h-20"
+                  className="w-full bg-canvas border border-border-subtle rounded-none p-2.5 text-xs text-ink focus:outline-none focus:border-accent h-20"
                 />
               </div>
 
-              <div className="flex items-center justify-end space-x-2 pt-2">
+              <div className="flex items-center justify-end space-x-2 pt-2 font-mono">
                 <button
                   type="button"
                   onClick={() => setShowCreateWorkflowModal(false)}
-                  className="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white"
+                  className="px-3.5 py-2 rounded-none text-xs font-semibold uppercase tracking-wider text-fg-muted hover:text-ink"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white rounded-xl text-xs font-semibold shadow-md shadow-violet-600/30 transition-all"
+                  className="px-4 py-2 bg-accent hover:bg-accent/90 text-white rounded-none text-xs font-semibold uppercase tracking-wider transition-colors"
                 >
                   Create Workflow
                 </button>
@@ -2573,12 +2642,12 @@ export default function FlowGateApp() {
       {/* =================================================================== */}
       {showCreateWebhookModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="glass-panel border border-white/[0.1] rounded-3xl w-full max-w-md shadow-2xl p-6 space-y-5">
-            <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
-              <h3 className="font-bold text-base text-white">Register Webhook</h3>
+          <div className="bg-surface border border-border-subtle rounded-none w-full max-w-md shadow-2xl p-6 space-y-5">
+            <div className="flex items-center justify-between border-b border-border-subtle pb-3">
+              <h3 className="font-serif font-bold text-base text-ink">Register Webhook</h3>
               <button
                 onClick={() => setShowCreateWebhookModal(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white"
+                className="p-1 rounded-none text-fg-muted hover:text-ink"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -2586,19 +2655,21 @@ export default function FlowGateApp() {
 
             <form onSubmit={handleCreateWebhook} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Name</label>
+                <label className="block text-xs font-mono font-semibold text-ink uppercase tracking-wider mb-1">
+                  Name
+                </label>
                 <input
                   type="text"
                   value={newWebhookName}
                   onChange={(e) => setNewWebhookName(e.target.value)}
                   required
                   placeholder="e.g. Slack Approval Bot"
-                  className="w-full bg-obsidian-900 border border-white/[0.1] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-violet-500"
+                  className="w-full bg-canvas border border-border-subtle rounded-none px-3 py-2 text-xs text-ink focus:outline-none focus:border-accent font-sans"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                <label className="block text-xs font-mono font-semibold text-ink uppercase tracking-wider mb-1">
                   Target Endpoint URL
                 </label>
                 <input
@@ -2607,22 +2678,22 @@ export default function FlowGateApp() {
                   onChange={(e) => setNewWebhookUrl(e.target.value)}
                   required
                   placeholder="https://api.example.com/webhooks"
-                  className="w-full bg-obsidian-900 border border-white/[0.1] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-violet-500 font-mono"
+                  className="w-full bg-canvas border border-border-subtle rounded-none px-3 py-2 text-xs text-ink focus:outline-none focus:border-accent font-mono"
                 />
               </div>
 
-              <div className="flex items-center justify-end space-x-2 pt-2">
+              <div className="flex items-center justify-end space-x-2 pt-2 font-mono">
                 <button
                   type="button"
                   onClick={() => setShowCreateWebhookModal(false)}
-                  className="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white"
+                  className="px-3.5 py-2 rounded-none text-xs font-semibold uppercase tracking-wider text-fg-muted hover:text-ink"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmittingWebhook}
-                  className="px-4 py-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white rounded-xl text-xs font-semibold shadow-md shadow-violet-600/30 transition-all disabled:opacity-50"
+                  className="px-4 py-2 bg-accent hover:bg-accent/90 text-white rounded-none text-xs font-semibold uppercase tracking-wider transition-colors disabled:opacity-50"
                 >
                   {isSubmittingWebhook ? 'Saving...' : 'Register Webhook'}
                 </button>
@@ -2635,18 +2706,18 @@ export default function FlowGateApp() {
       {/* Secret Display Modal */}
       {createdWebhookSecret && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="glass-panel border border-white/[0.1] rounded-3xl w-full max-w-md shadow-2xl p-6 space-y-4">
-            <h3 className="font-bold text-base text-white">Webhook HMAC Secret</h3>
-            <p className="text-xs text-slate-400">
+          <div className="bg-surface border border-border-subtle rounded-none w-full max-w-md shadow-2xl p-6 space-y-4 font-mono">
+            <h3 className="font-serif font-bold text-base text-ink">Webhook HMAC Secret</h3>
+            <p className="text-xs text-fg-muted">
               Save this secret key. It will not be shown again.
             </p>
-            <div className="p-3 bg-obsidian-950 border border-white/[0.1] rounded-xl font-mono text-xs text-aurora-cyan break-all">
+            <div className="p-3 bg-canvas border border-border-subtle rounded-none font-mono text-xs text-accent break-all">
               {createdWebhookSecret.secret}
             </div>
             <div className="flex justify-end">
               <button
                 onClick={() => setCreatedWebhookSecret(null)}
-                className="px-4 py-2 bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-xl text-xs font-semibold"
+                className="px-4 py-2 bg-accent hover:bg-accent/90 text-white rounded-none text-xs font-semibold uppercase tracking-wider"
               >
                 Done
               </button>
@@ -2658,37 +2729,41 @@ export default function FlowGateApp() {
       {/* Notifications Drawer */}
       {showNotificationsDrawer && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex justify-end">
-          <div className="w-full max-w-md h-full glass-panel border-l border-white/[0.1] p-6 space-y-4 overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
-              <h3 className="font-bold text-base text-white">Outbound Notifications</h3>
+          <div className="w-full max-w-md h-full bg-surface border-l border-border-subtle p-6 space-y-4 overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-border-subtle pb-3">
+              <h3 className="font-serif font-bold text-base text-ink">Outbound Notifications</h3>
               <button
                 onClick={() => setShowNotificationsDrawer(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white"
+                className="p-1 rounded-none text-fg-muted hover:text-ink"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
             {notificationsLoading ? (
-              <div className="py-12 text-center text-slate-400">
-                <RefreshCw className="h-6 w-6 animate-spin mx-auto text-aurora-cyan" />
+              <div className="py-12 text-center text-fg-muted font-mono">
+                <RefreshCw className="h-6 w-6 animate-spin mx-auto text-accent" />
               </div>
             ) : notifications.length === 0 ? (
-              <p className="text-xs text-slate-400 text-center py-10">No recent notifications.</p>
+              <p className="text-xs text-fg-muted text-center py-10 font-mono">
+                No recent notifications.
+              </p>
             ) : (
               <div className="space-y-2">
                 {notifications.map((n) => (
                   <div
                     key={n.id}
-                    className="p-3 rounded-xl bg-obsidian-950 border border-white/[0.06] text-xs space-y-1"
+                    className="p-3 rounded-none bg-canvas border border-border-subtle text-xs space-y-1 font-mono"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="font-mono text-[10px] text-aurora-cyan">{n.eventType}</span>
-                      <span className="text-[10px] text-slate-500">
+                      <span className="text-[10px] text-accent uppercase font-bold">
+                        {n.eventType}
+                      </span>
+                      <span className="text-[10px] text-fg-subtle">
                         {new Date(n.createdAt).toLocaleTimeString()}
                       </span>
                     </div>
-                    <p className="text-slate-300 font-medium">{n.recipientEmail}</p>
-                    <p className="text-slate-400 text-[11px] truncate">{n.subject}</p>
+                    <p className="text-ink font-medium">{n.recipientEmail}</p>
+                    <p className="text-fg-muted text-[11px] truncate">{n.subject}</p>
                   </div>
                 ))}
               </div>
