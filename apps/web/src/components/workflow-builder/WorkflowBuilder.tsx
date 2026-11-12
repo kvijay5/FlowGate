@@ -31,6 +31,7 @@ import {
   AlertTriangle,
   RotateCcw,
   X,
+  Play,
 } from 'lucide-react';
 import {
   WorkflowNode,
@@ -38,12 +39,16 @@ import {
   WorkflowNodeType,
   WorkflowDefinitionSummary,
   InputSchemaField,
+  SimulationResult,
 } from '@flowgate/shared-types';
 import { nodeTypes } from './nodes';
 import { NodePropertiesPanel } from './NodePropertiesPanel';
 import { ValidationBanner } from './ValidationBanner';
 import { validateWorkflowGraph } from './graph-validator';
 import { DEFAULT_NODE_TEMPLATES, WorkflowBuilderNodeData } from './types';
+import { SimulatorPanel } from './SimulatorPanel';
+import { useTheme } from '../theme/ThemeProvider';
+import { useThemeColors } from '../../lib/useThemeColors';
 import { api, ApiError } from '../../lib/api';
 
 interface WorkflowBuilderProps {
@@ -53,6 +58,9 @@ interface WorkflowBuilderProps {
 }
 
 export function WorkflowBuilder({ initialWorkflow, onBack, onSaved }: WorkflowBuilderProps) {
+  const { resolvedTheme } = useTheme();
+  const themeColors = useThemeColors();
+
   const [workflowId, setWorkflowId] = useState<string | null>(initialWorkflow?.id || null);
   const [workflowName, setWorkflowName] = useState(
     initialWorkflow?.name || 'Untitled Approval Workflow',
@@ -60,6 +68,9 @@ export function WorkflowBuilder({ initialWorkflow, onBack, onSaved }: WorkflowBu
   const [workflowDesc, setWorkflowDesc] = useState(initialWorkflow?.description || '');
   const [workflowStatus, setWorkflowStatus] = useState(initialWorkflow?.status || 'DRAFT');
   const [workflowVersion, setWorkflowVersion] = useState(initialWorkflow?.version || 1);
+
+  const [isSimulatorOpen, setIsSimulatorOpen] = useState(false);
+  const [simulationResult, setSimulationResult] = useState<SimulationResult | null>(null);
 
   // Convert initialWorkflow configuration to ReactFlow nodes and edges
   const initialNodesAndEdges = useMemo(() => {
@@ -294,6 +305,52 @@ export function WorkflowBuilder({ initialWorkflow, onBack, onSaved }: WorkflowBu
     [nodes.length, setNodes],
   );
 
+  // Add node at dropped position
+  const handleAddNodeAtPosition = useCallback(
+    (type: WorkflowNodeType, position: { x: number; y: number }) => {
+      const template = DEFAULT_NODE_TEMPLATES[type] || {
+        name: type,
+        config: {},
+      };
+
+      const newId = `node_${Date.now().toString().slice(-6)}`;
+      const newNode: Node = {
+        id: newId,
+        type,
+        position,
+        data: {
+          label: template.name,
+          type,
+          config: JSON.parse(JSON.stringify(template.config)),
+        },
+      };
+
+      setNodes((nds) => [...nds, newNode]);
+      setSelectedNodeId(newId);
+    },
+    [setNodes],
+  );
+
+  // Dynamic styled nodes when simulation result is active
+  const displayedNodes = useMemo(() => {
+    if (!simulationResult) return nodes;
+    return nodes.map((n) => {
+      const isActivated = simulationResult.activatedNodeIds.includes(n.id);
+      const isPruned = simulationResult.prunedNodeIds.includes(n.id);
+      return {
+        ...n,
+        style: {
+          ...n.style,
+          opacity: isPruned ? 0.35 : 1,
+          boxShadow: isActivated
+            ? '0 0 0 3px #10b981, 0 8px 16px -4px rgba(16, 185, 129, 0.3)'
+            : undefined,
+          transition: 'all 0.3s ease',
+        },
+      };
+    });
+  }, [nodes, simulationResult]);
+
   // Auto-Layout
   const handleAutoLayout = useCallback(() => {
     // Layout nodes along topological order
@@ -473,10 +530,22 @@ export function WorkflowBuilder({ initialWorkflow, onBack, onSaved }: WorkflowBu
 
         {/* Action Buttons */}
         <div className="flex items-center space-x-3">
+          {workflowId && (
+            <button
+              type="button"
+              onClick={() => setIsSimulatorOpen(true)}
+              className="flex items-center space-x-1.5 rounded-lg border border-accent/30 bg-accent/10 px-3 py-1.5 text-xs font-semibold text-accent hover:bg-accent/20 transition-colors shadow-2xs"
+              title="Dry-run simulate workflow with input payload"
+            >
+              <Play className="h-3.5 w-3.5 fill-current" />
+              <span>Simulate</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={handleAutoLayout}
-            className="flex items-center space-x-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 hover:border-slate-300"
+            className="flex items-center space-x-1.5 rounded-lg border border-line bg-surface px-3 py-1.5 text-xs font-medium text-fg hover:bg-raised hover:border-line"
             title="Auto-arrange nodes hierarchically"
           >
             <LayoutGrid className="h-3.5 w-3.5" />
@@ -488,7 +557,7 @@ export function WorkflowBuilder({ initialWorkflow, onBack, onSaved }: WorkflowBu
               type="button"
               onClick={handleCloneVersion}
               disabled={isSaving}
-              className="flex items-center space-x-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 hover:border-slate-300"
+              className="flex items-center space-x-1.5 rounded-lg border border-line bg-surface px-3 py-1.5 text-xs font-medium text-fg hover:bg-raised hover:border-line"
               title="Create a new draft version from this active workflow"
             >
               <Copy className="h-3.5 w-3.5" />
@@ -500,7 +569,7 @@ export function WorkflowBuilder({ initialWorkflow, onBack, onSaved }: WorkflowBu
             type="button"
             onClick={handleSaveDraft}
             disabled={isSaving}
-            className="flex items-center space-x-1.5 rounded-lg border border-slate-300 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 hover:border-slate-400 disabled:opacity-50"
+            className="flex items-center space-x-1.5 rounded-lg border border-line bg-surface px-4 py-1.5 text-xs font-semibold text-fg shadow-2xs hover:bg-raised hover:border-fg-muted/40 disabled:opacity-50"
           >
             <Save className="h-4 w-4" />
             <span>{isSaving ? 'Saving...' : 'Save Draft'}</span>
@@ -510,7 +579,7 @@ export function WorkflowBuilder({ initialWorkflow, onBack, onSaved }: WorkflowBu
             type="button"
             onClick={handlePublish}
             disabled={isSaving || !validation.isValid}
-            className="flex items-center space-x-1.5 rounded-lg bg-emerald-600 px-4 py-1.5 text-xs font-semibold text-white shadow-xs transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+            className="flex items-center space-x-1.5 rounded-lg bg-emerald-600 px-4 py-1.5 text-xs font-semibold text-white shadow-xs transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300 dark:disabled:bg-slate-700"
           >
             <Send className="h-4 w-4" />
             <span>Publish Workflow</span>
@@ -547,66 +616,113 @@ export function WorkflowBuilder({ initialWorkflow, onBack, onSaved }: WorkflowBu
       )}
 
       {/* Canvas Area */}
-      <div className="relative flex flex-1 overflow-hidden">
+      <div className="relative flex flex-1 overflow-hidden bg-canvas">
         {/* Left Toolbar / Node Palette */}
-        <div className="absolute left-4 top-4 z-10 flex flex-col space-y-1.5 rounded-xl border border-slate-200 bg-white/95 p-2 shadow-lg backdrop-blur-xs">
-          <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-            Add Nodes
+        <div className="absolute left-4 top-4 z-10 flex flex-col space-y-1.5 rounded-xl border border-line bg-surface/95 p-2 shadow-lg backdrop-blur-md">
+          <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-fg-subtle">
+            Add Nodes (Drag & Drop)
           </div>
 
           <button
+            draggable
+            onDragStart={(e) => {
+              e.dataTransfer.setData('application/reactflow', 'TRIGGER');
+              e.dataTransfer.effectAllowed = 'move';
+            }}
             onClick={() => handleAddNode('TRIGGER')}
-            className="flex items-center space-x-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-emerald-50 hover:text-emerald-700"
+            className="flex items-center space-x-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-fg transition hover:bg-emerald-500/10 hover:text-emerald-600 cursor-grab active:cursor-grabbing"
           >
-            <Zap className="h-4 w-4 text-emerald-600" />
+            <Zap className="h-4 w-4 text-emerald-500" />
             <span>Trigger</span>
           </button>
 
           <button
+            draggable
+            onDragStart={(e) => {
+              e.dataTransfer.setData('application/reactflow', 'APPROVAL_STEP');
+              e.dataTransfer.effectAllowed = 'move';
+            }}
             onClick={() => handleAddNode('APPROVAL_STEP')}
-            className="flex items-center space-x-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-indigo-50 hover:text-indigo-700"
+            className="flex items-center space-x-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-fg transition hover:bg-indigo-500/10 hover:text-indigo-600 cursor-grab active:cursor-grabbing"
           >
-            <UserCheck className="h-4 w-4 text-indigo-600" />
+            <UserCheck className="h-4 w-4 text-indigo-500" />
             <span>Approval</span>
           </button>
 
           <button
+            draggable
+            onDragStart={(e) => {
+              e.dataTransfer.setData('application/reactflow', 'PARALLEL_APPROVAL');
+              e.dataTransfer.effectAllowed = 'move';
+            }}
             onClick={() => handleAddNode('PARALLEL_APPROVAL')}
-            className="flex items-center space-x-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-purple-50 hover:text-purple-700"
+            className="flex items-center space-x-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-fg transition hover:bg-purple-500/10 hover:text-purple-600 cursor-grab active:cursor-grabbing"
           >
-            <Users className="h-4 w-4 text-purple-600" />
+            <Users className="h-4 w-4 text-purple-500" />
             <span>Parallel Quorum</span>
           </button>
 
           <button
+            draggable
+            onDragStart={(e) => {
+              e.dataTransfer.setData('application/reactflow', 'CONDITION');
+              e.dataTransfer.effectAllowed = 'move';
+            }}
             onClick={() => handleAddNode('CONDITION')}
-            className="flex items-center space-x-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-amber-50 hover:text-amber-700"
+            className="flex items-center space-x-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-fg transition hover:bg-amber-500/10 hover:text-amber-600 cursor-grab active:cursor-grabbing"
           >
-            <GitBranch className="h-4 w-4 text-amber-600" />
+            <GitBranch className="h-4 w-4 text-amber-500" />
             <span>Condition</span>
           </button>
 
           <button
+            draggable
+            onDragStart={(e) => {
+              e.dataTransfer.setData('application/reactflow', 'JOIN');
+              e.dataTransfer.effectAllowed = 'move';
+            }}
             onClick={() => handleAddNode('JOIN')}
-            className="flex items-center space-x-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-cyan-50 hover:text-cyan-700"
+            className="flex items-center space-x-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-fg transition hover:bg-cyan-500/10 hover:text-cyan-600 cursor-grab active:cursor-grabbing"
           >
-            <GitMerge className="h-4 w-4 text-cyan-600" />
+            <GitMerge className="h-4 w-4 text-cyan-500" />
             <span>Join Gate</span>
           </button>
 
           <button
+            draggable
+            onDragStart={(e) => {
+              e.dataTransfer.setData('application/reactflow', 'END');
+              e.dataTransfer.effectAllowed = 'move';
+            }}
             onClick={() => handleAddNode('END')}
-            className="flex items-center space-x-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-rose-50 hover:text-rose-700"
+            className="flex items-center space-x-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-fg transition hover:bg-rose-500/10 hover:text-rose-600 cursor-grab active:cursor-grabbing"
           >
-            <Flag className="h-4 w-4 text-rose-600" />
+            <Flag className="h-4 w-4 text-rose-500" />
             <span>End Terminal</span>
           </button>
         </div>
 
         {/* ReactFlow Canvas */}
-        <div className="flex-1 h-full w-full">
+        <div
+          className="flex-1 h-full w-full"
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            const type = e.dataTransfer.getData('application/reactflow') as WorkflowNodeType;
+            if (!type) return;
+            const bounds = e.currentTarget.getBoundingClientRect();
+            const position = {
+              x: e.clientX - bounds.left - 80,
+              y: e.clientY - bounds.top - 40,
+            };
+            handleAddNodeAtPosition(type, position);
+          }}
+        >
           <ReactFlow
-            nodes={nodes}
+            nodes={displayedNodes}
             edges={edges}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
@@ -614,13 +730,14 @@ export function WorkflowBuilder({ initialWorkflow, onBack, onSaved }: WorkflowBu
             onNodeClick={onNodeClick}
             onPaneClick={onPaneClick}
             nodeTypes={nodeTypes}
+            colorMode={resolvedTheme}
             fitView
             snapToGrid
             snapGrid={[15, 15]}
           >
-            <Controls className="!border-slate-200 !bg-white !shadow-md" />
+            <Controls className="!border-line !bg-surface !shadow-md !text-fg" />
             <MiniMap
-              className="!border-slate-200 !bg-white/90 !shadow-md"
+              className="!border-line !bg-surface/90 !shadow-md"
               nodeColor={(n) => {
                 switch (n.type) {
                   case 'TRIGGER':
@@ -642,7 +759,12 @@ export function WorkflowBuilder({ initialWorkflow, onBack, onSaved }: WorkflowBu
                 }
               }}
             />
-            <Background variant={BackgroundVariant.Dots} gap={16} size={1} color="#cbd5e1" />
+            <Background
+              variant={BackgroundVariant.Dots}
+              gap={16}
+              size={1}
+              color={themeColors.gridDot}
+            />
           </ReactFlow>
         </div>
 
@@ -654,6 +776,20 @@ export function WorkflowBuilder({ initialWorkflow, onBack, onSaved }: WorkflowBu
             onUpdateNode={handleUpdateNode}
             onDeleteNode={handleDeleteNode}
             onClose={() => setSelectedNodeId(null)}
+          />
+        )}
+
+        {/* Simulator Drawer */}
+        {workflowId && (
+          <SimulatorPanel
+            open={isSimulatorOpen}
+            onClose={() => setIsSimulatorOpen(false)}
+            workflowId={workflowId}
+            workflowName={workflowName}
+            nodes={canonicalNodes}
+            edges={canonicalEdges}
+            inputSchema={triggerFields.length > 0 ? { fields: triggerFields } : undefined}
+            onSimulationResult={(res) => setSimulationResult(res)}
           />
         )}
       </div>

@@ -259,6 +259,13 @@ export class RequestsService {
       tenantId,
     };
 
+    if (query.search && query.search.trim()) {
+      where.title = {
+        contains: query.search.trim(),
+        mode: 'insensitive',
+      };
+    }
+
     if (query.status) {
       where.status = query.status as any;
     }

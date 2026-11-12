@@ -1,4 +1,4 @@
-import { IsIn, IsInt, IsOptional, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApprovalRequestStatus } from '@flowgate/shared-types';
 
@@ -10,6 +10,10 @@ export class QueryRequestsDto {
   @IsOptional()
   @IsIn(['PENDING', 'IN_PROGRESS', 'APPROVED', 'REJECTED', 'CANCELLED', 'CHANGES_REQUESTED'])
   status?: ApprovalRequestStatus;
+
+  @IsOptional()
+  @IsString()
+  search?: string;
 
   @IsOptional()
   @Type(() => Number)

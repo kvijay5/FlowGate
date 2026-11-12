@@ -24,6 +24,8 @@ import {
 import { ExecutionNode, ExecutionNodeData } from './ExecutionNode';
 import { ExecutionNodeDetailsModal } from './ExecutionNodeDetailsModal';
 import { RefreshCw, Maximize2, ShieldCheck, Activity } from 'lucide-react';
+import { useTheme } from '../theme/ThemeProvider';
+import { useThemeColors } from '../../lib/useThemeColors';
 
 const nodeTypes = {
   executionNode: ExecutionNode,
@@ -42,6 +44,8 @@ export const RequestExecutionGraphViewer: React.FC<RequestExecutionGraphViewerPr
   onRefresh,
   isRefreshing = false,
 }) => {
+  const { resolvedTheme } = useTheme();
+  const themeColors = useThemeColors();
   const [selectedNodeData, setSelectedNodeData] = useState<ExecutionNodeData | null>(null);
 
   const activeRound = selectedRound ?? executionGraph.currentReviewRound ?? 1;
@@ -323,6 +327,7 @@ export const RequestExecutionGraphViewer: React.FC<RequestExecutionGraphViewerPr
           onEdgesChange={onEdgesChange}
           onNodeClick={onNodeClick}
           nodeTypes={nodeTypes}
+          colorMode={resolvedTheme}
           fitView
           fitViewOptions={{ padding: 0.3 }}
           nodesDraggable={false}
@@ -334,11 +339,13 @@ export const RequestExecutionGraphViewer: React.FC<RequestExecutionGraphViewerPr
           maxZoom={1.5}
           proOptions={{ hideAttribution: true }}
         >
-          <Background color="#334155" gap={20} size={1} variant={BackgroundVariant.Dots} />
-          <Controls
-            showInteractive={false}
-            className="!bg-slate-900 !border-slate-800 !text-slate-200"
+          <Background
+            color={themeColors.gridDot}
+            gap={20}
+            size={1}
+            variant={BackgroundVariant.Dots}
           />
+          <Controls showInteractive={false} className="!bg-surface !border-line !text-fg" />
           <MiniMap
             nodeColor={(node) => {
               const status = (node.data as any)?.status;
@@ -348,8 +355,8 @@ export const RequestExecutionGraphViewer: React.FC<RequestExecutionGraphViewerPr
               if (status === 'PRUNED_SKIPPED' || status === 'SKIPPED') return '#475569';
               return '#1e293b';
             }}
-            maskColor="rgba(15, 23, 42, 0.7)"
-            className="!bg-slate-950 !border !border-slate-800 !rounded-xl"
+            maskColor={resolvedTheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.7)'}
+            className="!bg-surface !border !border-line !rounded-xl"
           />
         </ReactFlow>
       </div>

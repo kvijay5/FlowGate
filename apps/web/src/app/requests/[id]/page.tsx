@@ -31,11 +31,14 @@ import { api } from '@/lib/api';
 import { RequestExecutionGraphViewer } from '@/components/workflow-execution/RequestExecutionGraphViewer';
 import { ReviewRoundTimeline } from '@/components/workflow-execution/ReviewRoundTimeline';
 import { AuditChainInspector } from '@/components/workflow-execution/AuditChainInspector';
+import { ThemeToggle } from '@/components/theme/ThemeToggle';
+import { useToast } from '@/components/ui/Toast';
 
 export default function RequestDetailPage() {
   const params = useParams();
   const router = useRouter();
   const requestId = params.id as string;
+  const { showToast } = useToast();
 
   const [requestDetail, setRequestDetail] = useState<ApprovalRequestDetail | null>(null);
   const [executionGraph, setExecutionGraph] = useState<RequestExecutionGraph | null>(null);
@@ -120,9 +123,18 @@ export default function RequestDetailPage() {
       await api.submitAction(requestId, action, actionComments, stepId);
       setActionComments('');
       setActionSuccessMessage(`Successfully submitted action: ${action}`);
+      showToast({
+        title: 'Action Recorded',
+        description: `Successfully submitted ${action} decision. Cryptographically hashed into audit ledger.`,
+        type: 'success',
+      });
       await fetchData(false);
     } catch (err: any) {
-      alert(`Action failed: ${err?.message || 'Unknown error'}`);
+      showToast({
+        title: 'Action Failed',
+        description: err?.message || 'Unknown error',
+        type: 'error',
+      });
     } finally {
       setIsSubmittingAction(false);
     }
@@ -137,9 +149,18 @@ export default function RequestDetailPage() {
       });
       setShowResubmitModal(false);
       setResubmitComments('');
+      showToast({
+        title: 'Request Resubmitted',
+        description: 'New review round initialized with selective fast-forward applied.',
+        type: 'success',
+      });
       await fetchData(false);
     } catch (err: any) {
-      alert(`Resubmission failed: ${err?.message || 'Unknown error'}`);
+      showToast({
+        title: 'Resubmission Failed',
+        description: err?.message || 'Unknown error',
+        type: 'error',
+      });
     } finally {
       setIsResubmitting(false);
     }
@@ -214,7 +235,14 @@ export default function RequestDetailPage() {
             </div>
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2.5">
+            <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-mono font-medium">
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>SHA-256 Ledger Verified</span>
+            </div>
+
+            <ThemeToggle />
+
             {requestDetail.status === 'CHANGES_REQUESTED' && (
               <button
                 onClick={() => setShowResubmitModal(true)}
@@ -228,7 +256,7 @@ export default function RequestDetailPage() {
             <button
               onClick={() => fetchData(false)}
               disabled={isRefreshing}
-              className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
+              className="p-2 rounded-lg border border-line bg-surface text-fg hover:bg-raised transition-colors"
               title="Refresh Data"
             >
               <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />

@@ -5,6 +5,7 @@ import { DelegationsController } from './delegations.controller';
 import { AstConditionEvaluatorService } from './ast-condition-evaluator.service';
 import { WorkflowGraphValidatorService } from './workflow-graph-validator.service';
 import { WorkflowGraphEngineService } from './workflow-graph-engine.service';
+import { WorkflowSimulatorService } from './workflow-simulator.service';
 import { DelegationService } from './delegation.service';
 import { AuditModule } from '../audit/audit.module';
 import { OutboxModule } from '../outbox/outbox.module';
@@ -17,6 +18,7 @@ import { OutboxModule } from '../outbox/outbox.module';
     AstConditionEvaluatorService,
     WorkflowGraphValidatorService,
     WorkflowGraphEngineService,
+    WorkflowSimulatorService,
     DelegationService,
   ],
   exports: [
@@ -24,6 +26,7 @@ import { OutboxModule } from '../outbox/outbox.module';
     AstConditionEvaluatorService,
     WorkflowGraphValidatorService,
     WorkflowGraphEngineService,
+    WorkflowSimulatorService,
     DelegationService,
   ],
 })

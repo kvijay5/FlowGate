@@ -42,8 +42,10 @@ import {
   ThumbsUp,
   ThumbsDown,
 } from 'lucide-react';
-import confetti from 'canvas-confetti';
 import { api, ApiError, getStoredAuth, setStoredAuth } from '../lib/api';
+import { CommandPalette } from '@/components/command/CommandPalette';
+import { ThemeToggle } from '@/components/theme/ThemeToggle';
+import { useToast } from '@/components/ui/Toast';
 import {
   AuthResponse,
   WorkflowDefinitionSummary,
@@ -202,6 +204,8 @@ export default function FlowGateApp() {
     'pending_approval',
   );
   const [searchQuery, setSearchQuery] = useState('');
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const { showToast } = useToast();
 
   // Data state
   const [requests, setRequests] = useState<ApprovalRequestSummary[]>([]);
@@ -312,7 +316,7 @@ export default function FlowGateApp() {
     try {
       const isAdmin = auth.user.role === 'TENANT_ADMIN' || auth.user.role === 'SUPER_ADMIN';
       const promises: Promise<any>[] = [
-        api.getRequests({ filter: requestFilter, limit: 50 }),
+        api.getRequests({ filter: requestFilter, search: searchQuery || undefined, limit: 50 }),
         api.getWorkflows(),
         api.getDelegations().catch(() => []),
       ];
@@ -348,7 +352,7 @@ export default function FlowGateApp() {
     } finally {
       setDataLoading(false);
     }
-  }, [auth, requestFilter, newRequestWorkflowId]);
+  }, [auth, requestFilter, searchQuery, newRequestWorkflowId]);
 
   useEffect(() => {
     if (auth) {
@@ -483,11 +487,10 @@ export default function FlowGateApp() {
       setActionSuccess(`Successfully submitted ${action.toLowerCase()} decision`);
 
       if (action === 'APPROVE') {
-        confetti({
-          particleCount: 70,
-          spread: 60,
-          origin: { y: 0.7 },
-          colors: ['#7C3AED', '#06B6D4', '#10B981', '#F59E0B'],
+        showToast({
+          title: 'Approval Recorded',
+          description: `Decision logged to tamper-evident SHA-256 audit ledger.`,
+          type: 'success',
         });
       }
 
@@ -812,15 +815,18 @@ export default function FlowGateApp() {
             </div>
           </div>
 
-          <a
-            href="http://localhost:4000/health"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs font-mono font-medium text-emerald-400 bg-emerald-950/40 border border-emerald-800/60 px-3.5 py-1.5 rounded-full flex items-center space-x-2 hover:bg-emerald-950/80 transition-colors shadow-sm"
-          >
-            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span>API Engine :4000 Online</span>
-          </a>
+          <div className="flex items-center gap-3">
+            <ThemeToggle />
+            <a
+              href="http://localhost:4000/health"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs font-mono font-medium text-emerald-400 bg-emerald-950/40 border border-emerald-800/60 px-3.5 py-1.5 rounded-full flex items-center space-x-2 hover:bg-emerald-950/80 transition-colors shadow-sm"
+            >
+              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span>API Engine :4000 Online</span>
+            </a>
+          </div>
         </header>
 
         {/* Hero & Interactive Launchpad Grid */}
@@ -1143,6 +1149,35 @@ export default function FlowGateApp() {
 
           {/* Right Action Icons & Profile */}
           <div className="flex items-center space-x-2.5 flex-shrink-0">
+            {/* Quick Links */}
+            <a
+              href="/workflows/templates"
+              className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-white/[0.08] hover:bg-white/[0.06] text-xs font-medium text-slate-300 hover:text-white transition-colors"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              <span>Templates</span>
+            </a>
+            <a
+              href="/insights"
+              className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-white/[0.08] hover:bg-white/[0.06] text-xs font-medium text-slate-300 hover:text-white transition-colors"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Insights</span>
+            </a>
+
+            {/* Command Palette Trigger */}
+            <button
+              onClick={() => setCommandPaletteOpen(true)}
+              className="hidden sm:flex items-center gap-2 px-2.5 py-1.5 rounded-xl border border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.06] text-xs text-slate-300 font-mono transition-colors"
+              title="Open Command Palette (Cmd+K)"
+            >
+              <Search className="h-3.5 w-3.5 text-slate-400" />
+              <span className="text-[11px]">⌘K</span>
+            </button>
+
+            {/* Dual Theme Toggle */}
+            <ThemeToggle />
+
             {/* Notification Bell */}
             <button
               onClick={handleOpenNotifications}
@@ -2661,6 +2696,9 @@ export default function FlowGateApp() {
           </div>
         </div>
       )}
+
+      {/* Global Command Palette */}
+      <CommandPalette open={commandPaletteOpen} onOpenChange={setCommandPaletteOpen} />
     </div>
   );
 }

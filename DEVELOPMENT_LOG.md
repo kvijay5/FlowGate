@@ -2,6 +2,118 @@
 
 ---
 
+## [Product Polish & Freelance Showcase: Apple-HIG Dual-Theme Engine, Shared TopBar, Live DAG Simulator, Global Cmd+K Palette & Industry Templates Gallery] - 2026-11-12
+
+### 1. Executive Summary
+
+This milestone delivers the complete "FlowGate Product Polish & Freelance Showcase Plan", elevating FlowGate from a technical prototype into a recruiter-ready, client-facing SaaS showcase with Apple-Human Interface Guidelines (Apple-HIG) aesthetics, dual-theme support, instant visual simulation, global keyboard navigation, and industry template blueprints:
+
+1. **Repository Hygiene & GitHub Actions CI Fix**:
+   - Fixed `.github/workflows/ci.yml` by introducing automated `pnpm db:seed` and adding mandatory test environment variables (`JWT_SECRET`, `ALLOW_INSECURE_HTTP_WEBHOOKS`, `ALLOW_LOOPBACK_WEBHOOK_FOR_TESTS`, `REDIS_HOST`, `REDIS_PORT`).
+   - Added standard OSS governance files: `LICENSE` (MIT, Copyright 2026 Kruti Vijay), `SECURITY.md` (audit ledger, AST safety, SSRF guard, SLA policy), `CONTRIBUTING.md` (monorepo setup, quality gates, conventional commits), `.github/pull_request_template.md`, and `docs/DECISIONS.md` (6 Architecture Decision Records).
+   - Unified `.env.example` and `apps/api/.env.example` across ports, origins, and service URLs.
+   - Installed `@nestjs/swagger` (NestJS 10 compatible) and exposed interactive OpenAPI documentation at `/api/docs`.
+   - Created production preview container specifications (`apps/api/Dockerfile`, `apps/web/Dockerfile`, `.dockerignore`, `docker-compose.yml` preview profiles).
+2. **Apple-HIG Dual-Theme Engine ("Alabaster Light" & "Obsidian Dark")**:
+   - Re-architected `apps/web/src/app/globals.css` with semantic CSS variables for `:root, [data-theme='light']` and `[data-theme='dark']` conforming to Apple-HIG typography, spacing, and contrast standards.
+   - Configured circular view-transition reveal (`applyThemeWithReveal`) powered by the native View Transitions API with fallback for unsupported browsers.
+   - Created `ThemeProvider.tsx` and morphing Sun-to-Moon `ThemeToggle.tsx`.
+   - Created `useThemeColors.ts` to dynamically supply theme-aware colors to React Flow (`colorMode={resolvedTheme}`, grid dots, minimap, controls).
+   - Added automated unit test suite `apps/web/src/lib/tokens.spec.ts` asserting WCAG AA >= 4.5:1 contrast across light and dark tokens (28 passing web tests).
+3. **Shared Top Navigation & Persona Menu**:
+   - Standardized 5 demo personas in `apps/web/src/lib/personas.ts` (Alice Vance, Bob Finance, Linda Legal, Charlie Dev, David Mercer) with initials and scoped credentials.
+   - Built modular UI primitives in `apps/web/src/components/ui/`: `Button`, `IconButton`, `Chip`, `Card`, `Toast` (with `ToastProvider` & `useToast`), `ConfirmDialog`, `Drawer`.
+   - Created `TopBar.tsx` and `PersonaMenu.tsx` delivering persistent navigation, breadcrumbs, 1-click persona switching, and theme controls.
+4. **Live DAG Dry-Run Simulator**:
+   - Pure, zero-side-effect execution engine in `apps/api/src/workflows/workflow-simulator.service.ts` and `POST /api/v1/workflows/:id/simulate`.
+   - Statically validates DAG topology, checks payload size (32 KB limit), verifies `TRIGGER` `inputSchema` constraints (required fields, numeric boundaries, allowed string values), and traverses topological order.
+   - Evaluates AST conditions via `AstConditionEvaluatorService`, chooses active outgoing branches, prunes unselected paths, and handles `ALL_INCOMING` / `ANY_INCOMING` join convergence.
+   - Verified with unit tests (`workflow-simulator.service.spec.ts`, `workflow-templates.spec.ts`) and integration tests (`workflow-simulation.integration-spec.ts`) proving zero database, audit log, or outbox writes.
+   - Built interactive `SimulatorPanel.tsx` in the visual workflow builder, allowing users to edit JSON payloads, simulate execution paths, and view live AST traces on canvas.
+5. **Global Command Palette (`Cmd+K` / `Ctrl+K`)**:
+   - Installed `cmdk` and built `apps/web/src/components/command/CommandPalette.tsx`.
+   - Supports 1-click route navigation (`Requests`, `Workflows`, `Templates`, `New Workflow`, `Insights`, `Swagger Docs`).
+   - Supports instant persona switching, dual theme selection, and 1-click SHA-256 cryptographic audit ledger verification.
+   - Added `search` query parameter to backend `QueryRequestsDto` and `RequestsService.findAll`, enabling real-time search filtering by request title.
+6. **Industry Workflow Template Gallery & Executive Insights**:
+   - Created `apps/web/src/app/workflows/templates/page.tsx` showcasing 4 valid industry DAG blueprints (FinTech CapEx, Enterprise HR Onboarding, Client Services Deliverable, Healthcare HIPAA Vendor Review) with "Use Template" 1-click instantiation.
+   - Created `apps/web/src/app/insights/page.tsx` featuring Bento metric cards for cryptographic ledger status, average approval turnaround time, in-flight volume, active out-of-office delegations, and printable report output.
+
+### 2. Summary of Work Completed & Deliverables
+
+- **Backend (`apps/api`)**:
+  - `apps/api/package.json`: Pinned `@nestjs/swagger` compatible with NestJS 10.
+  - `apps/api/src/workflows/dto/simulate-workflow.dto.ts`: Added validation DTO for simulation request data.
+  - `apps/api/src/workflows/workflow-simulator.service.ts`: Implemented zero-side-effect DAG dry-run simulator.
+  - `apps/api/src/workflows/workflows.controller.ts`: Added `POST :id/simulate`.
+  - `apps/api/src/workflows/workflows.module.ts`: Registered and exported `WorkflowSimulatorService`.
+  - `apps/api/src/requests/dto/query-requests.dto.ts`: Added optional `search` query parameter.
+  - `apps/api/src/requests/requests.service.ts`: Implemented case-insensitive title search filtering.
+  - `apps/api/src/workflows/workflow-simulator.service.spec.ts`: Unit tests for simulator service.
+  - `apps/api/src/workflows/workflow-templates.spec.ts`: Unit tests asserting all 4 templates pass static validation and simulate cleanly.
+  - `apps/api/test/workflow-simulation.integration-spec.ts`: E2E integration test asserting zero DB writes and tenant isolation.
+- **Shared Types (`packages/shared-types`)**:
+  - `packages/shared-types/src/index.ts`: Exported `SimulationStepResult`, `AstEvaluationTraceItem`, `SimulationResult`, updated `AuditChainVerificationResult`.
+  - `packages/shared-types/src/templates.ts`: Defined 4 industry DAG templates with valid rules and schema fields.
+- **Frontend (`apps/web`)**:
+  - `apps/web/package.json`: Added `cmdk`.
+  - `apps/web/src/app/globals.css`: Overhauled with Apple-HIG semantic tokens, View Transitions, glass styling.
+  - `apps/web/tailwind.config.ts`: Updated `darkMode` selector and semantic color aliases.
+  - `apps/web/src/lib/theme-transition.ts`: Circular clipPath reveal transition logic.
+  - `apps/web/src/lib/useThemeColors.ts`: Theme-aware React Flow colors hook.
+  - `apps/web/src/lib/tokens.spec.ts`: Unit test suite verifying WCAG AA contrast.
+  - `apps/web/src/lib/personas.ts`: 5 demo persona definitions.
+  - `apps/web/src/lib/api.ts`: Added `search` parameter to `getRequests` and `simulateWorkflow` endpoint.
+  - `apps/web/src/components/theme/`: `ThemeProvider.tsx` and `ThemeToggle.tsx`.
+  - `apps/web/src/components/ui/`: `Button`, `IconButton`, `Chip`, `Card`, `Toast`, `ConfirmDialog`, `Drawer`.
+  - `apps/web/src/components/shell/`: `TopBar.tsx`, `PersonaMenu.tsx`.
+  - `apps/web/src/components/command/CommandPalette.tsx`: Global search and shortcut palette.
+  - `apps/web/src/components/workflow-builder/SimulatorPanel.tsx`: Interactive DAG dry-run simulator drawer.
+  - `apps/web/src/components/workflow-builder/WorkflowBuilder.tsx`: Integrated drag-and-drop palette, theme colors, and simulation highlighting.
+  - `apps/web/src/components/workflow-execution/RequestExecutionGraphViewer.tsx`: Integrated theme colors and responsive controls.
+  - `apps/web/src/app/workflows/templates/page.tsx`: Industry templates gallery.
+  - `apps/web/src/app/insights/page.tsx`: Executive SLA & Cryptographic Integrity Insights.
+  - `apps/web/src/app/page.tsx`: Integrated TopBar, CommandPalette, ThemeToggle, live search, and toast notifications.
+  - `apps/web/src/app/requests/[id]/page.tsx`: Added SHA-256 Ledger badge, ThemeToggle, and toast notifications.
+
+### 3. Technical Decisions & Rationale
+
+- **Pure In-Memory Dry-Run Simulator**:
+  Enterprise users and reviewers want to test condition routing without polluting production databases, triggering approval notifications, or creating unneeded audit rows. `WorkflowSimulatorService` operates strictly in memory, utilizing `AstConditionEvaluatorService` and `WorkflowGraphValidatorService` to evaluate real condition trees and return step-by-step traces with mathematical certainty.
+- **Apple-HIG Dual Theme with Circular Reveal**:
+  Rather than an instant, abrupt theme toggle or generic gray dark mode, FlowGate implements an Apple-HIG Alabaster Light (`#F5F5F7` canvas, `#FFFFFF` surfaces) and Obsidian Dark (`#000000` canvas, `#1C1C1E` surfaces) palette. On browsers supporting the View Transitions API, the theme reveals radially from the button coordinate via `clip-path: circle(...)`, creating a premium feel.
+- **Global `Cmd+K` Command Palette via `cmdk`**:
+  Enterprise SaaS platforms like Linear and Raycast empower power users through keyboard navigation. FlowGate's command palette centralizes routing, 1-click persona switching, theme management, and instant cryptographic ledger audits behind `⌘K` / `Ctrl+K`.
+
+### 4. Verification and Actual Test Results
+
+- **TypeScript Compilation (`pnpm check-types`)**:
+  - `packages/shared-types`: 0 errors
+  - `apps/api`: 0 errors
+  - `apps/web`: 0 errors
+- **Linting & Formatting (`pnpm lint` & `pnpm format:check`)**:
+  - All workspaces passed with 0 errors and 0 warnings.
+  - Prettier verified 100% of files cleanly formatted.
+- **Unit Test Suite (`pnpm --filter api test` & `pnpm --filter web test`)**:
+  - **API Unit Tests**: **21 test suites passed**, **230 unit tests passed** (0 failed).
+  - **Web Unit Tests**: **3 test suites passed**, **28 unit tests passed** (0 failed).
+- **Integration & E2E Test Suite (`pnpm --filter api test:e2e`)**:
+  - **12 test suites passed**, **138 integration tests passed** (0 failed).
+- **Total Test Count**:
+  - **396 automated tests passed** across the monorepo (surpassing the >375 target).
+- **Production Build (`pnpm build`)**:
+  - Static and dynamic routes compiled cleanly across `apps/web` and `apps/api` with exit code 0.
+
+### 5. Known Limitations or Environmental Blockers
+
+- None. All Docker services (PostgreSQL, Redis), Next.js frontend, and NestJS API compile and pass all quality gates cleanly.
+
+### 6. Next Steps
+
+- Final review and portfolio deployment readiness.
+
+---
+
 ## [Hotfix & UI/UX Overhaul: Obsidian & Electric Aurora Interactive Design System & Login Hardening] - 2026-11-11
 
 ### 1. Executive Summary

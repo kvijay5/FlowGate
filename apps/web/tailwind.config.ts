@@ -1,6 +1,7 @@
 import type { Config } from 'tailwindcss';
 
 const config: Config = {
+  darkMode: ['selector', '[data-theme="dark"]'],
   content: [
     './src/pages/**/*.{js,ts,jsx,tsx,mdx}',
     './src/components/**/*.{js,ts,jsx,tsx,mdx}',
@@ -9,21 +10,45 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        canvas: 'rgb(var(--bg-canvas) / <alpha-value>)',
+        surface: 'rgb(var(--bg-surface) / <alpha-value>)',
+        raised: 'rgb(var(--bg-raised) / <alpha-value>)',
+        ink: 'rgb(var(--ink) / <alpha-value>)',
+        fg: {
+          primary: 'rgb(var(--text-primary) / <alpha-value>)',
+          secondary: 'rgb(var(--text-secondary) / <alpha-value>)',
+          tertiary: 'rgb(var(--text-tertiary) / <alpha-value>)',
+        },
+        accent: {
+          DEFAULT: 'rgb(var(--accent) / <alpha-value>)',
+          pressed: 'rgb(var(--accent-pressed) / <alpha-value>)',
+          text: 'rgb(var(--accent-text) / <alpha-value>)',
+        },
+        success: 'rgb(var(--success) / <alpha-value>)',
+        warning: 'rgb(var(--warning) / <alpha-value>)',
+        danger: 'rgb(var(--danger) / <alpha-value>)',
+        info: 'rgb(var(--accent) / <alpha-value>)',
+        glass: 'var(--glass-bg)',
+        line: {
+          DEFAULT: 'var(--glass-border)',
+          subtle: 'var(--line-subtle)',
+        },
+        // Backwards compatibility mappings for legacy Obsidian & Aurora utilities
         obsidian: {
-          950: '#05050A',
-          900: '#0A0A14',
-          850: '#0F1020',
-          800: '#16182E',
-          750: '#1D203C',
-          700: '#262A4E',
+          950: 'rgb(var(--bg-canvas) / <alpha-value>)',
+          900: 'rgb(var(--bg-surface) / <alpha-value>)',
+          850: 'rgb(var(--bg-raised) / <alpha-value>)',
+          800: 'rgb(var(--bg-raised) / <alpha-value>)',
+          750: 'rgb(var(--bg-raised) / <alpha-value>)',
+          700: 'rgb(var(--bg-raised) / <alpha-value>)',
         },
         aurora: {
           violet: '#7C3AED',
           purple: '#A855F7',
-          cyan: '#06B6D4',
-          emerald: '#10B981',
-          rose: '#F43F5E',
-          amber: '#F59E0B',
+          cyan: 'rgb(var(--accent) / <alpha-value>)',
+          emerald: 'rgb(var(--success) / <alpha-value>)',
+          rose: 'rgb(var(--danger) / <alpha-value>)',
+          amber: 'rgb(var(--warning) / <alpha-value>)',
         },
         brand: {
           50: '#f0fdf4',
@@ -32,6 +57,15 @@ const config: Config = {
           600: '#16a34a',
           700: '#15803d',
         },
+      },
+      boxShadow: {
+        float: '0 8px 30px rgba(0, 0, 0, 0.12)',
+        dialog: '0 20px 60px rgba(0, 0, 0, 0.3)',
+      },
+      borderRadius: {
+        control: '8px',
+        card: '14px',
+        sheet: '20px',
       },
       backgroundImage: {
         'radial-glow': 'radial-gradient(circle at 50% 0%, var(--tw-gradient-stops))',

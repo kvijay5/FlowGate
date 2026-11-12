@@ -20,6 +20,7 @@ import {
   AuditChainVerificationResult,
   UserDelegationSummary,
   CreateDelegationDto,
+  SimulationResult,
 } from '@flowgate/shared-types';
 
 const rawBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
@@ -246,16 +247,28 @@ export const api = {
     });
   },
 
+  async simulateWorkflow(
+    id: string,
+    requestData: Record<string, unknown>,
+  ): Promise<SimulationResult> {
+    return request<SimulationResult>(`/api/v1/workflows/${id}/simulate`, {
+      method: 'POST',
+      body: JSON.stringify({ requestData }),
+    });
+  },
+
   // Approval Requests
   async getRequests(params?: {
     filter?: 'mine' | 'pending_approval' | 'all';
     status?: string;
+    search?: string;
     page?: number;
     limit?: number;
   }): Promise<PaginatedResult<ApprovalRequestSummary>> {
     const query = new URLSearchParams();
     if (params?.filter) query.set('filter', params.filter);
     if (params?.status) query.set('status', params.status);
+    if (params?.search) query.set('search', params.search);
     if (params?.page) query.set('page', params.page.toString());
     if (params?.limit) query.set('limit', params.limit.toString());
 

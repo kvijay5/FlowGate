@@ -11,8 +11,10 @@ import {
   ParseUUIDPipe,
 } from '@nestjs/common';
 import { WorkflowsService } from './workflows.service';
+import { WorkflowSimulatorService } from './workflow-simulator.service';
 import { CreateWorkflowDto } from './dto/create-workflow.dto';
 import { UpdateWorkflowDto } from './dto/update-workflow.dto';
+import { SimulateWorkflowDto } from './dto/simulate-workflow.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -22,7 +24,10 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 @Controller('api/v1/workflows')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class WorkflowsController {
-  constructor(private readonly workflowsService: WorkflowsService) {}
+  constructor(
+    private readonly workflowsService: WorkflowsService,
+    private readonly simulatorService: WorkflowSimulatorService,
+  ) {}
 
   /**
    * Create a new workflow definition (Admin & Manager only)
@@ -147,5 +152,18 @@ export class WorkflowsController {
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.workflowsService.cloneDraftVersion(tenantId, id, actorId);
+  }
+
+  /**
+   * Dry-run simulate workflow execution with sample payload
+   */
+  @Post(':id/simulate')
+  @HttpCode(HttpStatus.OK)
+  async simulate(
+    @CurrentTenant() tenantId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SimulateWorkflowDto,
+  ) {
+    return this.simulatorService.simulateWorkflow(tenantId, id, dto.requestData);
   }
 }

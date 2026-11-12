@@ -405,6 +405,11 @@ export interface AuditChainVerificationResult {
   totalEntries: number;
   brokenAtId?: string;
   details?: string;
+  verified?: boolean;
+  totalLogs?: number;
+  verifiedHeadSequence?: number;
+  headHash?: string;
+  error?: string;
 }
 
 // Multi-tenant & Auth Domain
@@ -587,3 +592,45 @@ export interface QueueHealthStatus {
     webhooks: QueueJobCounts;
   };
 }
+
+// =============================================================================
+// Live Workflow Simulation Domain
+// =============================================================================
+
+export interface SimulationStepResult {
+  nodeId: string;
+  nodeName: string;
+  nodeType: WorkflowNodeType;
+  status: 'ACTIVE' | 'EVALUATED' | 'PRUNED' | 'COMPLETED';
+  evaluatedBranchKey?: string;
+  targetNodeId?: string;
+  ruleId?: string;
+  reason?: string;
+  assignees?: StepAssigneeConfig[];
+  outcome?: EndOutcome;
+}
+
+export interface AstEvaluationTraceItem {
+  nodeId: string;
+  expression: AstNode;
+  result: boolean;
+  branchKey?: string;
+  targetNodeId?: string;
+  trace?: unknown;
+}
+
+export interface SimulationResult {
+  workflowId: string;
+  workflowName: string;
+  success: boolean;
+  validationErrors?: string[];
+  finalOutcome?: EndOutcome | 'IN_REVIEW' | 'INVALID';
+  activatedNodeIds: string[];
+  prunedNodeIds: string[];
+  executionPath: string[];
+  steps: SimulationStepResult[];
+  astEvaluations: AstEvaluationTraceItem[];
+  simulatedAt: string;
+}
+
+export * from './templates';
