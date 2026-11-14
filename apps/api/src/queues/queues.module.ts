@@ -20,6 +20,7 @@ import { PrismaModule } from '../prisma/prisma.module';
           connection: {
             host: parsed.hostname || 'localhost',
             port: parseInt(parsed.port || '6379', 10),
+            username: parsed.username || undefined,
             password: parsed.password || undefined,
             db: parsed.pathname ? parseInt(parsed.pathname.slice(1) || '0', 10) : 0,
             maxRetriesPerRequest: null, // Required by BullMQ
