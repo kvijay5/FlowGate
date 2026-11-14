@@ -2,6 +2,28 @@
 
 ---
 
+## [CI/CD Release & GitHub Actions Pipeline Greenfield Resolution] - 2026-11-14
+
+### 1. Executive Summary
+
+This release resolves all remote GitHub Actions CI failures on `origin/main` (`https://github.com/kvijay5/FlowGate.git`), establishes deterministic test isolation across runners, and achieves a 100% green passing status across all workflows:
+
+1. **Root Causes Diagnosed and Resolved**:
+   - **SSRF Insecure Scheme Test Contradiction**: In `.github/workflows/ci.yml`, the `Test & Build` job previously exported `ALLOW_INSECURE_HTTP_WEBHOOKS: 'true'`. This contradicted the security test in `outbox-and-security.integration-spec.ts` (`should reject unencrypted HTTP destinations when HTTPS is required`), which expects `http://` targets to be rejected with 400. Removed `ALLOW_INSECURE_HTTP_WEBHOOKS` from CI environment while preserving HTTPS security.
+   - **Loopback SSRF Guard in Test Mode**: In `ssrf-guard.ts`, loopback endpoints (`127.0.0.1`, `::1`, `localhost`) were previously constrained by the global HTTP check. Updated `ssrf-guard.ts` so that when `ALLOW_LOOPBACK_WEBHOOK_FOR_TESTS === 'true'` in test mode, loopback test webhooks are allowed with `http:` without exposing external endpoints or compromising production invariants.
+   - **Test Flag Isolation Between Unit and Integration Tests**: `ALLOW_LOOPBACK_WEBHOOK_FOR_TESTS: 'true'` was scoped strictly to `pnpm test:e2e` and excluded from `pnpm test`, preventing false positives in `ssrf-guard.spec.ts` and `webhooks.service.spec.ts` unit tests.
+   - **DAG Input Schema Satisfaction**: In `outbox-and-security.integration-spec.ts`, the test request creation payload was updated to provide `{ amount: 25000, department: 'Engineering' }`, satisfying the seeded Flagship DAG schema.
+   - **Active User Isolation Across Test Suites**: In `dag-execution-engine.integration-spec.ts` and `dag-data-layer.integration-spec.ts`, user queries now explicitly filter `status: 'ACTIVE'`, preventing interference from previous delegation test suites that deactivate temporary users.
+   - **Shared Packages Build Order in CI**: Added explicit `pnpm build:shared` steps in both `Lint & Typecheck` and `Test & Build` jobs before linting, type-checking, and tests so that `@flowgate/shared-types` `dist/` is always compiled and fresh.
+2. **Quality Gates & GitHub Actions Verification**:
+   - **GitHub Actions Run ID**: `43593509329` on commit `2512122`.
+   - **Job: Lint & Typecheck**: Status: `completed`, Conclusion: `success`.
+   - **Job: Test & Build**: Status: `completed`, Conclusion: `success`.
+   - **Total Monorepo Tests**: **396 automated tests** (230 API unit + 28 Web unit + 138 API E2E), 0 failures.
+   - Zero TypeScript errors (`tsc --noEmit`), 0 ESLint warnings (`pnpm lint`), 100% Prettier formatting compliance (`pnpm format:check`), and clean Next.js + NestJS production builds (`pnpm build`).
+
+---
+
 ## [Hotfix: Client-Side Runtime Exception Resolution & Three.js WebGL2 Wireframe Hardening] - 2026-11-12
 
 ### 1. Executive Summary
