@@ -4,6 +4,9 @@
   "private": true,
   "description": "FlowGate - Multi-Tenant Approval Workflow SaaS Monorepo",
   "packageManager": "pnpm@12.18.0",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "build:shared": "pnpm --filter @flowgate/shared-types build",
     "build": "pnpm build:shared && pnpm --filter \"./apps/*\" build",
