@@ -31,7 +31,9 @@ describe('Milestone 6 Core Data Layer & DAG Models (Integration)', () => {
     acmeTenantId = acme!.id;
     globexTenantId = globex!.id;
 
-    const acmeUsers = await prisma.user.findMany({ where: { tenantId: acmeTenantId } });
+    const acmeUsers = await prisma.user.findMany({
+      where: { tenantId: acmeTenantId, status: 'ACTIVE' },
+    });
     acmeAdminId = acmeUsers.find((u) => u.role === 'TENANT_ADMIN')!.id;
     acmeManagerId = acmeUsers.find((u) => u.role === 'APPROVER')!.id;
     acmeRequesterId = acmeUsers.find((u) => u.role === 'REQUESTER')!.id;

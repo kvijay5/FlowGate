@@ -51,8 +51,11 @@ describe('Milestone 6.2: DAG Execution Engine & Join Concurrency (Integration)',
     expect(acme).toBeDefined();
     acmeTenantId = acme!.id;
 
-    // Retrieve Acme users
-    const acmeUsers = await prisma.user.findMany({ where: { tenantId: acmeTenantId } });
+    // Retrieve active Acme users
+    const acmeUsers = await prisma.user.findMany({
+      where: { tenantId: acmeTenantId, status: 'ACTIVE' },
+      orderBy: { createdAt: 'asc' },
+    });
     expect(acmeUsers.length).toBeGreaterThanOrEqual(3);
     user1Id = acmeUsers[0].id;
     user2Id = acmeUsers[1].id;
