@@ -9,7 +9,9 @@
   },
   "scripts": {
     "build:shared": "pnpm --filter @flowgate/shared-types build",
+    "build:api": "pnpm db:generate && pnpm build:shared && pnpm --filter api build",
     "build": "pnpm build:shared && pnpm --filter \"./apps/*\" build",
+    "start": "pnpm --filter api run deploy:prod",
     "dev": "pnpm --parallel --filter \"./apps/*\" dev",
     "dev:api": "pnpm --filter api dev",
     "dev:web": "pnpm --filter web dev",

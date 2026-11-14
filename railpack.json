@@ -1,0 +1,18 @@
+{
+  "$schema": "https://schema.railpack.com",
+  "packages": {
+    "node": "20"
+  },
+  "steps": {
+    "build": {
+      "commands": [
+        "pnpm db:generate",
+        "pnpm build:shared",
+        "pnpm --filter api build"
+      ]
+    }
+  },
+  "deploy": {
+    "startCommand": "pnpm --filter api run deploy:prod"
+  }
+}
