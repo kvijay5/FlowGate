@@ -5,11 +5,7 @@
   },
   "steps": {
     "build": {
-      "commands": [
-        "pnpm db:generate",
-        "pnpm build:shared",
-        "pnpm --filter api build"
-      ]
+      "commands": ["pnpm db:generate", "pnpm build:shared", "pnpm --filter api build"]
     }
   },
   "deploy": {

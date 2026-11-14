@@ -3,6 +3,9 @@
 > **Enterprise Multi-Tenant Approval Workflow Platform & DAG Execution Engine**  
 > _Architected for modern enterprises requiring high-assurance approval routing, parallel quorum voting, out-of-office delegation, tamper-evident SHA-256 audit ledgers, and zero-trust tenant isolation._
 
+[![Production Web](https://img.shields.io/badge/Production%20Web-flowgate--web.vercel.app-black?logo=vercel)](https://flowgate-web.vercel.app)
+[![API Swagger Docs](https://img.shields.io/badge/API%20Docs-Swagger%20OpenAPI-blue?logo=swagger)](https://flowgate-api-production.up.railway.app/api/docs)
+[![API Health](https://img.shields.io/badge/API%20Health-Passing-emerald)](https://flowgate-api-production.up.railway.app/health)
 [![CI Pipeline](https://github.com/kvijay5/FlowGate/actions/workflows/ci.yml/badge.svg)](https://github.com/kvijay5/FlowGate/actions)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.5-blue.svg)](https://www.typescriptlang.org/)
 [![NestJS](https://img.shields.io/badge/NestJS-10.0-red.svg)](https://nestjs.com/)
@@ -10,6 +13,19 @@
 [![Prisma](https://img.shields.io/badge/Prisma-5.22-darkblue.svg)](https://www.prisma.io/)
 [![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-3.4-38B2AC.svg)](https://tailwindcss.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
+---
+
+## 🌐 Live Production Deployments
+
+| Component             | Provider    | Public URL                                                                                                         | Description                                                                             |
+| :-------------------- | :---------- | :----------------------------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------- |
+| **Web Application**   | **Vercel**  | [https://flowgate-web.vercel.app](https://flowgate-web.vercel.app)                                                 | Next.js 14 App Router with Editorial-HUD UI, 3D WebGL Canvas, and 1-Click Persona Login |
+| **REST API & Engine** | **Railway** | [https://flowgate-api-production.up.railway.app](https://flowgate-api-production.up.railway.app)                   | NestJS 10 API with PostgreSQL & Redis plugins, auto-migrated & seeded                   |
+| **OpenAPI / Swagger** | **Railway** | [https://flowgate-api-production.up.railway.app/api/docs](https://flowgate-api-production.up.railway.app/api/docs) | Interactive Swagger documentation for all 30+ endpoints                                 |
+| **Health Probe**      | **Railway** | [https://flowgate-api-production.up.railway.app/health](https://flowgate-api-production.up.railway.app/health)     | Live container, database, and Redis health check                                        |
+
+---
 
 ---
 

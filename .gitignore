@@ -46,3 +46,5 @@ Thumbs.db
 docker-data/
 postgres-data/
 redis-data/
+.vercel
+.env*

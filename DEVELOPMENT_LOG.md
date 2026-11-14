@@ -2,6 +2,84 @@
 
 ---
 
+## [Production Cloud Deployment: Railway API & Vercel Web UI Release] - 2026-11-14
+
+### 1. Executive Summary
+
+This milestone successfully releases the complete FlowGate platform (Next.js 14 Web UI + NestJS 10 REST API + PostgreSQL 18 SSL + Redis 8.2 cluster) to live cloud production with verified public endpoints:
+
+- **Production Web Application (Vercel)**: [https://flowgate-web.vercel.app](https://flowgate-web.vercel.app)
+- **Production API & Engine (Railway)**: [https://flowgate-api-production.up.railway.app](https://flowgate-api-production.up.railway.app)
+- **Interactive OpenAPI / Swagger Documentation**: [https://flowgate-api-production.up.railway.app/api/docs](https://flowgate-api-production.up.railway.app/api/docs)
+- **Live Platform Health Probe**: [https://flowgate-api-production.up.railway.app/health](https://flowgate-api-production.up.railway.app/health)
+
+---
+
+### 2. Architecture & Cloud Infrastructure
+
+1. **Backend Infrastructure (Railway)**:
+   - **Service `flowgate-api`**: Containerized Node.js service running NestJS 10 on port 8080 (auto-assigned by Railway) bound to `0.0.0.0`.
+   - **Managed Database (`Postgres`)**: Dedicated PostgreSQL 18 SSL instance connected via Railway private DNS (`postgres.railway.internal:5432`).
+   - **Distributed Cache & Queue (`Redis`)**: Redis 8.2 cluster connected via private DNS (`redis.railway.internal:6379`) with BullMQ background processors for notifications, escalations, and outbox event dispatching.
+   - **Automated Lifecycle Migration & Seeding**: Configured production startup script `"deploy:prod": "npx prisma migrate deploy && npx prisma db seed && node dist/main"` ensuring schema migrations apply and enterprise tenants (`Acme Corporation`, `Globex Industries`), personas, and DAG requests seed deterministically upon container boot.
+   - **Cloud Blueprints**: Landed `railway.json`, `railpack.json`, and portable `render.yaml` infrastructure definitions supporting both Railpack and Nixpacks build systems.
+
+2. **Frontend Deployment (Vercel)**:
+   - **Next.js 14 App Router**: Configured with Root Directory `apps/web`, Node.js 26.x runtime, and production build command `pnpm build:shared && pnpm --filter web build`.
+   - **Transparent API Reverse Proxy**: In `next.config.mjs`, configured dynamic URL normalization:
+     ```javascript
+     const rawApiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+     const apiUrl = rawApiUrl.replace(/\/api\/?$/, '').replace(/\/$/, '');
+     ```
+     Transparently proxying `/api/v1/:path*` and `/health` to Railway without cross-origin browser blocking or preflight latency.
+
+---
+
+### 3. Verification & Live Smoke Test Results
+
+1. **Live Health Check Probe (`/health`)**:
+   ```json
+   {
+     "status": "ok",
+     "timestamp": "2026-11-14T13:45:15.410Z",
+     "uptime": 443,
+     "environment": "production",
+     "version": "0.1.0",
+     "service": "flowgate-api",
+     "database": {
+       "status": "connected",
+       "responseTimeMs": 3
+     }
+   }
+   ```
+2. **OpenAPI / Swagger Documentation**: Verified HTTP 200 with complete OpenAPI 3.0 schema generation across 30+ endpoints at `/api/docs`.
+3. **Cryptographic Authentication & Tenant Isolation**: Verified live JWT generation for Alice Vance (`admin@acme.com`), CFO Bob Finance (`finance@acme.com`), and Linda Legal (`legal@acme.com`) under `acme-corp` tenant boundaries.
+4. **Headless Browser Automated Smoke Test (Playwright)**:
+   - Target URL: `https://flowgate-web.vercel.app`
+   - Response HTTP Status: **200 OK**
+   - Page Title: **FlowGate | Technical HUD Approval Platform**
+   - 3D HUD WebGL Canvas: **1 canvas verified and rendering**
+   - 1-Click Persona Switcher: Successfully authenticated Alice Vance; JWT token persisted in `localStorage`
+   - Total Page/Console Errors: **0**
+   - Client Exception Status: **Clean execution with zero errors**
+
+---
+
+### 4. Known Limitations or Environmental Blockers
+
+- None. All cloud services, DNS records, SSL certificates, background job queues, and reverse proxies are active and operational.
+
+---
+
+### 5. Next Steps
+
+- Integrate live monitoring alerts (e.g. Sentry / Datadog) for production runtime telemetry.
+- Expand template library with industry-specific DAG workflows (HIPAA compliance, SOC2 access grant reviews).
+
+---
+
+---
+
 ## [CI/CD Release & GitHub Actions Pipeline Greenfield Resolution] - 2026-11-14
 
 ### 1. Executive Summary
