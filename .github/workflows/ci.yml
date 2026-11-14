@@ -116,7 +116,6 @@ jobs:
           JWT_EXPIRES_IN: 1d
           NOTIFICATION_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
           WEBHOOK_HMAC_SECRET: test-webhook-hmac-secret-key-32-chars
-          ALLOW_LOOPBACK_WEBHOOK_FOR_TESTS: 'true'
           NEXT_PUBLIC_API_URL: http://localhost:4000
 
       - name: Run E2E & Integration Tests
