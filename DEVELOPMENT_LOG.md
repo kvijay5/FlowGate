@@ -2,6 +2,32 @@
 
 ---
 
+## [Hotfix: Client-Side Runtime Exception Resolution & Three.js WebGL2 Wireframe Hardening] - 2026-11-12
+
+### 1. Executive Summary
+
+This hotfix permanently diagnoses and resolves the Next.js 14 client-side runtime exception (`Application error: a client-side exception has occurred`):
+
+1. **Root Cause Analysis (Captured via Playwright)**:
+   - When loading `http://localhost:3000` in real browser environments, Next.js chunking surfaced `TypeError: Cannot read properties of undefined (reading 'S')` at `isPrimaryRenderer` in `@react-three/fiber`'s bundled `react-reconciler`.
+   - The older `react-reconciler` pattern attempted to inspect `ReactSharedInternals.S` during client hydration, causing an unhandled fatal exception in Next.js 14 App Router webpack bundles.
+2. **Architecture Resolution (Pure Three.js Direct Canvas)**:
+   - Completely uninstalled `@react-three/fiber` and `@react-three/drei` from `apps/web/package.json`.
+   - Re-architected `apps/web/src/components/3d/WireframeHero.tsx` using **pure `three` WebGL2 direct canvas rendering** via `<canvas ref={canvasRef} />` and `useEffect`.
+   - Added robust feature detection:
+     - `checkWebGL2Support()` checks for real WebGL2 availability (`canvas.getContext('webgl2')`) to prevent Three.js r187 initialization errors on headless environments without GPU.
+     - Implemented `HeroErrorBoundary` and a brutalist 2D SVG fallback (`BrutalistFallbackWireframe`) that gracefully renders if WebGL2 is unsupported or context creation fails.
+   - Preserved all visual and interactive features: deep crimson wireframe icosahedron (`#DC2626` / `#B91C1C`), outer dodecahedron cage, 300 telemetry points, smooth pointer-based mouse parallax with inertia damping, and auto-rotation with resize tracking via `ResizeObserver`.
+3. **Integration Test Suite Hardening**:
+   - Resolved integration test isolation interference in `test/background-jobs.integration-spec.ts` and `test/outbox-and-security.integration-spec.ts`: cleaned up stale test subscriptions before and after test suites, ensuring outgoing webhooks are never dispatched to dead ephemeral ports or bogged down by leftover SSRF test rows.
+   - Increased query limit on `/api/v1/webhooks/deliveries?limit=100` during polling to guarantee test deliveries are never paginated out.
+4. **Automated Verification & Zero-Error Quality Gates**:
+   - Headless browser verification via Playwright (`playwright` in `devDependencies`): 0 page errors, 0 console errors, 0 "Application error" messages across `/`, 1-click persona login, `/workflows/templates`, `/insights`, and `/workflows/new/builder`.
+   - Monorepo automated test suite: **396 passing tests** (230 API unit + 28 Web unit + 138 API E2E), 0 failures.
+   - Zero TypeScript errors (`pnpm check-types`), 0 ESLint warnings (`pnpm lint`), 100% Prettier compliance (`pnpm format`), and clean production builds (`pnpm build`).
+
+---
+
 ## [Phase 8: "Editorial-Meets-HUD" Technical Aesthetic Overhaul & 3D Radar Integration] - 2026-11-12
 
 ### 1. Executive Summary

@@ -115,6 +115,7 @@ describe('Milestone 5.1: Transactional Outbox, Replay Deduplication & SSRF Prote
           workflowDefinitionId: acmeWorkflowId,
           title: 'Transactional Outbox Verification Cluster',
           description: 'Testing in-transaction outbox recording',
+          requestData: { amount: 25000, department: 'Engineering' },
         });
 
       expect(createRes.status).toBe(201);

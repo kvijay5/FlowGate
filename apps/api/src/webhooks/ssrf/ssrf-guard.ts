@@ -200,10 +200,17 @@ export async function validateWebhookDestination(
     process.env.NODE_ENV === 'test' &&
     process.env.ALLOW_LOOPBACK_WEBHOOK_FOR_TESTS === 'true';
 
+  const hostname = parsed.hostname.toLowerCase();
+  const rawHost =
+    hostname.startsWith('[') && hostname.endsWith(']') ? hostname.slice(1, -1) : hostname;
+
+  const isLoopbackTarget =
+    allowLoopbackTest && (rawHost === '127.0.0.1' || rawHost === '::1' || rawHost === 'localhost');
+
   if (parsed.protocol === 'https:') {
     // Valid HTTPS
   } else if (parsed.protocol === 'http:') {
-    if (isProduction || !allowHttp) {
+    if (isProduction || (!allowHttp && !isLoopbackTarget)) {
       throw new SSRFProtectionError(
         `Insecure HTTP scheme is not allowed for webhooks. HTTPS is required: ${urlStr}`,
       );
@@ -213,10 +220,6 @@ export async function validateWebhookDestination(
       `Unsupported webhook protocol '${parsed.protocol}'. Only HTTPS is permitted.`,
     );
   }
-
-  const hostname = parsed.hostname.toLowerCase();
-  const rawHost =
-    hostname.startsWith('[') && hostname.endsWith(']') ? hostname.slice(1, -1) : hostname;
 
   // Check known blocked hostnames
   if (

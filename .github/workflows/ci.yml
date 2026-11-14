@@ -31,6 +31,9 @@ jobs:
       - name: Generate Prisma Client
         run: pnpm db:generate
 
+      - name: Build Shared Packages
+        run: pnpm build:shared
+
       - name: Check code formatting
         run: pnpm format:check
 
@@ -89,6 +92,9 @@ jobs:
       - name: Generate Prisma Client
         run: pnpm db:generate
 
+      - name: Build Shared Packages
+        run: pnpm build:shared
+
       - name: Deploy Prisma Migrations
         run: pnpm db:deploy
         env:
@@ -101,19 +107,36 @@ jobs:
 
       - name: Run Unit Tests
         run: pnpm test
+        env:
+          DATABASE_URL: postgresql://flowgate:flowgate_dev_password@localhost:5432/flowgate_dev?schema=public
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: test-jwt-secret-key-minimum-32-chars-long-12345
+          JWT_EXPIRES_IN: 1d
+          NOTIFICATION_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+          WEBHOOK_HMAC_SECRET: test-webhook-hmac-secret-key-32-chars
+          ALLOW_LOOPBACK_WEBHOOK_FOR_TESTS: 'true'
+          NEXT_PUBLIC_API_URL: http://localhost:4000
 
       - name: Run E2E & Integration Tests
         run: pnpm test:e2e
         env:
           DATABASE_URL: postgresql://flowgate:flowgate_dev_password@localhost:5432/flowgate_dev?schema=public
-          JWT_SECRET: test-jwt-secret-key-minimum-32-chars
-          ALLOW_INSECURE_HTTP_WEBHOOKS: 'true'
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: test-jwt-secret-key-minimum-32-chars-long-12345
+          JWT_EXPIRES_IN: 1d
+          NOTIFICATION_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+          WEBHOOK_HMAC_SECRET: test-webhook-hmac-secret-key-32-chars
           ALLOW_LOOPBACK_WEBHOOK_FOR_TESTS: 'true'
-          REDIS_HOST: 'localhost'
-          REDIS_PORT: '6379'
+          NEXT_PUBLIC_API_URL: http://localhost:4000
 
       - name: Build Shared Packages & Applications
         run: pnpm build
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:4000
 
       - name: Validate Docker Compose Configuration
         run: docker compose config
