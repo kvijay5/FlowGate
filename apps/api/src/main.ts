@@ -9,7 +9,7 @@ async function bootstrap() {
 
   const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:3000';
   app.enableCors({
-    origin: corsOrigin.split(','),
+    origin: corsOrigin === '*' ? true : corsOrigin.split(',').map((o) => o.trim()),
     credentials: true,
   });
 
@@ -46,10 +46,10 @@ async function bootstrap() {
   });
 
   const port = process.env.API_PORT || process.env.PORT || 4000;
-  await app.listen(port);
-  logger.log(`FlowGate API is running on: http://localhost:${port}`);
-  logger.log(`Health check available at: http://localhost:${port}/health`);
-  logger.log(`OpenAPI documentation available at: http://localhost:${port}/api/docs`);
+  await app.listen(port, '0.0.0.0');
+  logger.log(`FlowGate API is running on port: ${port}`);
+  logger.log(`Health check available at: /health`);
+  logger.log(`OpenAPI documentation available at: /api/docs`);
 }
 
 bootstrap();

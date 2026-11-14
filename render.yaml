@@ -1,0 +1,41 @@
+services:
+  - type: web
+    name: flowgate-api
+    runtime: node
+    plan: starter
+    buildCommand: pnpm install && pnpm db:generate && pnpm build:shared && pnpm --filter api build
+    startCommand: pnpm --filter api run deploy:prod
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 1d
+      - key: NOTIFICATION_ENCRYPTION_KEY
+        generateValue: true
+      - key: WEBHOOK_HMAC_SECRET
+        generateValue: true
+      - key: CORS_ORIGIN
+        value: '*'
+      - key: DATABASE_URL
+        fromDatabase:
+          name: flowgate-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: flowgate-redis
+          property: connectionString
+
+databases:
+  - name: flowgate-postgres
+    plan: starter
+    databaseName: flowgate
+    user: flowgate
+
+  - name: flowgate-redis
+    plan: starter
